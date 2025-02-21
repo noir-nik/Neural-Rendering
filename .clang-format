@@ -1,0 +1,32 @@
+UseTab: ForContinuationAndIndentation
+IndentWidth: 4
+TabWidth: 4
+ColumnLimit: 130
+PointerAlignment: Left
+SpaceBeforeParens: Custom
+SpaceBeforeParensOptions:
+  AfterControlStatements: true
+AlignArrayOfStructures: Left
+
+AlignConsecutiveDeclarations:
+  # Enabled: false
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+
+AlignConsecutiveAssignments:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+  PadOperators: true
+
+AlignConsecutiveShortCaseStatements:
+  Enabled: true
+  AcrossEmptyLines: true
+  AcrossComments: true
+  AlignCaseColons: false
+  AlignCaseArrows: true
+
+AlignEscapedNewlines : DontAlign
+
+BreakTemplateDeclarations: Yes
