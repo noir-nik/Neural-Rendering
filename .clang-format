@@ -1,7 +1,7 @@
 UseTab: ForContinuationAndIndentation
 IndentWidth: 4
 TabWidth: 4
-ColumnLimit: 130
+ColumnLimit: 160
 PointerAlignment: Left
 SpaceBeforeParens: Custom
 SpaceBeforeParensOptions:
@@ -27,6 +27,8 @@ AlignConsecutiveShortCaseStatements:
   AlignCaseColons: false
   AlignCaseArrows: true
 
-AlignEscapedNewlines : DontAlign
-
+AlignEscapedNewlines: DontAlign
 BreakTemplateDeclarations: Yes
+PackConstructorInitializers: CurrentLine
+AccessModifierOffset: -4
+InsertNewlineAtEOF: true
