@@ -9,10 +9,15 @@ set(CMAKE_CXX_MODULE_STD 1)
 
 option(NG_BUILD_SAMPLES "Build samples" OFF)
 
-# add_executable(${PROJECT_NAME})
+# Sources
+file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "Source/*.cpp")
+
+set(ALL_SOURCES
+	${SOURCES}
+)
 
 add_library(${PROJECT_NAME} ${SOURCES})
-add_library(NeuralGraphics::NeuralGraphics ALIAS NeuralGraphics)
+add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 find_package(Vulkan REQUIRED)
 if( ${Vulkan_VERSION} VERSION_LESS "1.3.296" )
@@ -34,18 +39,10 @@ target_compile_definitions(${PROJECT_NAME} PUBLIC ${VULKAN_HPP_DEFINITIONS})
 # Includes
 set(INCLUDE_DIRS
 	External/Vma/include
+	Source
 )
 
-target_include_directories(${PROJECT_NAME} PRIVATE ${INCLUDE_DIRS})
-
-# Sources
-file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "Source/*.cpp")
-
-set(ALL_SOURCES
-	${SOURCES}
-)
-
-target_sources(${PROJECT_NAME} PUBLIC ${ALL_SOURCES})
+target_include_directories(${PROJECT_NAME} PUBLIC ${INCLUDE_DIRS})
 
 # Modules
 file(GLOB_RECURSE MODULE_SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "Source/*.cppm")
@@ -63,18 +60,24 @@ target_compile_features(
 	INTERFACE cxx_std_20
 )
 
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-# set(SOME_OPTION ON)
-# add_subdirectory()
+# Add Vulkan module
+add_library( VulkanHppModule )
+target_sources( VulkanHppModule PUBLIC
+	FILE_SET CXX_MODULES
+	BASE_DIRS ${Vulkan_INCLUDE_DIR}
+	FILES ${Vulkan_INCLUDE_DIR}/vulkan/vulkan.cppm
+)
+target_compile_features( VulkanHppModule PUBLIC cxx_std_20 )
+target_link_libraries( VulkanHppModule PUBLIC Vulkan::Vulkan )
 
-# target_link_libraries(${PROJECT_NAME} PRIVATE
-# 	SOME_LIBRARY::PARTITION
-# )
+target_link_libraries( ${PROJECT_NAME} PUBLIC VulkanHppModule )
+target_compile_definitions(VulkanHppModule PUBLIC ${VULKAN_HPP_DEFINITIONS})
 
 if (NG_BUILD_SAMPLES)
 	add_subdirectory(Samples)
 endif()
 
-# cmake . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS="-stdlib=libc++ -fno-rtti -fno-exceptions" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DNG_BUILD_SAMPLES=ON
-# cmake . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl
-# cmake --build build
+# cmake . -B Build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS="-stdlib=libc++ -fno-rtti -fno-exceptions" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DNG_BUILD_SAMPLES=ON
+# cmake . -B Build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS="-stdlib=libc++ -fno-rtti -fno-exceptions -fsanitize=address -fsanitize=undefined -fsanitize=leak" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DNG_BUILD_SAMPLES=ON
+# cmake . -B Build/cl -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DNG_BUILD_SAMPLES=ON -DCMAKE_CXX_FLAGS="/D_HAS_EXCEPTIONS=0 /GR- /fsanitize=address "
+# cmake --build Build

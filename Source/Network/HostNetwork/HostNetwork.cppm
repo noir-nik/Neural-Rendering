@@ -2,7 +2,7 @@ export module NeuralGraphics:HostNetwork;
 import :GenericNetwork;
 import :HostLayers;
 import :Core;
-import :Util;
+import :Utils;
 import std;
 
 export namespace ng {

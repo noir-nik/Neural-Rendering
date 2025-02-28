@@ -4,7 +4,7 @@ module;
 
 module NeuralGraphics;
 import :GenericNetwork;
-import :Util;
+import :Utils;
 import std;
 namespace ng {
 

@@ -1,7 +1,7 @@
 export module NeuralGraphics:Core.Types;
 import std;
 
-export namespace ng {
+export namespace ng::Types {
 
 using u8  = std::uint8_t;
 using u16 = std::uint16_t;
@@ -15,4 +15,8 @@ using i64 = std::int64_t;
 
 using f32 = float;
 using f64 = double;
-} // namespace ng
+} // namespace ng::Types
+
+export namespace ng {
+using namespace ng::Types;
+}
