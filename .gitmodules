@@ -1,3 +1,6 @@
 [submodule "External/Vma"]
 	path = External/Vma
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+[submodule "External/Glfw"]
+	path = External/Glfw
+	url = https://github.com/glfw/glfw.git

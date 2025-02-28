@@ -1,12 +1,12 @@
 UseTab: ForContinuationAndIndentation
 IndentWidth: 4
 TabWidth: 4
-ColumnLimit: 160
+ColumnLimit: 0
 PointerAlignment: Left
 SpaceBeforeParens: Custom
 SpaceBeforeParensOptions:
   AfterControlStatements: true
-AlignArrayOfStructures: Left
+# AlignArrayOfStructures: Left
 
 AlignConsecutiveDeclarations:
   # Enabled: false
@@ -32,3 +32,8 @@ BreakTemplateDeclarations: Yes
 PackConstructorInitializers: CurrentLine
 AccessModifierOffset: -4
 InsertNewlineAtEOF: true
+# AlignAfterOpenBracket: BlockIndent
+AlignOperands: Align
+AllowShortIfStatementsOnASingleLine: WithoutElse
+# SeparateDefinitionBlocks: Always
+AllowShortCaseLabelsOnASingleLine: true

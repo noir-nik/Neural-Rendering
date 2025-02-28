@@ -1,12 +1,7 @@
-export module NeuralGraphics:Util;
+export module NeuralGraphics:MetaUtils;
 import std;
 
 export namespace ng {
-
-template <class... Ts>
-struct Visitor : Ts... {
-	using Ts::operator()...;
-};
 
 template <typename T, typename... Ts>
 using IsAny = std::disjunction<std::is_same<T, Ts>...>;

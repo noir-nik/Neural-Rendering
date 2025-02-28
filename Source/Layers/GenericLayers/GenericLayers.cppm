@@ -1,6 +1,6 @@
 export module NeuralGraphics:GenericLayers;
 import :Core;
-import :Util;
+import :Utils;
 import std;
 
 export namespace ng {
@@ -52,7 +52,14 @@ public:
 	Softmax(u32 size = 0) : ILayer(size, size) {}
 };
 
-using LayerVariant = std::variant<Linear, Relu, Sigmoid, Softmax>;
+using LayerVariantBase = std::variant<Linear, Relu, Sigmoid, Softmax>;
+
+struct LayerVariant : LayerVariantBase {
+	using LayerVariantBase::LayerVariantBase;
+
+	auto GetOutputSize() const -> u32 { return std::visit([](auto const& layer) { return layer.GetOutputSize(); }, *this); }
+	auto GetInputSize() const -> u32 { return std::visit([](auto const& layer) { return layer.GetInputSize(); }, *this); }
+};
 
 template <typename T>
 struct IsActivationLayer {
