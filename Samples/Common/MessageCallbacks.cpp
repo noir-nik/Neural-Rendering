@@ -10,7 +10,15 @@ import vulkan_hpp;
 
 vk::Bool32 DebugUtilsCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
 							  vk::DebugUtilsMessageTypeFlagsEXT             messageTypes,
-							  const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {
+							  const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData,
+							  void*                                         pUserData) {
+
+	// Silence validation layer not knowing Cooperative Vector extension
+	switch (static_cast<unsigned>(pCallbackData->messageIdNumber)) {
+	case 0x79de34d4: [[fallthrough]];
+	case 0x901f59ec:
+		return vk::False;
+	}
 	if (messageSeverity & vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose) {
 		std::printf("%s\n", pCallbackData->pMessage);
 	}

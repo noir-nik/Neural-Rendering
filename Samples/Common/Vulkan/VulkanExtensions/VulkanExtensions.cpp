@@ -30,4 +30,11 @@ void LoadInstanceCooperativeMatrix2FunctionsNV(vk::Instance instance) {
 		vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceCooperativeMatrixFlexibleDimensionsPropertiesNV"));
 }
 
-void LoadDeviceCooperativeMatrixFunctionsNV(vk::Device device) {}
+void LoadDeviceCooperativeMatrixFunctionsNV(vk::Instance instance) {
+	pfn_vkGetPhysicalDeviceCooperativeVectorPropertiesNV = reinterpret_cast<PFN_vkGetPhysicalDeviceCooperativeVectorPropertiesNV>(
+		vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceCooperativeVectorPropertiesNV"));
+	pfn_vkConvertCooperativeVectorMatrixNV = reinterpret_cast<PFN_vkConvertCooperativeVectorMatrixNV>(
+		vkGetInstanceProcAddr(instance, "vkConvertCooperativeVectorMatrixNV"));
+	pfn_vkCmdConvertCooperativeVectorMatrixNV = reinterpret_cast<PFN_vkCmdConvertCooperativeVectorMatrixNV>(
+		vkGetInstanceProcAddr(instance, "vkCmdConvertCooperativeVectorMatrixNV"));
+}
