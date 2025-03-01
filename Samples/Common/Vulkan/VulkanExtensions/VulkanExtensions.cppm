@@ -6,5 +6,5 @@ export {
 	void LoadDeviceDebugUtilsFunctionsEXT(vk::Device device);
 	void LoadInstanceCooperativeMatrixFunctionsKHR(vk::Instance instance);
 	void LoadInstanceCooperativeMatrix2FunctionsNV(vk::Instance instance);
-	void LoadDeviceCooperativeVectorFunctionsNV(vk::Device device);
+	void LoadInstanceCooperativeVectorFunctionsNV(vk::Instance instance);
 }

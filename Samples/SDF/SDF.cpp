@@ -25,16 +25,16 @@ static constexpr u32 kApiVersion = vk::ApiVersion13;
 static constexpr char const* kEnabledLayers[]           = {"VK_LAYER_KHRONOS_validation"};
 static constexpr char const* kEnabledDeviceExtensions[] = {
 	vk::KHRSwapchainExtensionName,
-	// vk::NVCooperativeVectorExtensionName,
+	vk::NVCooperativeVectorExtensionName,
 };
 
 struct PhysicalDevice : public VulkanRHI::PhysicalDevice {
 	bool IsSuitable(vk::SurfaceKHR const& surface) {
-		bool const bSupportsExtensions = SupportsExtensions(kEnabledDeviceExtensions);
-		bool const bSupportsQueues     = SupportsQueue({.flags = vk::QueueFlagBits::eGraphics, .surface = surface});
-		// bool const bSupportsCooperativeVector = cooperative_vector_features.cooperativeVector == vk::True;
+		bool const bSupportsExtensions        = SupportsExtensions(kEnabledDeviceExtensions);
+		bool const bSupportsQueues            = SupportsQueue({.flags = vk::QueueFlagBits::eGraphics, .surface = surface});
+		bool const bSupportsCooperativeVector = cooperative_vector_features.cooperativeVector == vk::True;
 
-		if (bSupportsExtensions /* && bSupportsCooperativeVector  */ && bSupportsQueues) {
+		if (bSupportsExtensions && bSupportsCooperativeVector && bSupportsQueues) {
 			return true;
 		}
 		return false;
@@ -51,7 +51,7 @@ struct Vertex {
 	} position;
 };
 
-constexpr Vertex vertices[] = {
+constexpr Vertex kVertices[] = {
 	Vertex{-1.0, -1.0, 0.0},
 	Vertex{-1.0, 1.0, 0.0},
 	Vertex{1.0, -1.0, 0.0},
@@ -93,8 +93,8 @@ public:
 
 	Window window{};
 	struct {
-		float x = 0.5f;
-		float y = 0.5f;
+		float x = 300.0f;
+		float y = 300.0f;
 	} mouse;
 
 	vk::Instance                    instance{};
@@ -177,8 +177,9 @@ void SDFSample::Init() {
 
 	CreatePipelineLayout();
 	CreatePipeline();
-
 	// CreateVertexBuffer();
+
+	
 }
 
 SDFSample::~SDFSample() { Destroy(); }
@@ -276,6 +277,7 @@ void SDFSample::SelectPhysicalDevice() {
 
 	std::printf("No suitable physical device found\n");
 	// std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+	std::getchar();
 	std::exit(1);
 }
 
@@ -287,62 +289,38 @@ void SDFSample::CreateDevice() {
 
 	auto [result, index] = physical_device.GetQueueFamilyIndex({.flags = vk::QueueFlagBits::eGraphics, .surface = surface});
 	if (result != vk::Result::eSuccess || !index.has_value()) {
-		std::printf("Failed to get graphics queue family index\n");
-		std::exit(1);
+		std::printf("Failed to get graphics queue family index with surface support\n");
+		CHECK_RESULT(result);
 	}
 
 	queue_family_index = index.value();
 
-	vk::DeviceQueueCreateInfo queue_create_infos[] = {
-		{
-			.queueFamilyIndex = queue_family_index,
-			.queueCount       = 1,
-			.pQueuePriorities = queue_priorities,
-		}};
+	vk::DeviceQueueCreateInfo queue_create_infos[] = {{
+		.queueFamilyIndex = queue_family_index,
+		.queueCount       = 1,
+		.pQueuePriorities = queue_priorities,
+	}};
 
-	std::span enabled_extensions = kEnabledDeviceExtensions;
-
-	vk::PhysicalDeviceFeatures2 features2;
-
-	vk::PhysicalDeviceVulkan11Features vulkan11{
-		.storageBuffer16BitAccess = vk::True,
+	vk::StructureChain features{
+		vk::PhysicalDeviceFeatures2{},
+		vk::PhysicalDeviceVulkan11Features{.storageBuffer16BitAccess = vk::True},
+		vk::PhysicalDeviceVulkan12Features{.shaderFloat16 = vk::True, .bufferDeviceAddress = vk::True},
+		vk::PhysicalDeviceVulkan13Features{.synchronization2 = vk::True, .dynamicRendering = vk::True},
+		vk::PhysicalDeviceCooperativeVectorFeaturesNV{.cooperativeVector = vk::True, .cooperativeVectorTraining = vk::True},
 	};
-
-	vk::PhysicalDeviceVulkan12Features vulkan12{
-		.shaderFloat16       = vk::True,
-		.bufferDeviceAddress = vk::True,
-	};
-
-	vk::PhysicalDeviceVulkan13Features vulkan13{
-		.synchronization2 = vk::True,
-		.dynamicRendering = vk::True,
-	};
-
-	vk::PhysicalDeviceCooperativeVectorFeaturesNV cooperative_vector_features{
-		.cooperativeVector = vk::True,
-	};
-
-	features2.pNext = &vulkan11;
-	vulkan11.pNext  = &vulkan12;
-	vulkan12.pNext  = &vulkan13;
-	vulkan13.pNext  = &cooperative_vector_features;
 
 	vk::DeviceCreateInfo info{
-		.pNext                   = &features2,
+		.pNext                   = &features.get<vk::PhysicalDeviceFeatures2>(),
 		.queueCreateInfoCount    = static_cast<u32>(std::size(queue_create_infos)),
 		.pQueueCreateInfos       = queue_create_infos,
 		.enabledLayerCount       = static_cast<u32>(std::size(enabled_layers)),
 		.ppEnabledLayerNames     = enabled_layers.data(),
-		.enabledExtensionCount   = static_cast<u32>(std::size(enabled_extensions)),
-		.ppEnabledExtensionNames = enabled_extensions.data(),
+		.enabledExtensionCount   = static_cast<u32>(std::size(kEnabledDeviceExtensions)),
+		.ppEnabledExtensionNames = kEnabledDeviceExtensions,
 	};
-	CHECK_RESULT(physical_device.createDevice(&info, GetAllocator(), &device));
 
-	for (auto& info : queue_create_infos) {
-		for (u32 index = 0; index < info.queueCount; ++index) {
-			queue = device.getQueue(info.queueFamilyIndex, index);
-		}
-	}
+	CHECK_RESULT(physical_device.createDevice(&info, GetAllocator(), &device));
+	queue = device.getQueue(queue_create_infos[0].queueFamilyIndex, 0);
 }
 
 void SDFSample::CreateVmaAllocator() {
@@ -435,14 +413,13 @@ void SDFSample::CreatePipelineLayout() {
 	CHECK_RESULT(device.createPipelineLayout(&info, GetAllocator(), &pipeline_layout));
 }
 
-void SDFSample::CreatePipeline() {
+bool bSlang = false;
 
+void SDFSample::CreatePipeline() {
 	std::optional<std::vector<std::byte>> shader_codes[] = {
-		// ng::ReadBinaryFile("Shaders/SimpleSdf.vert.spv"),
-		// ng::ReadBinaryFile("Shaders/SimpleSdfDebug.frag.spv"),
 		ng::ReadBinaryFile("Shaders/Quad.vert.spv"),
-		// ng::ReadBinaryFile("Shaders/SimpleSdfDebug.frag.spv"),
-		ng::ReadBinaryFile("Shaders/SimpleSdf.frag.spv"),
+		ng::ReadBinaryFile(bSlang ? "Shaders/SimpleSdf.slang.spv" : "Shaders/SimpleSdf.frag.spv"),
+		// ng::ReadBinaryFile("Shaders/SimpleSdf.slang.spv"),
 	};
 
 	for (auto const& code : shader_codes) {
@@ -575,27 +552,27 @@ void SDFSample::CreatePipeline() {
 void SDFSample::CreateVertexBuffer() {
 	// clang-format off
 	CHECK_RESULT(staging_buffer.Create(device, vma_allocator, {
-		.size   = sizeof(vertices),
+		.size   = sizeof(kVertices),
 		.usage  = vk::BufferUsageFlagBits::eTransferSrc,
 		.memory = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
 	}));
 
 	CHECK_RESULT(vertex_buffer.Create(device, vma_allocator, {
-		.size   = sizeof(vertices),
+		.size   = sizeof(kVertices),
 		.usage  = vk::BufferUsageFlagBits::eVertexBuffer |
 				  vk::BufferUsageFlagBits::eTransferDst |
 				  vk::BufferUsageFlagBits::eShaderDeviceAddress,
 		.memory = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
 	}));
 
-	std::memcpy(staging_buffer.GetMappedData(), vertices, sizeof(vertices));
+	std::memcpy(staging_buffer.GetMappedData(), kVertices, sizeof(kVertices));
 
 	vk::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
 	CHECK_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
 	cmd.copyBuffer(staging_buffer, vertex_buffer, {{
 		.srcOffset = 0,
 		.dstOffset = 0,
-		.size      = sizeof(vertices),
+		.size      = sizeof(kVertices),
 	}});
 	CHECK_RESULT(cmd.end());
 	CHECK_RESULT(queue.submit({vk::SubmitInfo{.commandBufferCount = 1, .pCommandBuffers = &cmd}}));
@@ -634,10 +611,10 @@ void SDFSample::RecordCommands() {
 	cmd.SetViewport({0.0f, static_cast<float>(height), static_cast<float>(width), -static_cast<float>(height), 0.0f, 1.0f});
 	cmd.SetScissor(render_rect);
 	cmd.Barrier({
-		.image      = swapchain_image,
-		.aspectMask = vk::ImageAspectFlagBits::eColor,
-		.oldLayout  = vk::ImageLayout::eUndefined,
-		.newLayout  = vk::ImageLayout::eColorAttachmentOptimal,
+		.image         = swapchain_image,
+		.aspectMask    = vk::ImageAspectFlagBits::eColor,
+		.oldLayout     = vk::ImageLayout::eUndefined,
+		.newLayout     = vk::ImageLayout::eColorAttachmentOptimal,
 		.srcStageMask  = vk::PipelineStageFlagBits2::eNone,
 		.srcAccessMask = vk::AccessFlagBits2::eNone,
 		.dstStageMask  = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
@@ -648,9 +625,6 @@ void SDFSample::RecordCommands() {
 		.colorAttachments = {{{
 			.imageView   = swapchain.GetCurrentImageView(),
 			.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
-			.loadOp      = vk::AttachmentLoadOp::eClear,
-			.storeOp     = vk::AttachmentStoreOp::eStore,
-			.clearValue  = {.color = {.float32 = {{0.2f, 0.2f, 0.2f, 1.0f}}}},
 		}}},
 	});
 	cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
@@ -662,13 +636,13 @@ void SDFSample::RecordCommands() {
 	cmd.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(constants), &constants);
 	// vk::DeviceSize offsets[] = {0};
 	// cmd.bindVertexBuffers(0, 1, &vertex_buffer, offsets);
-	cmd.draw(std::size(vertices), 1, 0, 0);
+	cmd.draw(std::size(kVertices), 1, 0, 0);
 	cmd.endRendering();
 	cmd.Barrier({
-		.image      = swapchain_image,
-		.aspectMask = vk::ImageAspectFlagBits::eColor,
-		.oldLayout  = vk::ImageLayout::eColorAttachmentOptimal,
-		.newLayout  = vk::ImageLayout::ePresentSrcKHR,
+		.image         = swapchain_image,
+		.aspectMask    = vk::ImageAspectFlagBits::eColor,
+		.oldLayout     = vk::ImageLayout::eColorAttachmentOptimal,
+		.newLayout     = vk::ImageLayout::ePresentSrcKHR,
 		.srcStageMask  = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
 		.srcAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
 		.dstStageMask  = vk::PipelineStageFlagBits2::eNone,
@@ -705,7 +679,10 @@ void SDFSample::Run() {
 }
 
 int main(int argc, char const* argv[]) {
-	std::filesystem::current_path(std::filesystem::path(argv[0]).parent_path());
+	std::filesystem::current_path(std::filesystem::absolute(argv[0]).parent_path());
+	if (argc > 1) {
+		bSlang = true;
+	}
 	SDFSample sample;
 	gSDFSample = &sample;
 	sample.Init();

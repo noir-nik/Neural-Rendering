@@ -2,8 +2,18 @@
 
 #include <vulkan/vulkan.h>
 
-extern PFN_vkCreateDebugUtilsMessengerEXT                                     pfn_vkCreateDebugUtilsMessengerEXT;
-extern PFN_vkDestroyDebugUtilsMessengerEXT                                    pfn_vkDestroyDebugUtilsMessengerEXT;
-extern PFN_vkSetDebugUtilsObjectNameEXT                                       pfn_vkSetDebugUtilsObjectNameEXT;
-extern PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR                  pfn_vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR;
+// VK_EXT_debug_utils
+extern PFN_vkCreateDebugUtilsMessengerEXT  pfn_vkCreateDebugUtilsMessengerEXT;
+extern PFN_vkDestroyDebugUtilsMessengerEXT pfn_vkDestroyDebugUtilsMessengerEXT;
+extern PFN_vkSetDebugUtilsObjectNameEXT    pfn_vkSetDebugUtilsObjectNameEXT;
+
+// VK_KHR_cooperative_matrix
+extern PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR pfn_vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR;
+
+// VK_NV_cooperative_matrix2
 extern PFN_vkGetPhysicalDeviceCooperativeMatrixFlexibleDimensionsPropertiesNV pfn_vkGetPhysicalDeviceCooperativeMatrixFlexibleDimensionsPropertiesNV;
+
+// Vulkan VK_NV_cooperative_vector
+extern PFN_vkGetPhysicalDeviceCooperativeVectorPropertiesNV pfn_vkGetPhysicalDeviceCooperativeVectorPropertiesNV;
+extern PFN_vkConvertCooperativeVectorMatrixNV               pfn_vkConvertCooperativeVectorMatrixNV;
+extern PFN_vkCmdConvertCooperativeVectorMatrixNV            pfn_vkCmdConvertCooperativeVectorMatrixNV;

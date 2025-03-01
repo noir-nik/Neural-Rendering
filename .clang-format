@@ -6,7 +6,7 @@ PointerAlignment: Left
 SpaceBeforeParens: Custom
 SpaceBeforeParensOptions:
   AfterControlStatements: true
-# AlignArrayOfStructures: Left
+AlignArrayOfStructures: Left
 
 AlignConsecutiveDeclarations:
   # Enabled: false

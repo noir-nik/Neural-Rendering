@@ -1,0 +1,252 @@
+#include "SDFConstants.h"
+#include "SDFWeights.h"
+// clang-format off
+
+[[vk::push_constant]] SDFConstants ctx;
+
+func RotateAxisAngle(float3 vector, float3 axis, float angle) -> float3 {
+	return lerp(dot(vector, axis) * axis, vector, cos(angle)) + sin(angle) * cross(axis, vector);
+}
+
+func SceneVector(float3 p) -> float {
+	if(length(p) > 1.) {
+		return length(p) - .8;
+	}
+
+	// // 3 -> 16
+	float4 f00 = sin(p.y * float4(-3.02, 1.95, -3.42, -.60) + p.z * float4(3.08, .85, -2.25, -.24) - p.x * float4(-.29, 1.16, -3.74, 2.89) + float4(-.71, 4.50, -3.24, -3.50));
+	float4 f01 = sin(p.y * float4(-.40, -3.61, 3.23, -.14) + p.z * float4(-.36, 3.64, -3.91, 2.66) - p.x * float4(2.90, -.54, -2.75, 2.71) + float4(7.02, -5.41, -1.12, -7.41));
+	float4 f02 = sin(p.y * float4(-1.77, -1.28, -4.29, -3.20) + p.z * float4(-3.49, -2.81, -.64, 2.79) - p.x * float4(3.15, 2.14, -3.85, 1.83) + float4(-2.07, 4.49, 5.33, -2.17));
+	float4 f03 = sin(p.y * float4(-.49, .68, 3.05, .42) + p.z * float4(-2.87, .78, 3.78, -3.41) - p.x * float4(-2.65, .33, .07, -.64) + float4(-3.24, -5.90, 1.14, -4.71));
+
+	// 16 -> 16
+	float4 f10 = sin(mul(f00, float4x4(-.34, .06, -.59, -.76, .10, -.19, -.12, .44, .64, -.02, -.26, .15, -.16, .21, .91, .15)) +
+		mul(f01, float4x4(.01, .54, -.77, .11, .06, -.14, .43, .51, -.18, .08, .39, .20, .33, -.49, -.10, .19)) +
+		mul(f02, float4x4(.27, .22, .43, .53, .18, -.17, .23, -.64, -.14, .02, -.10, .16, -.13, -.06, -.04, -.36)) +
+		mul(f03, float4x4(-.13, .29, -.29, .08, 1.13, .02, -.83, .32, -.32, .04, -.31, -.16, .14, -.03, -.20, .39)) +
+		float4(.73, -4.28, -1.56, -1.80)) / 1.0 + f00;
+	float4 f11 = sin(mul(f00, float4x4(-1.11, .55, -.12, -1.00, .16, .15, -.30, .31, -.01, .01, .31, -.42, -.29, .38, -.04, .71)) +
+		mul(f01, float4x4(.96, -.02, .86, .52, -.14, .60, .44, .43, .02, -.15, -.49, -.05, -.06, -.25, -.03, -.22)) +
+		mul(f02, float4x4(.52, .44, -.05, -.11, -.56, -.10, -.61, -.40, -.04, .55, .32, -.07, -.02, .28, .26, -.49)) +
+		mul(f03, float4x4(.02, -.32, .06, -.17, -.59, .00, -.24, .60, -.06, .13, -.21, -.27, -.12, -.14, .58, -.55)) +
+		float4(-2.24, -3.48, -.80, 1.41)) / 1.0 + f01;
+	float4 f12 = sin(mul(f00, float4x4(.44, -.06, -.79, -.46, .05, -.60, .30, .36, .35, .12, .02, .12, .40, -.26, .63, -.21)) +
+		mul(f01, float4x4(-.48, .43, -.73, -.40, .11, -.01, .71, .05, -.25, .25, -.28, -.20, .32, -.02, -.84, .16)) +
+		mul(f02, float4x4(.39, -.07, .90, .36, -.38, -.27, -1.86, -.39, .48, -.20, -.05, .10, -.00, -.21, .29, .63)) +
+		mul(f03, float4x4(.46, -.32, .06, .09, .72, -.47, .81, .78, .90, .02, -.21, .08, -.16, .22, .32, -.13)) +
+		float4(3.38, 1.20, .84, 1.41)) / 1.0 + f02;
+	float4 f13 = sin(mul(f00, float4x4(-.41, -.24, -.71, -.25, -.24, -.75, -.09, .02, -.27, -.42, .02, .03, -.01, .51, -.12, -1.24)) +
+		mul(f01, float4x4(.64, .31, -1.36, .61, -.34, .11, .14, .79, .22, -.16, -.29, -.70, .02, -.37, .49, .39)) +
+		mul(f02, float4x4(.79, .47, .54, -.47, -1.13, -.35, -1.03, -.22, -.67, -.26, .10, .21, -.07, -.73, -.11, .72)) +
+		mul(f03, float4x4(.43, -.23, .13, .09, 1.38, -.63, 1.57, -.20, .39, -.14, .42, .13, -.57, -.08, -.21, .21)) +
+		float4(-.34, -3.28, .43, -.52)) / 1.0 + f03;
+
+	// 16 -> 16
+	f00 = sin(mul(f10, float4x4(-.72, .23, -.89, .52, .38, .19, -.16, -.88, .26, -.37, .09, .63, .29, -.72, .30, -.95)) +
+		mul(f11, float4x4(-.22, -.51, -.42, -.73, -.32, .00, -1.03, 1.17, -.20, -.03, -.13, -.16, -.41, .09, .36, -.84)) +
+		mul(f12, float4x4(-.21, .01, .33, .47, .05, .20, -.44, -1.04, .13, .12, -.13, .31, .01, -.34, .41, -.34)) +
+		mul(f13, float4x4(-.13, -.06, -.39, -.22, .48, .25, .24, -.97, -.34, .14, .42, -.00, -.44, .05, .09, -.95)) +
+		float4(.48, .87, -.87, -2.06)) / 1.4 + f10;
+	f01 = sin(mul(f10, float4x4(-.27, .29, -.21, .15, .34, -.23, .85, -.09, -1.15, -.24, -.05, -.25, -.12, -.73, -.17, -.37)) +
+		mul(f11, float4x4(-1.11, .35, -.93, -.06, -.79, -.03, -.46, -.37, .60, -.37, -.14, .45, -.03, -.21, .02, .59)) +
+		mul(f12, float4x4(-.92, -.17, -.58, -.18, .58, .60, .83, -1.04, -.80, -.16, .23, -.11, .08, .16, .76, .61)) +
+		mul(f13, float4x4(.29, .45, .30, .39, -.91, .66, -.35, -.35, .21, .16, -.54, -.63, 1.10, -.38, .20, .15)) +
+		float4(-1.72, -.14, 1.92, 2.08)) / 1.4 + f11;
+	f02 = sin(mul(f10, float4x4(1.00, .66, 1.30, -.51, .88, .25, -.67, .03, -.68, -.08, -.12, -.14, .46, 1.15, .38, -.10)) +
+		mul(f11, float4x4(.51, -.57, .41, -.09, .68, -.50, -.04, -1.01, .20, .44, -.60, .46, -.09, -.37, -1.30, .04)) +
+		mul(f12, float4x4(.14, .29, -.45, -.06, -.65, .33, -.37, -.95, .71, -.07, 1.00, -.60, -1.68, -.20, -.00, -.70)) +
+		mul(f13, float4x4(-.31, .69, .56, .13, .95, .36, .56, .59, -.63, .52, -.30, .17, 1.23, .72, .95, .75)) +
+		float4(-.90, -3.26, -.44, -3.11)) / 1.4 + f12;
+	f03 = sin(mul(f10, float4x4(.51, -.98, -.28, .16, -.22, -.17, -1.03, .22, .70, -.15, .12, .43, .78, .67, -.85, -.25)) +
+		mul(f11, float4x4(.81, .60, -.89, .61, -1.03, -.33, .60, -.11, -.06, .01, -.02, -.44, .73, .69, 1.02, .62)) +
+		mul(f12, float4x4(-.10, .52, .80, -.65, .40, -.75, .47, 1.56, .03, .05, .08, .31, -.03, .22, -1.63, .07)) +
+		mul(f13, float4x4(-.18, -.07, -1.22, .48, -.01, .56, .07, .15, .24, .25, -.09, -.54, .23, -.08, .20, .36)) +
+		float4(-1.11, -4.28, 1.02, -.23)) / 1.4 + f13;
+	
+	// 16 -> 1
+	return dot(f00, float4(.09, .12, -.07, -.03)) + dot(f01, float4(-.04, .07, -.08, .05)) +
+		dot(f02, float4(-.01, .06, -.02, .07)) + dot(f03, float4(-.05, .07, .03, .04)) - 0.16;
+}
+
+func SceneScalar(float3 p) -> float {
+	if(length(p) > 1.) {
+		return length(p) - .8;
+	}
+
+	float input0[3] = {p.x, p.y, p.z};
+	float output0[16] = bias0;
+	float output1[16] = bias1;
+	float output2[16] = bias2;
+	float output3 = bias3;
+
+	// Forward pass
+	for (int i = 0; i < 16; ++i) {
+		for (int j = 0; j < 3; ++j) {
+			output0[i] += weights0[i][j] * input0[j];
+		}
+		output0[i] = sin(output0[i]);
+	}
+
+	for (int i = 0; i < 16; ++i) {
+		for (int j = 0; j < 16; ++j) {
+			output1[i] += weights1[i][j] * output0[j];
+		}
+		output1[i] = sin(output1[i]) + output0[i];
+	}
+
+	for (int i = 0; i < 16; ++i) {
+		for (int j = 0; j < 16; ++j) {
+			output2[i] += weights2[i][j] * output1[j];
+		}
+		output2[i] = sin(output2[i]) / 1.4 + output1[i];
+	}
+
+	for (int i = 0; i < 16; ++i) {
+		output3 += weights3[i] * output2[i];
+	}
+
+	return output3;
+}
+
+float3 D_SceneScalar(float3 p) {
+	if (length(p) > 1.) {
+		return normalize(p);
+	}
+
+	float input0[3] = {p.x, p.y, p.z};
+	float z0[16] = bias0;
+	float z1[16] = bias1;
+	float z2[16] = bias2;
+	float z3 = bias3;
+	
+	float output0[16];
+	float output1[16];
+	float output2[16];
+	float output3;
+
+	// Forward pass
+	for (int i = 0; i < 16; ++i) {
+		for (int j = 0; j < 3; ++j) {
+			z0[i] += weights0[i][j] * input0[j];
+		}
+		output0[i] = sin(z0[i]);
+	}
+
+	for (int i = 0; i < 16; ++i) {
+		for (int j = 0; j < 16; ++j) {
+			z1[i] += weights1[i][j] * output0[j];
+		}
+		output1[i] = sin(z1[i]) + output0[i];
+	}
+
+	for (int i = 0; i < 16; ++i) {
+		for (int j = 0; j < 16; ++j) {
+			z2[i] += weights2[i][j] * output1[j];
+		}
+		output2[i] = sin(z2[i]) / 1.4 + output1[i];
+	}
+
+	for (int i = 0; i < 16; ++i) {
+		z3 += weights3[i] * output2[i];
+	}
+	output3 = z3;
+
+	// Backward pass
+	float d_output3 = 1.0f;
+	float d_output2[16];
+	float d_output1[16];
+	float d_output0[16];
+	float d_input[3] = {0, 0, 0};
+
+	for (int i = 0; i < 16; ++i) {
+		d_output2[i] = d_output3 * weights3[i];
+	}
+
+	// Skip connection
+	for (int i = 0; i < 16; ++i) {
+		d_output1[i] = d_output2[i];
+	}
+	
+	for (int j = 0; j < 16; ++j) {
+		for (int i = 0; i < 16; ++i) {
+			d_output1[j] += d_output2[i] * weights2[i][j] * cos(z2[i]) / 1.4;
+		}
+	}
+
+	// Skip connection
+	for (int i = 0; i < 16; ++i) {
+		d_output0[i] = d_output1[i];
+	}
+
+	for (int j = 0; j < 16; ++j) {
+		for (int i = 0; i < 16; ++i) {
+			d_output0[j] += d_output1[i] * weights1[i][j] * cos(z1[i]);
+		}
+	}
+
+	for (int j = 0; j < 3; ++j) {
+		for (int i = 0; i < 16; ++i) {
+			d_input[j] += d_output0[i] * weights0[i][j] * cos(z0[i]);
+		}
+	}
+
+	return {d_input[0], d_input[1], d_input[2]};
+}
+
+func Scene(float3 p) -> float {
+	return SceneScalar(p);
+}
+
+func GetNormal(float3 p) -> float3 {
+	return normalize(Scene(p) - float3(Scene(p - float3(0.001, 0, 0)), Scene(p - float3(0, 0.001, 0)), Scene(p - float3(0, 0, 0.001))));
+}
+
+[shader("fragment")]
+void main(float2 fragCoord, out float4 fragColor: SV_Target0) {
+	float2 uv = (fragCoord - 0.5 );
+	if (ctx.resolution.x < ctx.resolution.y) {
+		uv.y *= ctx.resolution.y / ctx.resolution.x;
+	} else {
+		uv.x *= ctx.resolution.x / ctx.resolution.y;
+	}
+	float2 mouse = (ctx.mouse.xy - 0.5 * ctx.resolution.xy) / ctx.resolution.y;
+	
+	float3 cam = normalize(float3(1.5, uv));
+	float3 init = float3(-3., 0, 0);
+
+	float yrot = 0.5;
+	float zrot = 0.5;
+	zrot = 4. * mouse.x;
+	if (true) {
+		yrot += -4.*mouse.y;
+		zrot = 4.*mouse.x;
+	}
+	cam = RotateAxisAngle(cam, float3(0, 1, 0), yrot);
+	init = RotateAxisAngle(init, float3(0, 1, 0), yrot);
+	cam = RotateAxisAngle(cam, float3(0, 0, 1), zrot);
+	init = RotateAxisAngle(init, float3(0, 0, 1), zrot);
+
+	float3 p = init;
+	bool hit = false;
+	for(int i = 0; i < 150 && !hit; ++i) {
+		float dist = Scene(p);
+		hit = dist * dist < 1e-5;
+		p += dist * cam;
+		if(distance(p, init) > 5.)
+			break;
+	}
+	float3 n = GetNormal(p);
+	// float3 n = D_SceneScalar(p);
+	float3 r = reflect(cam, n);
+	// float3 nz = p - RotateAxisAngle(p, float3(1, 1, 1), 2.) + RotateAxisAngle(p, float3(1, 1, 1), 4.);
+	// float spec = length(sin(r*3.5+sin(nz*120.)*.15)*.4+.6)/sqrt(3.);
+	float spec = length(sin(r * 3.5) * .4 + .6) / sqrt(3.);
+
+	spec *= smoothstep(-.3, .2, Scene(p + r * .2));
+	float3 col = float3(.1, .1, .12) * spec + pow(spec, 8.);
+	// float3 col = n;
+	float bgdot = length(sin(cam * 8.) * .4 + .6) / 2.;
+	float3 bg = float3(.1, .1, .11) * bgdot + pow(bgdot, 10.);
+	fragColor.xyz = hit ? col : bg;
+	fragColor = smoothstep(-.02, 1.05, sqrt(fragColor)) * (1. - dot(uv, uv) * .5);
+}
