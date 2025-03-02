@@ -1,10 +1,10 @@
 #include "../Common/Vulkan/CheckResult.h"
 #include "Shaders/SDFConstants.h"
+import std;
 #include "Shaders/SDFWeights.h"
 
 import NeuralGraphics;
 import vulkan_hpp;
-import std;
 import WindowManager;
 import VulkanExtensions;
 import VulkanFunctions;
@@ -21,10 +21,10 @@ bool bValidation = true;
 
 static constexpr u32 kApiVersion = vk::ApiVersion13;
 
-std::size_t const kSdfWeightsSize = (sizeof(kSDFWeights0) + sizeof(kSDFBias0) +
-									 sizeof(kSDFWeights1) + sizeof(kSDFBias1) +
-									 sizeof(kSDFWeights2) + sizeof(kSDFBias2) +
-									 sizeof(kSDFWeights3) + sizeof(kSDFBias3));
+// std::size_t const kSdfWeightsSize = (sizeof(kSDFWeights0) + sizeof(kSDFBias0) +
+// 									 sizeof(kSDFWeights1) + sizeof(kSDFBias1) +
+// 									 sizeof(kSDFWeights2) + sizeof(kSDFBias2) +
+// 									 sizeof(kSDFWeights3) + sizeof(kSDFBias3));
 
 static constexpr char const* kEnabledLayers[]           = {"VK_LAYER_KHRONOS_validation"};
 static constexpr char const* kEnabledDeviceExtensions[] = {
@@ -33,9 +33,6 @@ static constexpr char const* kEnabledDeviceExtensions[] = {
 	vk::NVCooperativeVectorExtensionName,
 	vk::EXTShaderReplicatedCompositesExtensionName,
 };
-
-std::uint32_t gWeightsOffsets[4];
-std::uint32_t gBiasOffsets[4];
 
 struct PhysicalDevice : public VulkanRHI::PhysicalDevice {
 	PhysicalDevice() {
@@ -77,6 +74,11 @@ constexpr Vertex kVertices[] = {
 
 class SDFSample {
 public:
+	vk::ComponentTypeKHR kSrcComponentType = SRC_COMPONENT_TYPE;
+	vk::ComponentTypeKHR kDstMatrixType    = DST_MATRIX_TYPE;
+	vk::ComponentTypeKHR kDstVectorType    = DST_VECTOR_TYPE;
+	vk::CooperativeVectorMatrixLayoutNV kDstLayout = MATRIX_LAYOUT;
+
 	~SDFSample();
 
 	void Init();
@@ -97,17 +99,17 @@ public:
 	void CreatePipelineLayout();
 	void CreatePipeline();
 
-	void BuildNetwork();
-	void CreateBuffers();
-	void UploadWeightsRaw();
+	// void BuildNetwork();
+	void CreateBuffers(std::size_t size);
 	void UploadNetworkWeights();
+	void UploadNetworkRaw();
 
 	void RecordCommands();
 	void DrawWindow();
 	void RecreateSwapchain(int width, int height);
 
-	auto GetAllocator() -> vk::AllocationCallbacks const* { return allocator; }
-	auto GetPipelineCache() -> vk::PipelineCache { return pipeline_cache; }
+	auto GetAllocator() const -> vk::AllocationCallbacks const* { return allocator; }
+	auto GetPipelineCache() const -> vk::PipelineCache { return pipeline_cache; }
 
 	Window window{};
 	struct {
@@ -120,7 +122,7 @@ public:
 	VmaAllocator                    vma_allocator{};
 	vk::PipelineCache               pipeline_cache{nullptr};
 	vk::DebugUtilsMessengerEXT      debug_messenger{};
-	std::span<char const* const>    enabled_layers = {};
+	std::span<char const* const>    enabled_layers{};
 	std::vector<vk::PhysicalDevice> vulkan_physical_devices{};
 	PhysicalDevice                  physical_device{};
 	vk::Device                      device{};
@@ -142,20 +144,20 @@ public:
 	VulkanRHI::Buffer vertex_buffer{};
 	VulkanRHI::Buffer sdf_weights_buffer{};
 
-	ng::VulkanCoopVecNetwork<float, float> network = {
+	ng::VulkanCoopVecNetwork network = {
 		ng::Linear(3, 16),
 		ng::Linear(16, 16),
 		ng::Linear(16, 16),
 		ng::Linear(16, 1),
 	};
-	std::vector<std::byte> network_parameters;
+	// std::vector<std::byte> network_parameters;
 };
 
-SDFSample*  gSDFSample = nullptr;
-static void FramebufferSizeCallback(Window* window, int width, int height) {
-	gSDFSample->swapchain_dirty = true;
-	if (width <= 0 || height <= 0) return;
-	gSDFSample->RecreateSwapchain(width, height);
+static SDFSample* gSDFSample = nullptr;
+static void       FramebufferSizeCallback(Window* window, int width, int height) {
+    gSDFSample->swapchain_dirty = true;
+    if (width <= 0 || height <= 0) return;
+    gSDFSample->RecreateSwapchain(width, height);
 }
 
 static void WindowRefreshCallback(Window* window) {
@@ -204,12 +206,23 @@ void SDFSample::Init() {
 
 	CreatePipelineLayout();
 	CreatePipeline();
-	CreateBuffers();
 
 	LoadInstanceCooperativeVectorFunctionsNV(instance);
 
 	// BuildNetwork();
-	UploadWeightsRaw();
+	CHECK_RESULT(network.UpdateOffsetsAndSize(device,
+											  kDstLayout,
+											  kDstMatrixType,
+											  kDstVectorType));
+
+	std::printf("Parameters: %zu\n", network.GetParametersSize());
+	for (auto& layer : network.GetLayers()) {
+		ng::Linear& linear = layer.Get<ng::Linear>();
+		std::printf("Weights: %zu, Biases: %zu\n", linear.GetWeightsOffset(), linear.GetBiasesOffset());
+	}
+	// network_parameters.resize(network.GetParametersSize());
+	CreateBuffers(network.GetParametersSize());
+	UploadNetworkWeights();
 
 	auto [result, cooperative_vector_properties] = physical_device.getCooperativeVectorPropertiesNV();
 	CHECK_RESULT(result);
@@ -226,17 +239,6 @@ void SDFSample::Init() {
 			std::printf("\n");
 		}
 	}
-
-	// Compute weights and biases offsets
-	gWeightsOffsets[0] = 0u;
-	gWeightsOffsets[1] = gWeightsOffsets[0] + sizeof(kSDFWeights0) + sizeof(kSDFBias0);
-	gWeightsOffsets[2] = gWeightsOffsets[1] + sizeof(kSDFWeights1) + sizeof(kSDFBias1);
-	gWeightsOffsets[3] = gWeightsOffsets[2] + sizeof(kSDFWeights2) + sizeof(kSDFBias2);
-
-	gBiasOffsets[0] = sizeof(kSDFWeights0);
-	gBiasOffsets[1] = gBiasOffsets[0] + sizeof(kSDFBias0) + sizeof(kSDFWeights1);
-	gBiasOffsets[2] = gBiasOffsets[1] + sizeof(kSDFBias1) + sizeof(kSDFWeights2);
-	gBiasOffsets[3] = gBiasOffsets[2] + sizeof(kSDFBias2) + sizeof(kSDFWeights3);
 }
 
 SDFSample::~SDFSample() { Destroy(); }
@@ -429,7 +431,7 @@ void SDFSample::CreateDescriptorSetLayout() {
 
 void SDFSample::CreateDescriptorPool() {
 	vk::DescriptorPoolSize descriptor_pool_sizes[] = {
-		{vk::DescriptorType::eStorageBuffer, 1},
+		{.type = vk::DescriptorType::eStorageBuffer, .descriptorCount = 1},
 	};
 
 	vk::DescriptorPoolCreateInfo info{
@@ -457,7 +459,7 @@ void SDFSample::CreateSwapchain() {
 	window.GetRect(x, y, width, height);
 	VulkanRHI::SwapchainInfo info{
 		.surface            = surface,
-		.extent             = {u32(width), u32(height)},
+		.extent             = {.width = static_cast<u32>(width), .height = static_cast<u32>(height)},
 		.queue_family_index = queue_family_index,
 	};
 	CHECK_RESULT(swapchain.Create(device, physical_device, info, GetAllocator()));
@@ -614,58 +616,17 @@ void SDFSample::CreatePipeline() {
 	}
 }
 
-void Convert(u32 rows, u32 cols, vk::CooperativeVectorMatrixLayoutNV layout, u32 stride, u32& requiredSize) {
-	std::size_t                              required_size = 0;
-	vk::ConvertCooperativeVectorMatrixInfoNV info{
-		.srcSize          = 0,
-		.srcData          = {.hostAddress = nullptr},
-		.pDstSize         = &required_size,
-		.dstData          = {.hostAddress = nullptr},
-		.srcComponentType = vk::ComponentTypeKHR::eFloat32,
-		.dstComponentType = vk::ComponentTypeKHR::eFloat32,
-		.numRows          = rows,
-		.numColumns       = cols,
-		.srcLayout        = vk::CooperativeVectorMatrixLayoutNV::eRowMajor,
-		.srcStride        = stride,
-		.dstLayout        = layout,
-		.dstStride        = stride,
-	};
-}
+void SDFSample::CreateBuffers(std::size_t size) {
 
-void SDFSample::BuildNetwork() {
-
-	CHECK_RESULT(network.Init(device));
-	auto CopyWeights = [this](char*& dst, void const* src, std::size_t size) -> void {
-		std::memcpy(dst, src, size);
-	};
-
-	std::printf("Parameters: %zu\n", network.GetParametersSize());
-	for (auto& layer : network.GetLayers()) {
-		ng::Linear& linear = layer.Get<ng::Linear>();
-		std::printf("Weights: %zu, Biases: %zu\n", linear.GetWeightsOffset(), linear.GetBiasesOffset());
-	}
-
-	network_parameters.resize(network.GetParametersSize());
-	std::memcpy(network_parameters.data() + network.GetLayer<ng::Linear>(0).GetWeightsOffset(), kSDFWeights0, sizeof(kSDFWeights0));
-	std::memcpy(network_parameters.data() + network.GetLayer<ng::Linear>(0).GetBiasesOffset(), kSDFBias0, sizeof(kSDFBias0));
-	std::memcpy(network_parameters.data() + network.GetLayer<ng::Linear>(1).GetWeightsOffset(), kSDFWeights1, sizeof(kSDFWeights1));
-	std::memcpy(network_parameters.data() + network.GetLayer<ng::Linear>(1).GetBiasesOffset(), kSDFBias1, sizeof(kSDFBias1));
-	std::memcpy(network_parameters.data() + network.GetLayer<ng::Linear>(2).GetWeightsOffset(), kSDFWeights2, sizeof(kSDFWeights2));
-	std::memcpy(network_parameters.data() + network.GetLayer<ng::Linear>(2).GetBiasesOffset(), kSDFBias2, sizeof(kSDFBias2));
-	std::memcpy(network_parameters.data() + network.GetLayer<ng::Linear>(3).GetWeightsOffset(), kSDFWeights3, sizeof(kSDFWeights3));
-	std::memcpy(network_parameters.data() + network.GetLayer<ng::Linear>(3).GetBiasesOffset(), kSDFBias3, sizeof(kSDFBias3));
-}
-
-void SDFSample::CreateBuffers() {
 	// clang-format off
 	CHECK_RESULT(staging_buffer.Create(device, vma_allocator, {
-		.size   = kSdfWeightsSize,
+		.size   = size,
 		.usage  = vk::BufferUsageFlagBits::eTransferSrc,
 		.memory = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
 	}));
 
 	CHECK_RESULT(sdf_weights_buffer.Create(device, vma_allocator, {
-		.size   = kSdfWeightsSize,
+		.size   = size,
 		.usage  = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
 		.memory = vk::MemoryPropertyFlagBits::eDeviceLocal,
 	}));
@@ -673,7 +634,7 @@ void SDFSample::CreateBuffers() {
 	vk::DescriptorBufferInfo buffer_info{
 		.buffer = sdf_weights_buffer,
 		.offset = 0,
-		.range  = kSdfWeightsSize,
+		.range  = size,
 	};
 
 	vk::WriteDescriptorSet write{
@@ -690,36 +651,74 @@ void SDFSample::CreateBuffers() {
 }
 
 void SDFSample::UploadNetworkWeights() {
-}
+	auto ConvertOptimalLayer = [this](void const* src, std::size_t src_size, std::byte* dst, ng::Linear const& linear) {
+		std::size_t expected_size = linear.GetWeightsSize();
 
-void SDFSample::UploadWeightsRaw() {
-	// clang-format off
-	auto CopyWithOffset = [this](char*& dst, void const* src, std::size_t size) -> void {
-		std::memcpy(dst, src, size);
-		dst += size;
+		std::size_t required_size = expected_size;
+
+		vk::ConvertCooperativeVectorMatrixInfoNV info{
+			.srcSize          = src_size,
+			.srcData          = {.hostAddress = src},
+			.pDstSize         = &required_size,
+			.dstData          = {.hostAddress = dst + linear.GetWeightsOffset()},
+			.srcComponentType = kSrcComponentType,
+			.dstComponentType = kDstMatrixType,
+			.numRows          = linear.GetOutputsCount(),
+			.numColumns       = linear.GetInputsCount(),
+			.srcLayout        = vk::CooperativeVectorMatrixLayoutNV::eRowMajor,
+			.srcStride        = linear.GetInputsCount() * ng::GetVulkanComponentSize(kSrcComponentType),
+			// .dstLayout        = vk::CooperativeVectorMatrixLayoutNV::eRowMajor,
+			.dstLayout = kDstLayout,
+			.dstStride = linear.GetInputsCount() * ng::GetVulkanComponentSize(kDstMatrixType),
+		};
+
+		info.dstData.hostAddress = nullptr;
+		// CHECK_RESULT(device.convertCooperativeVectorMatrixNV(&info));
+		vk::Result result;
+		// result = device.convertCooperativeVectorMatrixNV(&info);
+		CHECK_RESULT(device.convertCooperativeVectorMatrixNV(&info));
+		if (result == vk::Result::eIncomplete) {
+		}
+		if (required_size != expected_size) {
+			std::printf("Expected size: %zu, actual size: %zu\n", expected_size, required_size);
+			std::exit(1);
+		}
+		info.dstData.hostAddress = dst + linear.GetWeightsOffset();
+		CHECK_RESULT(device.convertCooperativeVectorMatrixNV(&info));
+		// vk::Result result;
+		// result = device.convertCooperativeVectorMatrixNV(&info);
+
+		// do {
+		// 	if (result < vk::Result::eSuccess) CHECK_RESULT(result);
+		// } while (result == vk::Result::eIncomplete);
+
+		// CHECK_RESULT(result);
 	};
 
-	char* ptr = reinterpret_cast<char*>(staging_buffer.GetMappedData());
-	CopyWithOffset(ptr, kSDFWeights0, sizeof(kSDFWeights0));
-	CopyWithOffset(ptr, kSDFBias0, sizeof(kSDFBias0));
-	CopyWithOffset(ptr, kSDFWeights1, sizeof(kSDFWeights1));
-	CopyWithOffset(ptr, kSDFBias1, sizeof(kSDFBias1));
-	CopyWithOffset(ptr, kSDFWeights2, sizeof(kSDFWeights2));
-	CopyWithOffset(ptr, kSDFBias2, sizeof(kSDFBias2));
-	CopyWithOffset(ptr, kSDFWeights3, sizeof(kSDFWeights3));
-	CopyWithOffset(ptr, kSDFBias3, sizeof(kSDFBias3));
+	auto* staging_ptr = reinterpret_cast<std::byte*>(staging_buffer.GetMappedData());
+
+	ConvertOptimalLayer(kSDFWeights0, sizeof(kSDFWeights0), staging_ptr, network.GetLayer<ng::Linear>(0));
+	ConvertOptimalLayer(kSDFWeights1, sizeof(kSDFWeights1), staging_ptr, network.GetLayer<ng::Linear>(1));
+	ConvertOptimalLayer(kSDFWeights2, sizeof(kSDFWeights2), staging_ptr, network.GetLayer<ng::Linear>(2));
+	ConvertOptimalLayer(kSDFWeights3, sizeof(kSDFWeights3), staging_ptr, network.GetLayer<ng::Linear>(3));
+
+	std::memcpy(staging_ptr + network.GetLayer<ng::Linear>(0).GetBiasesOffset(), kSDFBias0, sizeof(kSDFBias0));
+	std::memcpy(staging_ptr + network.GetLayer<ng::Linear>(1).GetBiasesOffset(), kSDFBias1, sizeof(kSDFBias1));
+	std::memcpy(staging_ptr + network.GetLayer<ng::Linear>(2).GetBiasesOffset(), kSDFBias2, sizeof(kSDFBias2));
+	std::memcpy(staging_ptr + network.GetLayer<ng::Linear>(3).GetBiasesOffset(), kSDFBias3, sizeof(kSDFBias3));
 
 	vk::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
 	CHECK_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
+	// clang-format off
 	cmd.copyBuffer(staging_buffer, sdf_weights_buffer, {{
 		.srcOffset = 0,
 		.dstOffset = 0,
-		.size      = kSdfWeightsSize,
+		.size      = network.GetParametersSize(),
 	}});
+	// clang-format on
 	CHECK_RESULT(cmd.end());
 	CHECK_RESULT(queue.submit({vk::SubmitInfo{.commandBufferCount = 1, .pCommandBuffers = &cmd}}));
 	CHECK_RESULT(queue.waitIdle());
-	// clang-format on
 }
 
 void SDFSample::DrawWindow() {
@@ -776,8 +775,18 @@ void SDFSample::RecordCommands() {
 	SDFConstants constants{
 		.resolution      = {static_cast<float>(width), static_cast<float>(height)},
 		.mouse           = {mouse.x, static_cast<float>(height) - mouse.y},
-		.weights_offsets = {gWeightsOffsets[0], gWeightsOffsets[1], gWeightsOffsets[2], gWeightsOffsets[3]},
-		.bias_offsets    = {gBiasOffsets[0], gBiasOffsets[1], gBiasOffsets[2], gBiasOffsets[3]},
+		.weights_offsets = {
+			static_cast<u32>(network.GetLayer<ng::Linear>(0).GetWeightsOffset()),
+			static_cast<u32>(network.GetLayer<ng::Linear>(1).GetWeightsOffset()),
+			static_cast<u32>(network.GetLayer<ng::Linear>(2).GetWeightsOffset()),
+			static_cast<u32>(network.GetLayer<ng::Linear>(3).GetWeightsOffset()),
+		},
+		.bias_offsets = {
+			static_cast<u32>(network.GetLayer<ng::Linear>(0).GetBiasesOffset()),
+			static_cast<u32>(network.GetLayer<ng::Linear>(1).GetBiasesOffset()),
+			static_cast<u32>(network.GetLayer<ng::Linear>(2).GetBiasesOffset()),
+			static_cast<u32>(network.GetLayer<ng::Linear>(3).GetBiasesOffset()),
+		},
 	};
 	cmd.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(constants), &constants);
 	// vk::DeviceSize offsets[] = {0};
@@ -828,7 +837,7 @@ auto ParseArgs(int argc, char const* argv[]) -> char const* {
 	return nullptr;
 }
 
-int main(int argc, char const* argv[]) {
+auto main(int argc, char const* argv[]) -> int {
 	if (char const* unknown_arg = ParseArgs(argc, argv); unknown_arg) {
 		std::printf("Unknown argument: %s\n", unknown_arg);
 		std::printf("Usage: %ls [--slang] [--verbose] [--validation]\n", (std::filesystem::path(argv[0])).filename().c_str());
