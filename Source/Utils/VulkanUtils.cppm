@@ -2,8 +2,8 @@ export module NeuralGraphics:VulkanUtils;
 import std;
 import vulkan_hpp;
 
-export namespace ng {
-inline namespace Utils {
+export
+namespace ng::inline Utils {
 
 template <typename T>
 concept VulkanStructureT = requires(T t) { t.pNext; };
@@ -33,5 +33,25 @@ inline bool SupportsExtensions(std::span<vk::ExtensionProperties const> availabl
 		});
 }
 
-} // namespace Utils
-} // namespace ng
+constexpr auto GetVulkanComponentSize(vk::ComponentTypeKHR const type) -> std::size_t {
+	switch (type) {
+	case vk::ComponentTypeKHR::eFloat16:       return sizeof(std::uint16_t);
+	case vk::ComponentTypeKHR::eFloat32:       return sizeof(float);
+	case vk::ComponentTypeKHR::eFloat64:       return sizeof(double);
+	case vk::ComponentTypeKHR::eSint8:         return sizeof(std::int8_t);
+	case vk::ComponentTypeKHR::eSint16:        return sizeof(std::int16_t);
+	case vk::ComponentTypeKHR::eSint32:        return sizeof(std::int32_t);
+	case vk::ComponentTypeKHR::eSint64:        return sizeof(std::int64_t);
+	case vk::ComponentTypeKHR::eUint8:         return sizeof(std::uint8_t);
+	case vk::ComponentTypeKHR::eUint16:        return sizeof(std::uint16_t);
+	case vk::ComponentTypeKHR::eUint32:        return sizeof(std::uint32_t);
+	case vk::ComponentTypeKHR::eUint64:        return sizeof(std::uint64_t);
+	case vk::ComponentTypeKHR::eSint8PackedNV: return sizeof(std::uint8_t);
+	case vk::ComponentTypeKHR::eUint8PackedNV: return sizeof(std::uint8_t);
+	case vk::ComponentTypeKHR::eFloatE4M3NV:   return sizeof(std::uint16_t);
+	case vk::ComponentTypeKHR::eFloatE5M2NV:   return sizeof(std::uint16_t);
+	default:
+		return 0;
+	}
+}
+} // namespace ng::inline Utils

@@ -1,6 +1,6 @@
 module NeuralGraphics;
-import :HostNetwork;
-import :HostLayers;
+import :VulkanCoopVecNetwork;
 // import :Util;
 
 import std;
+

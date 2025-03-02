@@ -59,6 +59,7 @@ void Buffer::Unmap() {
 }
 
 auto Buffer::Create(vk::Device device, VmaAllocator allocator, BufferInfo const& info) -> vk::Result {
+	if (vk::Buffer::operator bool()) return vk::Result::eErrorInitializationFailed;
 	this->device    = device;
 	this->allocator = allocator;
 	this->usage     = info.usage;

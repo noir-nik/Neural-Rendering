@@ -7,34 +7,37 @@ export namespace ng {
 
 class ILayer {
 public:
-	ILayer(u32 inputSize, u32 outputSize) : inputSize(inputSize), outputSize(outputSize) {}
+	ILayer(u32 inputs_count, u32 output_count) : input_count(inputs_count), output_count(output_count) {}
 	virtual ~ILayer() {}
-	virtual auto GetInputSize() const -> u32 { return inputSize; }
-	virtual auto GetOutputSize() const -> u32 { return outputSize; }
-	virtual void SetInputSize(u32 size) { inputSize = size; }
-	virtual void SetOutputSize(u32 size) { outputSize = size; }
+	virtual auto GetInputsCount() const -> u32 { return input_count; }
+	virtual auto GetOutputsCount() const -> u32 { return output_count; }
+	virtual void SetInputsCount(u32 size) { input_count = size; }
+	virtual void SetOutputsCount(u32 size) { output_count = size; }
+
 private:
-	u32 inputSize;
-	u32 outputSize;
+	u32 input_count;
+	u32 output_count;
 };
 
 class Linear : public ILayer {
 public:
-	Linear(u32 inputSize, u32 outputSize) : ILayer(inputSize, outputSize) {}
+	Linear(u32 input_size, u32 output_size) : ILayer(input_size, output_size) {}
 
-	auto GetWeightsSize() const -> u32 { return GetInputSize() * GetOutputSize(); }
-	auto GetBiasesSize() const -> u32 { return GetOutputSize(); }
-	auto GetParametersSize() const -> u32 { return GetWeightsSize() + GetBiasesSize(); }
+	auto GetWeightsCount() const -> u32 { return GetInputsCount() * GetOutputsCount(); }
+	auto GetBiasesCount() const -> u32 { return GetOutputsCount(); }
+	auto GetParametersCount() const -> u32 { return GetWeightsCount() + GetBiasesCount(); }
 
-	auto GetWeightsOffset() const -> u32 { return weightsOffset; }
-	auto GetBiasesOffset() const -> u32 { return biasOffset; }
+	// Get offset in bytes
+	auto GetWeightsOffset() const -> std::size_t { return weights_offset; }
+	auto GetBiasesOffset() const -> std::size_t { return bias_offset; }
 
-	void SetWeightsOffset(u32 offset) { weightsOffset = offset; }
-	void SetBiasesOffset(u32 offset) { biasOffset = offset; }
+	// Set offset in bytes
+	void SetWeightsOffset(std::size_t offset) { weights_offset = offset; }
+	void SetBiasesOffset(std::size_t offset) { bias_offset = offset; }
 
 private:
-	u32 weightsOffset;
-	u32 biasOffset;
+	std::size_t weights_offset;
+	std::size_t bias_offset;
 };
 
 class Relu : public ILayer {
@@ -52,22 +55,36 @@ public:
 	Softmax(u32 size = 0) : ILayer(size, size) {}
 };
 
-using LayerVariantBase = std::variant<Linear, Relu, Sigmoid, Softmax>;
+class Sin : public ILayer {
+public:
+	Sin(u32 size = 0) : ILayer(size, size) {}
+};
+
+template <typename T>
+concept GenericLayerType = IsAnyV<T, Linear, Relu, Sigmoid, Softmax, Sin>;
+
+using LayerVariantBase = std::variant<Linear, Relu, Sigmoid, Softmax, Sin>;
 
 struct LayerVariant : LayerVariantBase {
 	using LayerVariantBase::LayerVariantBase;
 
-	auto GetOutputSize() const -> u32 { return std::visit([](auto const& layer) { return layer.GetOutputSize(); }, *this); }
-	auto GetInputSize() const -> u32 { return std::visit([](auto const& layer) { return layer.GetInputSize(); }, *this); }
+	auto GetOutputsCount() const -> u32 {
+		return std::visit([](auto const& layer) { return layer.GetOutputsCount(); }, *this);
+	}
+	auto GetInputsCount() const -> u32 {
+		return std::visit([](auto const& layer) { return layer.GetInputsCount(); }, *this);
+	}
+
+	template <GenericLayerType T>
+	constexpr auto Get() -> T& { return std::get<T>(*this); }
 };
 
 template <typename T>
 struct IsActivationLayer {
-	static constexpr bool value = IsAnyV<T, Relu, Sigmoid, Softmax>;
+	static constexpr bool value = IsAnyV<T, Relu, Sigmoid, Softmax, Sin>;
 };
 
 template <typename T>
 inline constexpr bool IsActivationLayerV = IsActivationLayer<T>::value;
-
 
 } // namespace ng
