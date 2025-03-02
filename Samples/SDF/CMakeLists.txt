@@ -13,6 +13,9 @@ target_include_directories(${SAMPLE_NAME} PUBLIC ${INCLUDE_DIRS})
 
 target_link_libraries(${SAMPLE_NAME} PRIVATE SamplesCommon)
 
+# target_compile_options(${SAMPLE_NAME} PRIVATE -fsanitize=address)
+# target_link_options(${SAMPLE_NAME} PRIVATE -fsanitize=address)
+
 function(generate_spv_shader_glsl input_file output_file)
 	add_custom_command(
 		OUTPUT ${output_file}
@@ -27,9 +30,10 @@ endfunction()
 function(generate_spv_shader_slang input_file output_file)
 	add_custom_command(
 		OUTPUT ${output_file}
-		COMMAND slangc ${input_file} -entry main -target spirv -o ${output_file}
+		COMMAND slangc ${input_file} -entry main -target spirv -o ${output_file} -depfile ${output_file}.d
 		DEPENDS ${input_file}
 		COMMENT "Compiling SPIR-V: ${input_file}"
+		DEPFILE ${output_file}.d
 		VERBATIM
 		COMMAND_EXPAND_LISTS
 	)

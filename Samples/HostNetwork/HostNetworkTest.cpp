@@ -2,22 +2,22 @@ import NeuralGraphics;
 import std;
 
 int main(int argc, char* argv[]) {
-	ng::HostNetwork<float> model({
-		ng::Linear(28 * 28, 100),
-		ng::Relu(),
-		ng::Linear(100, 10),
-	});
+	// ng::HostNetwork<float> model({
+	// 	ng::Linear(28 * 28, 100),
+	// 	ng::Relu(),
+	// 	ng::Linear(100, 10),
+	// });
 
-	std::vector<float> scratchBuffer(model.GetScratchBufferSize());
-	std::vector<float> gradientBuffer(model.GetParametersSize());
+	// std::vector<float> scratchBuffer(model.GetScratchBufferSize());
+	// std::vector<float> gradientBuffer(model.GetParametersSize());
 
-	std::vector<float> lossGradients(model.GetLayers().back().GetOutputSize());
+	// std::vector<float> lossGradients(model.GetLayers().back().GetOutputSize());
 
-	model.Forward({}, {});
+	// model.Forward({}, {});
 
-	std::printf("%zu\n", model.GetLayers().size());
+	// std::printf("%zu\n", model.GetLayers().size());
 
-	auto loss      = ng::Loss::MeanSquaredError();
+	// auto loss      = ng::Loss::MeanSquaredError();
 	// auto optimizer = ng::Optimizer::SGD(0.01);
 
 	// for (auto epoch : std::views::iota(0) | std::views::take(10)) {

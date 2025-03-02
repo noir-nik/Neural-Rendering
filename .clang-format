@@ -6,7 +6,6 @@ PointerAlignment: Left
 SpaceBeforeParens: Custom
 SpaceBeforeParensOptions:
   AfterControlStatements: true
-AlignArrayOfStructures: Left
 
 AlignConsecutiveDeclarations:
   # Enabled: false
@@ -34,6 +33,7 @@ AccessModifierOffset: -4
 InsertNewlineAtEOF: true
 # AlignAfterOpenBracket: BlockIndent
 AlignOperands: Align
-AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
 # SeparateDefinitionBlocks: Always
 AllowShortCaseLabelsOnASingleLine: true
+# AlignArrayOfStructures: Left

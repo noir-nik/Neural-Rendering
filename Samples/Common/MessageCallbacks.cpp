@@ -16,6 +16,7 @@ vk::Bool32 DebugUtilsCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT      mess
 	// Silence validation layer not knowing Cooperative Vector extension
 	switch (static_cast<unsigned>(pCallbackData->messageIdNumber)) {
 	case 0x79de34d4: [[fallthrough]];
+	case 0xdd73dbcf: [[fallthrough]];
 	case 0x901f59ec:
 		return vk::False;
 	}
