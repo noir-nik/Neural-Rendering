@@ -30,14 +30,21 @@ public:
 	// Get offset in bytes
 	auto GetWeightsOffset() const -> std::size_t { return weights_offset; }
 	auto GetBiasesOffset() const -> std::size_t { return bias_offset; }
+	auto GetWeightsSize() const -> std::size_t { return weights_size; }
+	auto GetBiasesSize() const -> std::size_t { return bias_size; }
+	auto GetParametersSize() const -> std::size_t { return weights_size + bias_size; }
 
 	// Set offset in bytes
 	void SetWeightsOffset(std::size_t offset) { weights_offset = offset; }
 	void SetBiasesOffset(std::size_t offset) { bias_offset = offset; }
+	void SetWeightsSize(std::size_t size) { weights_size = size; }
+	void SetBiasesSize(std::size_t size) { bias_size = size; }
 
 private:
-	std::size_t weights_offset;
-	std::size_t bias_offset;
+	std::size_t weights_offset = 0;
+	std::size_t weights_size = 0; // size in bytes
+	std::size_t bias_offset = 0;
+	std::size_t bias_size = 0;
 };
 
 class Relu : public ILayer {

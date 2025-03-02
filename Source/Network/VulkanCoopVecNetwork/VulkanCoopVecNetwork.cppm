@@ -10,11 +10,38 @@ export namespace ng {
 template <typename T>
 concept VulkanCoopVecNetworkType = IsAnyV<T, float>;
 
-template <VulkanCoopVecNetworkType T>
-constexpr auto GetVulkanComponentType() -> vk::ComponentTypeKHR {
-	if constexpr (std::same_as<T, float>) {
+// template <typename  T>
+// constexpr auto GetVulkanComponentType() -> vk::ComponentTypeKHR {
+// 	if constexpr (std::same_as<T, float>) {
+// 		return vk::ComponentTypeKHR::eFloat32;
+// 	}
+// }
+struct float16_t;
+template <typename T>
+inline constexpr auto GetVulkanComponentType() -> vk::ComponentTypeKHR {
+	if constexpr (std::is_same_v<T, float16_t>) {
+		return vk::ComponentTypeKHR::eFloat16;
+	} else if constexpr (std::is_same_v<T, float>) {
 		return vk::ComponentTypeKHR::eFloat32;
+	} else if constexpr (std::is_same_v<T, std::int8_t>) {
+		return vk::ComponentTypeKHR::eSint8;
+	} else if constexpr (std::is_same_v<T, std::int16_t>) {
+		return vk::ComponentTypeKHR::eSint16;
+	} else if constexpr (std::is_same_v<T, std::int32_t>) {
+		return vk::ComponentTypeKHR::eSint32;
+	} else if constexpr (std::is_same_v<T, std::int64_t>) {
+		return vk::ComponentTypeKHR::eSint64;
+	} else if constexpr (std::is_same_v<T, std::uint8_t>) {
+		return vk::ComponentTypeKHR::eUint8;
+	} else if constexpr (std::is_same_v<T, std::uint16_t>) {
+		return vk::ComponentTypeKHR::eUint16;
+	} else if constexpr (std::is_same_v<T, std::uint32_t>) {
+		return vk::ComponentTypeKHR::eUint32;
+	} else if constexpr (std::is_same_v<T, std::uint64_t>) {
+		return vk::ComponentTypeKHR::eUint64;
 	}
+
+	static_assert(false, "Unsupported type.");
 }
 
 template <typename T>
@@ -22,37 +49,17 @@ constexpr auto AlignTo(T const value, T const alignment) -> T {
 	return ((value + alignment - T(1)) / alignment) * alignment;
 }
 
-template <VulkanCoopVecNetworkType WeightsT = float, VulkanCoopVecNetworkType BiasesT = float>
 class VulkanCoopVecNetwork : public GenericNetwork {
 public:
-	using WeightsType = WeightsT;
-	using BiasesType  = BiasesT;
 
 	VulkanCoopVecNetwork(std::initializer_list<LayerVariant> layers) : GenericNetwork(layers) {};
 	auto GetParametersSize() const -> std::size_t { return parameters_size; }
 
-	// auto GetLayerWeights(Linear const& layer) -> std::span<WeightsType> {
-	// 	return {
-	// 		reinterpret_cast<WeightsType*>(&parameters[layer.GetWeightsOffset()]),
-	// 		layer.GetWeightsCount() * sizeof(WeightsType),
-	// 	};
-	// }
-	// auto GetLayerBiases(Linear const& layer) -> std::span<BiasesType> {
-	// 	return {
-	// 		reinterpret_cast<BiasesType*>(&parameters[layer.GetBiasesOffset()]),
-	// 		layer.GetBiasesCount() * sizeof(BiasesType),
-	// 	};
-	// }
-
-	[[nodiscard]] auto Init(vk::Device device) -> vk::Result {
-		this->device = device;
-		if (vk::Result result = CalculateOffsets(); result != vk::Result::eSuccess) return result;
-
-		return vk::Result::eSuccess;
-	}
-
+	[[nodiscard]] auto UpdateOffsetsAndSize(vk::Device                          device,
+											vk::CooperativeVectorMatrixLayoutNV layout,
+											vk::ComponentTypeKHR const          matrix_type,
+											vk::ComponentTypeKHR const          vector_type) -> vk::Result;
 private:
-	[[nodiscard]] auto CalculateOffsets() -> vk::Result;
 
 	vk::Device                          device;
 	vk::CooperativeVectorMatrixLayoutNV layout          = vk::CooperativeVectorMatrixLayoutNV::eRowMajor;
@@ -61,23 +68,28 @@ private:
 } // namespace ng
 
 namespace ng {
-template <VulkanCoopVecNetworkType WeightsType, VulkanCoopVecNetworkType BiasesType>
-auto VulkanCoopVecNetwork<WeightsType, BiasesType>::CalculateOffsets() -> vk::Result {
-	std::size_t  offset                = 0;
+
+auto VulkanCoopVecNetwork::UpdateOffsetsAndSize(vk::Device                          device,
+												vk::CooperativeVectorMatrixLayoutNV layout,
+												vk::ComponentTypeKHR const          matrix_type,
+												vk::ComponentTypeKHR const          vector_type) -> vk::Result {
 	u32          current_layer_outputs = std::get<Linear>(GetLayer(0)).GetOutputsCount();
 	CoopVecUtils coop_vec_utils(device);
+	std::size_t  offset = 0;
 	for (LayerVariant& layer : GetLayers()) {
 		std::visit(
 			Visitor{
-				[&offset, &current_layer_outputs, this, &coop_vec_utils](Linear& layer) -> vk::Result {
-					auto [result, size] = coop_vec_utils.CalculateByteSize(layer.GetOutputsCount(), layer.GetInputsCount(), layout, GetVulkanComponentType<WeightsType>());
+				[&offset, &current_layer_outputs, this, &coop_vec_utils, layout, matrix_type, vector_type](Linear& layer) -> vk::Result {
+					auto [result, size] = coop_vec_utils.CalculateByteSize(layer.GetOutputsCount(), layer.GetInputsCount(), layout, matrix_type);
 					if (result != vk::Result::eSuccess) return result;
 					offset = AlignTo(offset, coop_vec_utils.GetMatrixAlignment());
 					layer.SetWeightsOffset(offset);
+					layer.SetWeightsSize(size);
 					offset += size;
 					offset = AlignTo(offset, coop_vec_utils.GetVectorAlignment());
 					layer.SetBiasesOffset(offset);
-					offset += layer.GetOutputsCount() * GetVulkanComponentSize(GetVulkanComponentType<BiasesType>());
+					layer.SetBiasesSize(layer.GetOutputsCount() * GetVulkanComponentSize(vector_type));
+					offset += layer.GetBiasesSize();
 
 					current_layer_outputs = layer.GetOutputsCount();
 					return vk::Result::eSuccess;
@@ -96,7 +108,7 @@ auto VulkanCoopVecNetwork<WeightsType, BiasesType>::CalculateOffsets() -> vk::Re
 
 namespace {
 void VulkanCoopVecNetworkTest() {
-	ng::VulkanCoopVecNetwork<float, float> network({
+	ng::VulkanCoopVecNetwork /* <float, float> */ network({
 		ng::Linear(3, 16),
 		ng::Sin(),
 		ng::Linear(16, 16),
