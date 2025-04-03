@@ -1,7 +1,8 @@
+#include "SDFConfig.h"
 #include "SDFWeights.h"
 // clang-format off
 
-func SDFScalar<T : __BuiltinFloatingPointType>(vector<T, 3> p) -> T {
+func SDFScalarInline<T : __BuiltinFloatingPointType>(vector<T, 3> p) -> T {
 	if (length(p) > T(1.)) {
 		return length(p) - T(.8);
 	}

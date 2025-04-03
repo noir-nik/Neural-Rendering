@@ -7,7 +7,7 @@ project(NeuralGraphics LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_MODULE_STD 1)
 
-option(NG_BUILD_SAMPLES "Build samples" OFF)
+option(NG_BUILD_SAMPLES "Build samples" ON)
 
 # Sources
 file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "Source/*.cpp")
@@ -20,8 +20,8 @@ add_library(${PROJECT_NAME} ${SOURCES})
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 find_package(Vulkan REQUIRED)
-if( ${Vulkan_VERSION} VERSION_LESS "1.3.296" )
-message( FATAL_ERROR "Minimum required Vulkan version for C++ modules is 1.3.296. Found ${Vulkan_VERSION}.")
+if(${Vulkan_VERSION} VERSION_LESS "1.4.309" )
+message( WARNING "Minimum required Vulkan version is 1.4.309. Found ${Vulkan_VERSION}.")
 endif()
 target_link_libraries(${PROJECT_NAME} PRIVATE Vulkan::Vulkan)
 
@@ -73,11 +73,21 @@ target_link_libraries( VulkanHppModule PUBLIC Vulkan::Vulkan )
 target_link_libraries( ${PROJECT_NAME} PUBLIC VulkanHppModule )
 target_compile_definitions(VulkanHppModule PUBLIC ${VULKAN_HPP_DEFINITIONS})
 
+# Sanitize
+option(NG_USE_SANITIZER "Use sanitizer" OFF)
+if (NG_USE_SANITIZER)
+	set(NG_SANITIZER_FLAGS "-fsanitize=address -fsanitize=undefined -fsanitize=leak")
+	if (MSVC)
+		set(NG_SANITIZER_FLAGS "/fsanitize=address")
+	endif()
+	add_compile_options(${NG_SANITIZER_FLAGS})
+	add_link_options(${NG_SANITIZER_FLAGS})
+endif()
+
 if (NG_BUILD_SAMPLES)
 	add_subdirectory(Samples)
 endif()
 
-# cmake . -B Build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS="-stdlib=libc++ -fno-rtti -fno-exceptions" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DNG_BUILD_SAMPLES=ON
-# cmake . -B Build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS="-stdlib=libc++ -fno-rtti -fno-exceptions -fsanitize=address -fsanitize=undefined -fsanitize=leak" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DNG_BUILD_SAMPLES=ON
-# cmake . -B Build/cl -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DNG_BUILD_SAMPLES=ON -DCMAKE_CXX_FLAGS="/D_HAS_EXCEPTIONS=0 /GR- /fsanitize=address "
-# cmake --build Build
+# cmake . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS="-stdlib=libc++ -fno-rtti -fno-exceptions" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DNG_BUILD_SAMPLES=ON
+# cmake . -B build/cl -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DNG_BUILD_SAMPLES=ON -DCMAKE_CXX_FLAGS="/D_HAS_EXCEPTIONS=0 /GR-"
+# cmake --build build

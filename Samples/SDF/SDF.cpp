@@ -1,7 +1,6 @@
 #include "../Common/Vulkan/CheckResult.h"
+#include "Shaders/SDFConfig.h"
 #include "Shaders/SDFConstants.h"
-import std;
-#include "Shaders/SDFWeights.h"
 
 import NeuralGraphics;
 import vulkan_hpp;
@@ -11,41 +10,33 @@ import VulkanFunctions;
 import Window;
 import vk_mem_alloc;
 import SamplesCommon;
+import std;
+
+#ifdef COOPVEC_TYPE
+#undef COOPVEC_TYPE
+#endif
+#define COOPVEC_TYPE numeric::float16_t
+#include "Shaders/SDFWeights.h"
 
 using namespace ng::Types;
-using namespace ng::Utils;
-
-bool bVerbose    = false;
-bool bSlang      = true;
-bool bValidation = true;
-
-static constexpr u32 kApiVersion = vk::ApiVersion13;
-
-// std::size_t const kSdfWeightsSize = (sizeof(kSDFWeights0) + sizeof(kSDFBias0) +
-// 									 sizeof(kSDFWeights1) + sizeof(kSDFBias1) +
-// 									 sizeof(kSDFWeights2) + sizeof(kSDFBias2) +
-// 									 sizeof(kSDFWeights3) + sizeof(kSDFBias3));
-
-static constexpr char const* kEnabledLayers[]           = {"VK_LAYER_KHRONOS_validation"};
-static constexpr char const* kEnabledDeviceExtensions[] = {
-	vk::KHRSwapchainExtensionName,
-	vk::NVCooperativeVectorExtensionName,
-	vk::NVCooperativeVectorExtensionName,
-	vk::EXTShaderReplicatedCompositesExtensionName,
-};
 
 struct PhysicalDevice : public VulkanRHI::PhysicalDevice {
 	PhysicalDevice() {
-		AddToPNext(GetFeatures2(), cooperative_vector_features);
-		AddToPNext(GetFeatures2(), shader_replicated_composites_features);
-		AddToPNext(GetProperties2(), cooperative_vector_properties);
+		ng::Utils::AddToPNext(GetFeatures2(), cooperative_vector_features);
+		ng::Utils::AddToPNext(GetFeatures2(), shader_replicated_composites_features);
+		ng::Utils::AddToPNext(GetProperties2(), cooperative_vector_properties);
 	}
-	bool IsSuitable(vk::SurfaceKHR const& surface) {
-		bool const bSupportsExtensions        = SupportsExtensions(kEnabledDeviceExtensions);
-		bool const bSupportsQueues            = SupportsQueue({.flags = vk::QueueFlagBits::eGraphics, .surface = surface});
-		bool const bSupportsCooperativeVector = cooperative_vector_features.cooperativeVector == vk::True;
-		bool const bSupportsShaderReplicated  = shader_replicated_composites_features.shaderReplicatedComposites == vk::True;
-		if (bSupportsExtensions && bSupportsQueues && bSupportsCooperativeVector && bSupportsShaderReplicated) {
+	bool IsSuitable(vk::SurfaceKHR const& surface, std::span<char const* const> extensions) {
+		bool const bSupportsExtensions =
+			SupportsExtensions(extensions);
+		bool const bSupportsQueues =
+			SupportsQueue({.flags = vk::QueueFlagBits::eGraphics, .surface = surface});
+		bool const bSupportsCooperativeVector =
+			cooperative_vector_features.cooperativeVector == vk::True;
+		bool const bSupportsShaderReplicated =
+			shader_replicated_composites_features.shaderReplicatedComposites == vk::True;
+		if (bSupportsExtensions && bSupportsQueues &&
+			bSupportsCooperativeVector && bSupportsShaderReplicated) {
 			return true;
 		}
 		return false;
@@ -54,30 +45,29 @@ struct PhysicalDevice : public VulkanRHI::PhysicalDevice {
 	vk::PhysicalDeviceCooperativeVectorFeaturesNV           cooperative_vector_features{};
 	vk::PhysicalDeviceShaderReplicatedCompositesFeaturesEXT shader_replicated_composites_features{};
 	vk::PhysicalDeviceCooperativeVectorPropertiesNV         cooperative_vector_properties{};
-	u32                                                     graphics_queue_family_index = std::numeric_limits<u32>::max();
-};
 
-struct Vertex {
-	struct {
-		float x, y, z;
-	} position;
-};
-
-constexpr Vertex kVertices[] = {
-	Vertex{-1.0, -1.0, 0.0},
-	Vertex{-1.0, 1.0, 0.0},
-	Vertex{1.0, -1.0, 0.0},
-	Vertex{-1.0, 1.0, 0.0},
-	Vertex{1.0, 1.0, 0.0},
-	Vertex{1.0, -1.0, 0.0},
+	u32 graphics_queue_family_index = std::numeric_limits<u32>::max();
 };
 
 class SDFSample {
 public:
-	vk::ComponentTypeKHR kSrcComponentType = SRC_COMPONENT_TYPE;
-	vk::ComponentTypeKHR kDstMatrixType    = DST_MATRIX_TYPE;
-	vk::ComponentTypeKHR kDstVectorType    = DST_VECTOR_TYPE;
-	vk::CooperativeVectorMatrixLayoutNV kDstLayout = MATRIX_LAYOUT;
+	static constexpr u32 kApiVersion = vk::ApiVersion13;
+
+	static constexpr char const* kEnabledLayers[] = {
+		"VK_LAYER_KHRONOS_validation",
+	};
+	static constexpr char const* kEnabledDeviceExtensions[] = {
+		vk::KHRSwapchainExtensionName,
+		vk::NVCooperativeVectorExtensionName,
+		vk::NVCooperativeVectorExtensionName,
+		vk::EXTShaderReplicatedCompositesExtensionName,
+	};
+
+	vk::ComponentTypeKHR kSrcComponentType = vk::ComponentTypeKHR::eFloat16;
+	vk::ComponentTypeKHR kDstMatrixType    = vk::ComponentTypeKHR::eFloat16;
+	vk::ComponentTypeKHR kDstVectorType    = vk::ComponentTypeKHR::eFloat16;
+
+	vk::CooperativeVectorMatrixLayoutNV kDstLayout = vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal;
 
 	~SDFSample();
 
@@ -111,6 +101,12 @@ public:
 	auto GetAllocator() const -> vk::AllocationCallbacks const* { return allocator; }
 	auto GetPipelineCache() const -> vk::PipelineCache { return pipeline_cache; }
 
+	void SetVerbose(bool value) { bVerbose = value; }
+	void SetUseValidation(bool value) { bUseValidation = value; }
+
+	bool bVerbose       = false;
+	bool bUseValidation = false;
+
 	Window window{};
 	struct {
 		float x = 300.0f;
@@ -141,7 +137,6 @@ public:
 	vk::Pipeline       pipeline{};
 
 	VulkanRHI::Buffer staging_buffer{};
-	VulkanRHI::Buffer vertex_buffer{};
 	VulkanRHI::Buffer sdf_weights_buffer{};
 
 	ng::VulkanCoopVecNetwork network = {
@@ -210,15 +205,14 @@ void SDFSample::Init() {
 	LoadInstanceCooperativeVectorFunctionsNV(instance);
 
 	// BuildNetwork();
-	CHECK_RESULT(network.UpdateOffsetsAndSize(device,
-											  kDstLayout,
-											  kDstMatrixType,
-											  kDstVectorType));
+	CHECK_RESULT(network.UpdateOffsetsAndSize(device, kDstLayout, kDstMatrixType, kDstVectorType));
 
-	std::printf("Parameters: %zu\n", network.GetParametersSize());
-	for (auto& layer : network.GetLayers()) {
-		ng::Linear& linear = layer.Get<ng::Linear>();
-		std::printf("Weights: %zu, Biases: %zu\n", linear.GetWeightsOffset(), linear.GetBiasesOffset());
+	if (bVerbose) {
+		std::printf("Parameters: %zu\n", network.GetParametersSize());
+		for (auto& layer : network.GetLayers()) {
+			ng::Linear& linear = layer.Get<ng::Linear>();
+			std::printf("Weights: %zu, Biases: %zu\n", linear.GetWeightsOffset(), linear.GetBiasesOffset());
+		}
 	}
 	// network_parameters.resize(network.GetParametersSize());
 	CreateBuffers(network.GetParametersSize());
@@ -249,7 +243,6 @@ void SDFSample::Destroy() {
 		CHECK_RESULT(device.waitIdle());
 
 		staging_buffer.Destroy();
-		vertex_buffer.Destroy();
 		sdf_weights_buffer.Destroy();
 
 		device.destroyPipeline(pipeline, GetAllocator());
@@ -269,7 +262,7 @@ void SDFSample::Destroy() {
 
 	if (instance) {
 		instance.destroySurfaceKHR(surface, GetAllocator());
-		if (bValidation) {
+		if (bUseValidation) {
 			instance.destroyDebugUtilsMessengerEXT(debug_messenger, GetAllocator());
 		}
 		instance.destroy(GetAllocator());
@@ -287,7 +280,7 @@ void SDFSample::CreateInstance() {
 	char const** glfw_extensions = WindowManager::GetRequiredInstanceExtensions(&glfw_extensions_count);
 
 	std::vector<char const*> enabledExtensions(glfw_extensions, glfw_extensions + glfw_extensions_count);
-	if (bValidation) {
+	if (bUseValidation) {
 		enabled_layers = kEnabledLayers;
 		enabledExtensions.push_back(vk::EXTDebugUtilsExtensionName);
 	}
@@ -299,14 +292,14 @@ void SDFSample::CreateInstance() {
 						   vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
 		.messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
 					   vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
-					   vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance |
-					   vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding,
+					   //    vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding |
+					   vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
 		.pfnUserCallback = DebugUtilsCallback,
 		.pUserData       = nullptr,
 	};
 
 	vk::InstanceCreateInfo info{
-		.pNext                   = bValidation ? &kDebugUtilsCreateInfo : nullptr,
+		.pNext                   = bUseValidation ? &kDebugUtilsCreateInfo : nullptr,
 		.pApplicationInfo        = &applicationInfo,
 		.enabledLayerCount       = static_cast<u32>(std::size(enabled_layers)),
 		.ppEnabledLayerNames     = enabled_layers.data(),
@@ -315,7 +308,7 @@ void SDFSample::CreateInstance() {
 	};
 	CHECK_RESULT(vk::createInstance(&info, GetAllocator(), &instance));
 
-	if (bValidation) {
+	if (bUseValidation) {
 		LoadInstanceDebugUtilsFunctionsEXT(instance);
 		CHECK_RESULT(instance.createDebugUtilsMessengerEXT(&kDebugUtilsCreateInfo, allocator, &debug_messenger));
 	}
@@ -329,7 +322,7 @@ void SDFSample::SelectPhysicalDevice() {
 	for (vk::PhysicalDevice const& device : vulkan_physical_devices) {
 		physical_device.Assign(device);
 		CHECK_RESULT(physical_device.GetDetails());
-		if (physical_device.IsSuitable(surface)) {
+		if (physical_device.IsSuitable(surface, kEnabledDeviceExtensions)) {
 			if (bVerbose) {
 				auto const& properties = physical_device.cooperative_vector_properties;
 				std::printf("=== VkPhysicalDeviceCooperativeVectorPropertiesNV ===\n");
@@ -485,8 +478,7 @@ void SDFSample::CreatePipelineLayout() {
 void SDFSample::CreatePipeline() {
 	std::optional<std::vector<std::byte>> shader_codes[] = {
 		ng::ReadBinaryFile("Shaders/Quad.vert.spv"),
-		ng::ReadBinaryFile(bSlang ? "Shaders/SimpleSdf.slang.spv" : "Shaders/SimpleSdf.frag.spv"),
-		// ng::ReadBinaryFile("Shaders/SimpleSdf.slang.spv"),
+		ng::ReadBinaryFile("Shaders/SdfMain.slang.spv"),
 	};
 
 	for (auto const& code : shader_codes) {
@@ -519,20 +511,7 @@ void SDFSample::CreatePipeline() {
 		},
 	};
 
-	vk::VertexInputBindingDescription vertex_input_binding_description{
-		.binding   = 0,
-		.stride    = sizeof(Vertex),
-		.inputRate = vk::VertexInputRate::eVertex,
-	};
-
 	vk::PipelineVertexInputStateCreateInfo vertex_input_state{};
-
-	// vk::PipelineVertexInputStateCreateInfo vertex_input_state{
-	// 	.vertexBindingDescriptionCount   = 1,
-	// 	.pVertexBindingDescriptions      = &vertex_input_binding_description,
-	// 	.vertexAttributeDescriptionCount = static_cast<u32>(std::size(vertex_input_attribute_descriptions)),
-	// 	.pVertexAttributeDescriptions    = vertex_input_attribute_descriptions,
-	// };
 
 	vk::PipelineInputAssemblyStateCreateInfo input_assembly_state{
 		.flags                  = {},
@@ -651,7 +630,8 @@ void SDFSample::CreateBuffers(std::size_t size) {
 }
 
 void SDFSample::UploadNetworkWeights() {
-	auto ConvertOptimalLayer = [this](void const* src, std::size_t src_size, std::byte* dst, ng::Linear const& linear) {
+	auto ConvertOptimalLayer = [this](void const* src, std::size_t src_size,
+									  std::byte* dst, ng::Linear const& linear) {
 		std::size_t expected_size = linear.GetWeightsSize();
 
 		std::size_t required_size = expected_size;
@@ -672,30 +652,20 @@ void SDFSample::UploadNetworkWeights() {
 			.dstStride = linear.GetInputsCount() * ng::GetVulkanComponentSize(kDstMatrixType),
 		};
 
+		// std::printf("srcStride: %zu, InputsCount: %u, ComponentSize: %zu\n",
+		// 			info.srcStride, linear.GetInputsCount(), ng::GetVulkanComponentSize(kSrcComponentType));
+
 		info.dstData.hostAddress = nullptr;
-		// CHECK_RESULT(device.convertCooperativeVectorMatrixNV(&info));
-		vk::Result result;
-		// result = device.convertCooperativeVectorMatrixNV(&info);
 		CHECK_RESULT(device.convertCooperativeVectorMatrixNV(&info));
-		if (result == vk::Result::eIncomplete) {
-		}
 		if (required_size != expected_size) {
 			std::printf("Expected size: %zu, actual size: %zu\n", expected_size, required_size);
 			std::exit(1);
 		}
 		info.dstData.hostAddress = dst + linear.GetWeightsOffset();
 		CHECK_RESULT(device.convertCooperativeVectorMatrixNV(&info));
-		// vk::Result result;
-		// result = device.convertCooperativeVectorMatrixNV(&info);
-
-		// do {
-		// 	if (result < vk::Result::eSuccess) CHECK_RESULT(result);
-		// } while (result == vk::Result::eIncomplete);
-
-		// CHECK_RESULT(result);
 	};
 
-	auto* staging_ptr = reinterpret_cast<std::byte*>(staging_buffer.GetMappedData());
+	std::byte* staging_ptr = reinterpret_cast<std::byte*>(staging_buffer.GetMappedData());
 
 	ConvertOptimalLayer(kSDFWeights0, sizeof(kSDFWeights0), staging_ptr, network.GetLayer<ng::Linear>(0));
 	ConvertOptimalLayer(kSDFWeights1, sizeof(kSDFWeights1), staging_ptr, network.GetLayer<ng::Linear>(1));
@@ -789,9 +759,7 @@ void SDFSample::RecordCommands() {
 		},
 	};
 	cmd.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(constants), &constants);
-	// vk::DeviceSize offsets[] = {0};
-	// cmd.bindVertexBuffers(0, 1, &vertex_buffer, offsets);
-	cmd.draw(std::size(kVertices), 1, 0, 0);
+	cmd.draw(6, 1, 0, 0);
 	cmd.endRendering();
 	cmd.Barrier({
 		.image         = swapchain_image,
@@ -812,11 +780,10 @@ void SDFSample::RecreateSwapchain(int width, int height) {
 	}
 	CHECK_RESULT(swapchain.Recreate(width, height));
 	swapchain_dirty = false;
-	// std::printf("Recr with size %dx%d\n", width, height);
 }
+static auto last_frame_time = std::chrono::steady_clock::now();
 
 void SDFSample::Run() {
-
 	do {
 		WindowManager::WaitEvents();
 		if (window.GetShouldClose()) break;
@@ -829,23 +796,25 @@ void SDFSample::Run() {
 
 auto ParseArgs(int argc, char const* argv[]) -> char const* {
 	for (std::string_view const arg : std::span(argv + 1, argc - 1)) {
-		if (arg == "--slang") bSlang = true;
-		else if (arg == "--verbose") bVerbose = true;
-		else if (arg == "--validation") bValidation = true;
+		if (arg == "--verbose") gSDFSample->SetVerbose(true);
+		else if (arg == "--validation") gSDFSample->SetUseValidation(true);
 		else return arg.data();
 	}
 	return nullptr;
 }
 
 auto main(int argc, char const* argv[]) -> int {
-	if (char const* unknown_arg = ParseArgs(argc, argv); unknown_arg) {
-		std::printf("Unknown argument: %s\n", unknown_arg);
-		std::printf("Usage: %ls [--slang] [--verbose] [--validation]\n", (std::filesystem::path(argv[0])).filename().c_str());
-		return 0;
-	}
 	std::filesystem::current_path(std::filesystem::absolute(argv[0]).parent_path());
 	SDFSample sample;
 	gSDFSample = &sample;
+
+	if (char const* unknown_arg = ParseArgs(argc, argv); unknown_arg) {
+		std::printf("Unknown argument: %s\n", unknown_arg);
+		std::printf("Usage: %ls [--slang] [--verbose] [--validation]\n",
+					std::filesystem::path(argv[0]).filename().c_str());
+		return 0;
+	}
+
 	sample.Init();
 	sample.Run();
 	return 0;
