@@ -1,11 +1,8 @@
 #ifndef SDFWEIGHTS_H
 #define SDFWEIGHTS_H
 
-#include "SDFConfig.h"
-
-#ifdef __cplusplus
-#include "../../Common/Float16.hpp"
-using numeric::float16_t;
+#ifndef COOPVEC_TYPE
+#error COOPVEC_TYPE not defined
 #endif
 
 // 3 -> 16

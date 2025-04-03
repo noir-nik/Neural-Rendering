@@ -7,7 +7,7 @@
 // https://github.com/x448/float16
 //
 
-#if 0
+#if 1
 #include <cstdint>
 #include <limits>
 #include <iostream>
@@ -1021,9 +1021,10 @@ namespace std
         static constexpr std::float_round_style round_style = round_to_nearest;
     };
 
-    template<> inline constexpr bool is_floating_point_v<numeric::float16_t> = true;
-    template<> inline constexpr bool is_arithmetic_v<numeric::float16_t> = true;
-    template<> inline constexpr bool is_signed_v<numeric::float16_t> = true;
+	// Fails with _LIBCPP_NO_SPECIALIZATIONS set
+    // template<> inline constexpr bool is_floating_point_v<numeric::float16_t> = true;
+    // template<> inline constexpr bool is_arithmetic_v<numeric::float16_t> = true;
+    // template<> inline constexpr bool is_signed_v<numeric::float16_t> = true;
 
 }
 

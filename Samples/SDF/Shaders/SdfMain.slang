@@ -1,10 +1,9 @@
 #include "SDFConfig.h"
 #include "SDFConstants.h"
 
-
-import SDFScalar;
-import SDFVector;
+import SDFVec4;
 import SDFCoopVec;
+import SDFScalarInline;
 import SDFScalarBuffer;
 
 // clang-format off
@@ -18,15 +17,11 @@ func RotateAxisAngle(float3 vector, float3 axis, float angle) -> float3 {
 	return lerp(dot(vector, axis) * axis, vector, cos(angle)) + sin(angle) * cross(axis, vector);
 }
 
-
 func Scene(float3 p) -> float {
 	return SDFCoopVec<COOPVEC_TYPE>({p.x, p.y, p.z}, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
 	// return SDFScalarBuffer<COOPVEC_TYPE>({p.x, p.y, p.z}, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
-	// return SDFScalarBuffer(p, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
-	// return SDFScalar(p);
-	// return SDFScalar<half>({p.x, p.y, p.z});
-	// return SDFVector(p);
-	// return SDFVector<half>({p.x, p.y, p.z});
+	// return SDFScalarInline<COOPVEC_TYPE>({p.x, p.y, p.z});
+	// return SDFVector<COOPVEC_TYPE>({p.x, p.y, p.z});
 }
 
 func GetNormal(float3 p) -> float3 {
@@ -68,13 +63,11 @@ void main(float2 fragCoord, out float4 fragColor: SV_Target0) {
 			break;
 	}
 	float3 n = GetNormal(p);
-	// float3 n = D_SDFScalar(p);
 	// float3 n = D_SDFScalar<COOPVEC_TYPE>({p.x, p.y, p.z});
-	// float3 n = D_SDFCoopVec({p.x, p.y, p.z}, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
 	float3 r = reflect(cam, n);
-	// float3 nz = p - RotateAxisAngle(p, float3(1, 1, 1), 2.) + RotateAxisAngle(p, float3(1, 1, 1), 4.);
-	// float spec = length(sin(r*3.5+sin(nz*120.)*.15)*.4+.6)/sqrt(3.);
-	float spec = length(sin(r * 3.5) * .4 + .6) / sqrt(3.);
+	float3 nz = p - RotateAxisAngle(p, float3(1, 1, 1), 2.) + RotateAxisAngle(p, float3(1, 1, 1), 4.);
+	float spec = length(sin(r*3.5+sin(nz*120.)*.15)*.4+.6)/sqrt(3.);
+	// float spec = length(sin(r * 3.5) * .4 + .6) / sqrt(3.);
 
 	spec *= smoothstep(-.3, .2, Scene(p + r * .2));
 	float3 col = float3(.1, .1, .12) * spec + pow(spec, 8.);
