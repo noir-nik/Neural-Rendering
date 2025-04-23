@@ -8,9 +8,18 @@ import SDFScalarBuffer;
 
 // clang-format off
 
-[[vk::binding(0, 0)]] StructuredBuffer<COOPVEC_TYPE> gSDFWeights;
+#ifndef SHADER_TYPE
+#define SHADER_TYPE COOPVEC
+#endif
 
-[[vk::push_constant]] SDFConstants ctx;
+[[vk::binding(0, 0)]]
+StructuredBuffer<COOPVEC_TYPE> gSDFWeights;
+
+[[vk::push_constant]]
+SDFConstants ctx;
+
+[SpecializationConstant]
+const int shader_type = 0;
 
 
 func RotateAxisAngle(float3 vector, float3 axis, float angle) -> float3 {
@@ -18,10 +27,18 @@ func RotateAxisAngle(float3 vector, float3 axis, float angle) -> float3 {
 }
 
 func Scene(float3 p) -> float {
-	return SDFCoopVec<COOPVEC_TYPE>({p.x, p.y, p.z}, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
-	// return SDFScalarBuffer<COOPVEC_TYPE>({p.x, p.y, p.z}, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
-	// return SDFScalarInline<COOPVEC_TYPE>({p.x, p.y, p.z});
-	// return SDFVector<COOPVEC_TYPE>({p.x, p.y, p.z});
+	if (shader_type == SdfFunctionType::eCoopVec) {
+		return SDFCoopVec<COOPVEC_TYPE>({p.x, p.y, p.z}, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
+	} else if (shader_type == SdfFunctionType::eScalarBuffer) {
+		return SDFScalarBuffer<COOPVEC_TYPE>({p.x, p.y, p.z}, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
+	} else if (shader_type == SdfFunctionType::eScalarInline) {
+		return SDFScalarInline<COOPVEC_TYPE>({p.x, p.y, p.z});
+	} else if (shader_type == SdfFunctionType::eVec4) {
+		return SDFVec4<COOPVEC_TYPE>({p.x, p.y, p.z});
+	} else {
+		return SDFCoopVec<COOPVEC_TYPE>({p.x, p.y, p.z}, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
+	}
+	return 0;
 }
 
 func GetNormal(float3 p) -> float3 {
@@ -48,9 +65,9 @@ void main(float2 fragCoord, out float4 fragColor: SV_Target0) {
 		yrot += -4.*mouse.y;
 		zrot = 4.*mouse.x;
 	}
-	cam = RotateAxisAngle(cam, float3(0, 1, 0), yrot);
+	cam  = RotateAxisAngle(cam, float3(0, 1, 0), yrot);
 	init = RotateAxisAngle(init, float3(0, 1, 0), yrot);
-	cam = RotateAxisAngle(cam, float3(0, 0, 1), zrot);
+	cam  = RotateAxisAngle(cam, float3(0, 0, 1), zrot);
 	init = RotateAxisAngle(init, float3(0, 0, 1), zrot);
 
 	float3 p = init;

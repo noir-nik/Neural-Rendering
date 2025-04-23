@@ -28,4 +28,15 @@ struct SDFConstants {
 };
 #endif
 
+#if defined (__cplusplus) || defined (__SLANG__)
+enum class SdfFunctionType : int {
+	eCoopVec = 0,
+	eScalarInline = 1,
+	eScalarBuffer = 2,
+	eVec4 = 3,
+
+	eCount
+};
+#endif
+
 #endif // SDFCONSTANTS_H

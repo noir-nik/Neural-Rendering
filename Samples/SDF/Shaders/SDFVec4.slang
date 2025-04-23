@@ -1,4 +1,4 @@
-func SDFVector<T : __BuiltinFloatingPointType>(vector<T, 3> p) -> T {
+func SDFVec4<T : __BuiltinFloatingPointType>(vector<T, 3> p) -> T {
 	if (length(p) > T(1.)) {
 		return length(p) - T(.8);
 	}
