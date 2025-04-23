@@ -2,7 +2,7 @@
 #define SDFWEIGHTS_H
 
 #ifndef COOPVEC_TYPE
-#error COOPVEC_TYPE not defined
+#define COOPVEC_TYPE float
 #endif
 
 // 3 -> 16

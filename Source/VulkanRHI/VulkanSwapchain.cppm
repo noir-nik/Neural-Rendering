@@ -65,6 +65,8 @@ public:
 	[[nodiscard]] auto AcquireNextImage() -> vk::Result;
 	[[nodiscard]] auto SubmitAndPresent(vk::Queue submit, vk::Queue present) -> vk::Result;
 
+	void EndFrame();
+
 	auto GetFrameData() -> std::span<SwapchainFrameData> { return frames; }
 	auto GetFrameData() const -> std::span<SwapchainFrameData const> { return frames; }
 	auto GetCurrentFrameData() -> SwapchainFrameData& { return frames[current_frame_index]; }

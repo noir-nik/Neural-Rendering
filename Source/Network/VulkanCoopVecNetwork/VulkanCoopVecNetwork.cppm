@@ -44,14 +44,13 @@ inline constexpr auto GetVulkanComponentType() -> vk::ComponentTypeKHR {
 	static_assert(false, "Unsupported type.");
 }
 
-template <typename T>
-constexpr auto AlignTo(T const value, T const alignment) -> T {
+template <typename T, typename U>
+constexpr auto AlignTo(T const value, U const alignment) -> T {
 	return ((value + alignment - T(1)) / alignment) * alignment;
 }
 
 class VulkanCoopVecNetwork : public GenericNetwork {
 public:
-
 	VulkanCoopVecNetwork(std::initializer_list<LayerVariant> layers) : GenericNetwork(layers) {};
 	auto GetParametersSize() const -> std::size_t { return parameters_size; }
 
@@ -59,11 +58,12 @@ public:
 											vk::CooperativeVectorMatrixLayoutNV layout,
 											vk::ComponentTypeKHR const          matrix_type,
 											vk::ComponentTypeKHR const          vector_type) -> vk::Result;
-private:
 
-	vk::Device                          device;
-	vk::CooperativeVectorMatrixLayoutNV layout          = vk::CooperativeVectorMatrixLayoutNV::eRowMajor;
-	std::size_t                         parameters_size = 0;
+private:
+	vk::CooperativeVectorMatrixLayoutNV layout = vk::CooperativeVectorMatrixLayoutNV::eRowMajor;
+
+	vk::Device  device;
+	std::size_t parameters_size = 0;
 };
 } // namespace ng
 
@@ -74,19 +74,18 @@ auto VulkanCoopVecNetwork::UpdateOffsetsAndSize(vk::Device                      
 												vk::ComponentTypeKHR const          matrix_type,
 												vk::ComponentTypeKHR const          vector_type) -> vk::Result {
 	u32          current_layer_outputs = std::get<Linear>(GetLayer(0)).GetOutputsCount();
-	CoopVecUtils coop_vec_utils(device);
 	std::size_t  offset = 0;
 	for (LayerVariant& layer : GetLayers()) {
 		std::visit(
 			Visitor{
-				[&offset, &current_layer_outputs, this, &coop_vec_utils, layout, matrix_type, vector_type](Linear& layer) -> vk::Result {
-					auto [result, size] = coop_vec_utils.CalculateByteSize(layer.GetOutputsCount(), layer.GetInputsCount(), layout, matrix_type);
+				[&offset, &current_layer_outputs, this, device, layout, matrix_type, vector_type](Linear& layer) -> vk::Result {
+					auto [result, size] = 	CoopVecUtils::CalculateByteSize(device, layer.GetOutputsCount(), layer.GetInputsCount(), layout, matrix_type);
 					if (result != vk::Result::eSuccess) return result;
-					offset = AlignTo(offset, coop_vec_utils.GetMatrixAlignment());
+					offset = AlignTo(offset, CoopVecUtils::GetMatrixAlignment());
 					layer.SetWeightsOffset(offset);
 					layer.SetWeightsSize(size);
 					offset += size;
-					offset = AlignTo(offset, coop_vec_utils.GetVectorAlignment());
+					offset = AlignTo(offset, CoopVecUtils::GetVectorAlignment());
 					layer.SetBiasesOffset(offset);
 					layer.SetBiasesSize(layer.GetOutputsCount() * GetVulkanComponentSize(vector_type));
 					offset += layer.GetBiasesSize();

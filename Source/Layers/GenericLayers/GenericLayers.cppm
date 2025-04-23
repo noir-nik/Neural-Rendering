@@ -50,6 +50,8 @@ private:
 class Relu : public ILayer {
 public:
 	Relu(u32 size = 0) : ILayer(size, size) {}
+
+	auto GetParametersCount() const -> u32 { return 0; }
 };
 
 class Sigmoid : public ILayer {

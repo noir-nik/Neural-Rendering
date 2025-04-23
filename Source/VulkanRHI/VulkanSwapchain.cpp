@@ -159,8 +159,11 @@ auto Swapchain::SubmitAndPresent(vk::Queue submit, vk::Queue present) -> vk::Res
 
 	RETURN_ON_ERROR(present.presentKHR(&present_info));
 
-	current_frame_index = (current_frame_index + 1) % info.frames_in_flight;
 	return vk::Result::eSuccess;
+}
+
+void Swapchain::EndFrame() {
+	current_frame_index = (current_frame_index + 1) % info.frames_in_flight;
 }
 
 bool Swapchain::SupportsFormat(vk::Format format, vk::ImageTiling tiling, vk::FormatFeatureFlags features) {
