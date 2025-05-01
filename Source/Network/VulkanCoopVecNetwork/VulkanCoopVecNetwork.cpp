@@ -41,3 +41,25 @@ auto VulkanCoopVecNetwork::UpdateOffsetsAndSize(vk::Device                      
 	parameters_size = offset;
 	return vk::Result::eSuccess;
 }
+
+auto VulkanCoopVecNetwork::Print() -> void {
+	std::printf("+--------+----------+----------+----------+----------+----------+----------+\n");
+	std::printf("| Layer  | Params   | Weights  | Weights  | Biases   | Biases   | Params   |\n");
+	std::printf("|        | Count    | Count    | Offset   | Count    | Offset   | Size     |\n");
+	std::printf("+--------+----------+----------+----------+----------+----------+----------+\n");
+
+	u32 counter = 0;
+	for (auto& layer : GetLayers()) {
+		std::visit(
+			Visitor{
+				[counter](Linear const& layer) {
+					std::printf("| %6u | %8u | %8u | %8zu | %8u | %8zu | %8zu |\n", counter,
+								layer.GetParametersCount(), layer.GetWeightsCount(),
+								layer.GetWeightsOffset(), layer.GetBiasesCount(),
+								layer.GetBiasesOffset(), layer.GetParametersSize());
+				},
+				[counter](auto const&) {}},
+			layer);
+	}
+	std::printf("+--------+----------+----------+----------+----------+----------+----------+\n");
+}

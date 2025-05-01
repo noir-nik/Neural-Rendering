@@ -20,36 +20,7 @@ import std;
 
 using namespace Utils;
 
-struct PhysicalDevice : public VulkanRHI::PhysicalDevice {
-	PhysicalDevice() {
-		Utils::AddToPNext(GetFeatures2(), cooperative_vector_features);
-		Utils::AddToPNext(GetFeatures2(), shader_replicated_composites_features);
-		Utils::AddToPNext(GetProperties2(), cooperative_vector_properties);
-	}
-	bool IsSuitable(vk::SurfaceKHR const& surface, std::span<char const* const> extensions) {
-		bool const bSupportsExtensions =
-			SupportsExtensions(extensions);
-		bool const bSupportsQueues =
-			SupportsQueue({.flags = vk::QueueFlagBits::eGraphics, .surface = surface});
-		bool const bSupportsCooperativeVector =
-			cooperative_vector_features.cooperativeVector == vk::True;
-		bool const bSupportsShaderReplicated =
-			shader_replicated_composites_features.shaderReplicatedComposites == vk::True;
-		if (bSupportsExtensions && bSupportsQueues &&
-			bSupportsCooperativeVector && bSupportsShaderReplicated) {
-			return true;
-		}
-		return false;
-	}
 
-	inline float GetNsPerTick() const { return static_cast<float>(GetProperties10().limits.timestampPeriod); }
-
-	vk::PhysicalDeviceCooperativeVectorFeaturesNV           cooperative_vector_features{};
-	vk::PhysicalDeviceShaderReplicatedCompositesFeaturesEXT shader_replicated_composites_features{};
-	vk::PhysicalDeviceCooperativeVectorPropertiesNV         cooperative_vector_properties{};
-
-	u32 graphics_queue_family_index = std::numeric_limits<u32>::max();
-};
 
 class SDFSample {
 public:
@@ -689,27 +660,7 @@ auto SDFSample::CreatePipeline(vk::ShaderModule vertex_shader_module,
 	return pipeline;
 }
 
-auto PrintNetwork(VulkanCoopVecNetwork const& network) -> void {
-	std::printf("+--------+----------+----------+----------+----------+----------+----------+\n");
-	std::printf("| Layer  | Params   | Weights  | Weights  | Biases   | Biases   | Params   |\n");
-	std::printf("|        | Count    | Count    | Offset   | Count    | Offset   | Size     |\n");
-	std::printf("+--------+----------+----------+----------+----------+----------+----------+\n");
 
-	u32 counter = 0;
-	for (auto& layer : network.GetLayers()) {
-		std::visit(
-			Visitor{
-				[counter](Linear const& layer) {
-					std::printf("| %6u | %8u | %8u | %8zu | %8u | %8zu | %8zu |\n", counter,
-								layer.GetParametersCount(), layer.GetWeightsCount(),
-								layer.GetWeightsOffset(), layer.GetBiasesCount(),
-								layer.GetBiasesOffset(), layer.GetParametersSize());
-				},
-				[counter](auto const&) {}},
-			layer);
-	}
-	std::printf("+--------+----------+----------+----------+----------+----------+----------+\n");
-}
 
 void SDFSample::CreateAndUploadBuffers() {
 	// BuildNetwork();
@@ -721,7 +672,7 @@ void SDFSample::CreateAndUploadBuffers() {
 		device, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal,
 		kDstMatrixType, kDstVectorType));
 	optimal_size_bytes = AlignTo(network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
-	if (bVerbose) PrintNetwork(network);
+	if (bVerbose) network.Print();
 
 	// Write optimal offsets
 	for (u32 i = 0; i < kNetworkLayers; ++i) {
@@ -738,7 +689,7 @@ void SDFSample::CreateAndUploadBuffers() {
 		kDstMatrixType, kDstVectorType));
 	row_major_size_bytes = AlignTo(network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
 
-	if (bVerbose) PrintNetwork(network);
+	if (bVerbose) network.Print();
 
 	// Write row-major offsets
 	for (u32 i = 0; i < kNetworkLayers; ++i) {

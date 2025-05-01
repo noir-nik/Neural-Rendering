@@ -5,7 +5,6 @@ import :Utils;
 import std;
 import vulkan_hpp;
 
-
 struct float16_t;
 template <typename T>
 constexpr inline auto GetVulkanComponentType() -> vk::ComponentTypeKHR {
@@ -43,6 +42,7 @@ export class VulkanCoopVecNetwork : public GenericNetwork {
 public:
 	VulkanCoopVecNetwork(std::initializer_list<LayerVariant> layers) : GenericNetwork(layers) {};
 	auto GetParametersSize() const -> std::size_t { return parameters_size; }
+	void Print();
 
 	[[nodiscard]] auto UpdateOffsetsAndSize(vk::Device                          device,
 											vk::CooperativeVectorMatrixLayoutNV layout,
