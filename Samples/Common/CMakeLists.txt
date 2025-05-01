@@ -38,9 +38,35 @@ function(generate_spv_shader_glsl input_file output_file)
 endfunction()
 
 function(generate_spv_shader_slang input_file output_file)
+	set(options "")
+	set(oneValueArgs "ENTRY")
+	set(multiValueArgs "INCLUDE;OPTIONS")
+	cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
+
+	set(include_string "")
+	foreach(include_path IN LISTS ARG_INCLUDE)
+		list(APPEND include_string -I${include_path})
+	endforeach()
+
+	set(command_options "")
+
+	if (ARG_ENTRY)
+		list(APPEND command_options -entry ${ARG_ENTRY})
+	endif()
+	if (include_string)
+		list(APPEND command_options ${include_string})
+	endif()
+	if (ARG_OPTIONS)
+		list(APPEND command_options ${ARG_OPTIONS})
+	endif()
+
+	message(STATUS "Compile command: ${command_options}")
+
+	set(SLANGC_EXECUTABLE slangc)
+
 	add_custom_command(
 		OUTPUT ${output_file}
-		COMMAND slangc ${input_file} -entry main -target spirv -o ${output_file} -depfile ${output_file}.d -I${CMAKE_CURRENT_SOURCE_DIR}/../../Source/Shaders
+		COMMAND ${SLANGC_EXECUTABLE} ${input_file} -target spirv -o ${output_file} -depfile ${output_file}.d  ${command_options}
 		DEPENDS ${input_file}
 		COMMENT "Compiling SPIR-V: ${input_file}"
 		DEPFILE ${output_file}.d
@@ -57,4 +83,4 @@ generate_spv_shader_glsl(${COMMON_SHADERS_DIR}/Quad.vert ${COMMON_SHADERS_OUTPUT
 add_custom_target(common_shaders_spv ALL DEPENDS
 	${COMMON_SHADERS_OUTPUT_DIR}/Quad.vert.spv
 )
-add_dependencies(${SAMPLE_NAME} shaders_spv)
+add_dependencies(${SAMPLE_NAME} common_shaders_spv)

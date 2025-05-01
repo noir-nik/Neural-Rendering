@@ -84,6 +84,10 @@ if (NG_USE_SANITIZER)
 	add_link_options(${NG_SANITIZER_FLAGS})
 endif()
 
+set(${PROJECT_NAME}_SHADERS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Source/Shaders CACHE PATH "${PROJECT_NAME} shaders source")
+set(${PROJECT_NAME}_SHADERS_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/Source/Shaders CACHE PATH "${PROJECT_NAME} shaders output")
+
+# Samples
 if (NG_BUILD_SAMPLES)
 	add_subdirectory(Samples)
 endif()

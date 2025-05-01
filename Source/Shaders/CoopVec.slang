@@ -1,4 +1,3 @@
-namespace ng {
 CoopVec<T, M> LinearForward<T : __BuiltinFloatingPointType, int M, int K>(
 	CoopVec<T, K>                  ip,
 	StructuredBuffer<T>            matrixBiasBuffer,
@@ -48,7 +47,6 @@ constexpr func CoopVecComponentFromType<T>()->CoopVecComponentType {
 
 	// static_assert(false, "Unsupported type");
 	return CoopVecComponentType::Float32;
-}
 }
 
 func sin<T : __BuiltinFloatingPointType, let N : int>(CoopVec<T, N> input)->CoopVec<T, N> {
