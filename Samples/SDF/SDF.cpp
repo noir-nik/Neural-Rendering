@@ -20,8 +20,6 @@ import std;
 
 using namespace Utils;
 
-
-
 class SDFSample {
 public:
 	static constexpr u32 kApiVersion = vk::ApiVersion13;
@@ -101,7 +99,7 @@ public:
 	bool bVerbose       = false;
 	bool bUseValidation = false;
 
-	Window window{};
+	GLFWWindow window{};
 	struct {
 		float x = 300.0f;
 		float y = 300.0f;
@@ -172,25 +170,26 @@ public:
 };
 
 static SDFSample* gSDFSample = nullptr;
-static void       FramebufferSizeCallback(Window* window, int width, int height) {
-    gSDFSample->swapchain_dirty = true;
-    if (width <= 0 || height <= 0) return;
-    gSDFSample->RecreateSwapchain(width, height);
+
+static void FramebufferSizeCallback(GLFWWindow* window, int width, int height) {
+	gSDFSample->swapchain_dirty = true;
+	if (width <= 0 || height <= 0) return;
+	gSDFSample->RecreateSwapchain(width, height);
 }
 
-static void WindowRefreshCallback(Window* window) {
+static void WindowRefreshCallback(GLFWWindow* window) {
 	int x, y, width, height;
 	window->GetRect(x, y, width, height);
 	if (width <= 0 || height <= 0) return;
 	gSDFSample->DrawWindow(gSDFSample->pipelines[u32(SdfFunctionType::eCoopVec)], gSDFSample->optimal_offsets);
 }
 
-static void CursorPosCallback(Window* window, double xpos, double ypos) {
+static void CursorPosCallback(GLFWWindow* window, double xpos, double ypos) {
 	gSDFSample->mouse.x = static_cast<float>(xpos);
 	gSDFSample->mouse.y = static_cast<float>(ypos);
 }
 
-static void KeyCallback(Window* window, int key, int scancode, int action, int mods) {
+static void KeyCallback(GLFWWindow* window, int key, int scancode, int action, int mods) {
 	switch (key) {
 	case 256:
 		window->SetShouldClose(true);
@@ -660,8 +659,6 @@ auto SDFSample::CreatePipeline(vk::ShaderModule vertex_shader_module,
 	return pipeline;
 }
 
-
-
 void SDFSample::CreateAndUploadBuffers() {
 	// BuildNetwork();
 	std::size_t optimal_size_bytes   = 0;
@@ -977,9 +974,9 @@ void SDFSample::RunTest() {
 		TestData& data = test_data[test_kind_index];
 		for (u32 iter = 0; iter < kNumTestRuns; ++iter) {
 			// WindowManager::PollEvents();
-			u64   time_nanoseconds = DrawWindow(data.pipeline, data.offsets);
-			float ns_per_tick      = physical_device.GetNsPerTick();
-			float elapsed_ms       = (time_nanoseconds * ns_per_tick) / 1e6f;
+			u64   time_nanoseconds            = DrawWindow(data.pipeline, data.offsets);
+			float ns_per_tick                 = physical_device.GetNsPerTick();
+			float elapsed_ms                  = (time_nanoseconds * ns_per_tick) / 1e6f;
 			test_times[iter][test_kind_index] = time_nanoseconds;
 		}
 	}
