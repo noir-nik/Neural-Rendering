@@ -2,7 +2,6 @@ export module NeuralGraphics:CoopVecUtils;
 import std;
 import vulkan_hpp;
 
-namespace ng::inline Utils {
 
 export class CoopVecUtils {
 public:
@@ -22,4 +21,3 @@ private:
 	static const std::size_t kMatrixAlignment = 64;
 	static const std::size_t kBiasAlignment   = 16;
 };
-} // namespace ng::inline Utils

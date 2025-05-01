@@ -2,7 +2,7 @@ module NeuralGraphics;
 import :FileIOUtils;
 import std;
 
-namespace ng::inline Utils {
+namespace Utils {
 
 auto ReadFile(std::string_view filename) -> std::optional<std::string> {
 	if (auto file = std::ifstream(filename.data(), std::ios::ate)) {
@@ -29,4 +29,4 @@ auto ReadBinaryFile(std::string_view filename) -> std::optional<std::vector<std:
 	file.close();
 	return std::move(buffer);
 }
-} // namespace ng::Utils
+} // namespace Utils

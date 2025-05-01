@@ -5,7 +5,6 @@ import :Core;
 import :Utils;
 import std;
 
-export namespace ng {
 
 template <typename T>
 class HostNetwork : public GenericNetwork {
@@ -28,20 +27,17 @@ public:
 private:
 	std::vector<ValueType> parameters;
 };
-} // namespace ng
 
-export namespace ng {
 template <typename T>
 auto HostNetwork<T>::Forward(std::span<ValueType const> inputs, ValueType* scratchBuffer) -> std::span<ValueType> {}
 
-} // namespace ng
 
 namespace {
 void HostNetworkTest() {
-	ng::HostNetwork<float> model({
-		ng::Linear(28 * 28, 100),
-		ng::Relu(),
-		ng::Linear(100, 10),
+	HostNetwork<float> model({
+		Linear(28 * 28, 100),
+		Relu(),
+		Linear(100, 10),
 	});
 }
 } // namespace

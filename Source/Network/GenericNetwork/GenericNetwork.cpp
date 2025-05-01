@@ -6,7 +6,6 @@ module NeuralGraphics;
 import :GenericNetwork;
 import :Utils;
 import std;
-namespace ng {
 
 void ValidateLayers(std::span<LayerVariant const> layers) {
 	assert(!layers.empty() && "Network must have at least one layer.");
@@ -36,4 +35,3 @@ auto GenericNetwork::GetParametersCount() const -> u32 {
 	return size;
 }
 
-} // namespace ng

@@ -1,11 +1,11 @@
 export module NeuralGraphics:VisitorUtils;
 import std;
 
-export namespace ng {
+export namespace Utils {
 
 template <class... Ts>
 struct Visitor : Ts... {
 	using Ts::operator()...;
 };
 
-} // namespace ng
+} // namespace Utils

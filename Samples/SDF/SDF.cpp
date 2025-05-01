@@ -18,7 +18,7 @@ import std;
 #define COOPVEC_TYPE numeric::float16_t
 #include "Shaders/SDFWeights.h"
 
-using namespace ng;
+using namespace Utils;
 
 struct PhysicalDevice : public VulkanRHI::PhysicalDevice {
 	PhysicalDevice() {

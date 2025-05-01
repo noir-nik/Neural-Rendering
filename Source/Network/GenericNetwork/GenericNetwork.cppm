@@ -2,7 +2,6 @@ export module NeuralGraphics:GenericNetwork;
 export import :GenericLayers;
 import std;
 
-export namespace ng {
 class GenericNetwork {
 public:
 	GenericNetwork(std::initializer_list<LayerVariant> layers);
@@ -26,4 +25,3 @@ private:
 	std::vector<LayerVariant> layers;
 };
 
-} // namespace ng

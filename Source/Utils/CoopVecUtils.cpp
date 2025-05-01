@@ -3,8 +3,8 @@ import :CoopVecUtils;
 import std;
 import vulkan_hpp;
 
-namespace ng::inline Utils {
 using u32 = std::uint32_t;
+using namespace Utils;
 
 auto CoopVecUtils::CalculateByteSize(
 		vk::Device                                device,
@@ -34,4 +34,3 @@ auto CoopVecUtils::CalculateByteSize(
 
 	return {result, result_size};
 }
-} // namespace ng::inline Utils
