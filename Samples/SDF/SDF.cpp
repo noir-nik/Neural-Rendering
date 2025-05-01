@@ -1,4 +1,4 @@
-#include "../Common/Vulkan/CheckResult.h"
+#include "CheckResult.h"
 #include "Shaders/SDFConfig.h"
 #include "Shaders/SDFConstants.h"
 
@@ -210,7 +210,7 @@ void SDFSample::Init() {
 	window.GetInputCallbacks().keyCallback       = KeyCallback;
 	CreateInstance();
 
-	CHECK_RESULT(WindowManager::CreateWindowSurface(
+	CHECK_VULKAN_RESULT(WindowManager::CreateWindowSurface(
 		instance, reinterpret_cast<GLFWwindow*>(window.GetHandle()),
 		GetAllocator(), &surface));
 
@@ -237,12 +237,12 @@ void SDFSample::Init() {
 		.queryType  = vk::QueryType::eTimestamp,
 		.queryCount = static_cast<u32>(std::size(timestamp_results)),
 	};
-	CHECK_RESULT(device.createQueryPool(&query_pool_info, GetAllocator(), &timestamp_query_pool));
+	CHECK_VULKAN_RESULT(device.createQueryPool(&query_pool_info, GetAllocator(), &timestamp_query_pool));
 
 	// network_parameters.resize(network.GetParametersSize());
 
 	auto [result, cooperative_vector_properties] = physical_device.getCooperativeVectorPropertiesNV();
-	CHECK_RESULT(result);
+	CHECK_VULKAN_RESULT(result);
 
 	if (bVerbose) {
 		std::printf("=== VkCooperativeVectorPropertiesNV ===\n");
@@ -263,7 +263,7 @@ SDFSample::~SDFSample() { Destroy(); }
 void SDFSample::Destroy() {
 
 	if (device) {
-		CHECK_RESULT(device.waitIdle());
+		CHECK_VULKAN_RESULT(device.waitIdle());
 
 		if (timestamp_query_pool) {
 			device.destroyQueryPool(timestamp_query_pool, GetAllocator());
@@ -337,22 +337,22 @@ void SDFSample::CreateInstance() {
 		.enabledExtensionCount   = static_cast<u32>(std::size(enabledExtensions)),
 		.ppEnabledExtensionNames = enabledExtensions.data(),
 	};
-	CHECK_RESULT(vk::createInstance(&info, GetAllocator(), &instance));
+	CHECK_VULKAN_RESULT(vk::createInstance(&info, GetAllocator(), &instance));
 
 	if (bUseValidation) {
 		LoadInstanceDebugUtilsFunctionsEXT(instance);
-		CHECK_RESULT(instance.createDebugUtilsMessengerEXT(&kDebugUtilsCreateInfo, allocator, &debug_messenger));
+		CHECK_VULKAN_RESULT(instance.createDebugUtilsMessengerEXT(&kDebugUtilsCreateInfo, allocator, &debug_messenger));
 	}
 
 	vk::Result result;
 	std::tie(result, vulkan_physical_devices) = instance.enumeratePhysicalDevices();
-	CHECK_RESULT(result);
+	CHECK_VULKAN_RESULT(result);
 }
 
 void SDFSample::SelectPhysicalDevice() {
 	for (vk::PhysicalDevice const& device : vulkan_physical_devices) {
 		physical_device.Assign(device);
-		CHECK_RESULT(physical_device.GetDetails());
+		CHECK_VULKAN_RESULT(physical_device.GetDetails());
 		if (physical_device.IsSuitable(surface, kEnabledDeviceExtensions)) {
 			if (bVerbose) {
 				auto const& properties = physical_device.cooperative_vector_properties;
@@ -381,7 +381,7 @@ void SDFSample::CreateDevice() {
 	auto [result, index] = physical_device.GetQueueFamilyIndex({.flags = vk::QueueFlagBits::eGraphics, .surface = surface});
 	if (result != vk::Result::eSuccess || !index.has_value()) {
 		std::printf("Failed to get graphics queue family index with surface support\n");
-		CHECK_RESULT(result);
+		CHECK_VULKAN_RESULT(result);
 	}
 
 	queue_family_index = index.value();
@@ -419,7 +419,7 @@ void SDFSample::CreateDevice() {
 		.ppEnabledExtensionNames = kEnabledDeviceExtensions,
 	};
 
-	CHECK_RESULT(physical_device.createDevice(&info, GetAllocator(), &device));
+	CHECK_VULKAN_RESULT(physical_device.createDevice(&info, GetAllocator(), &device));
 	queue = device.getQueue(queue_create_infos[0].queueFamilyIndex, 0);
 }
 
@@ -440,7 +440,7 @@ void SDFSample::CreateVmaAllocator() {
 		.instance         = instance,
 		.vulkanApiVersion = kApiVersion,
 	};
-	CHECK_RESULT(vk::Result(vmaCreateAllocator(&info, &vma_allocator)));
+	CHECK_VULKAN_RESULT(vk::Result(vmaCreateAllocator(&info, &vma_allocator)));
 }
 
 void SDFSample::CreateDescriptorSetLayout() {
@@ -457,7 +457,7 @@ void SDFSample::CreateDescriptorSetLayout() {
 		.pBindings    = &descriptor_set_layout_binding,
 	};
 
-	CHECK_RESULT(device.createDescriptorSetLayout(&info, GetAllocator(), &descriptor_set_layout));
+	CHECK_VULKAN_RESULT(device.createDescriptorSetLayout(&info, GetAllocator(), &descriptor_set_layout));
 }
 
 void SDFSample::CreateDescriptorPool() {
@@ -472,7 +472,7 @@ void SDFSample::CreateDescriptorPool() {
 		.pPoolSizes    = descriptor_pool_sizes,
 	};
 
-	CHECK_RESULT(device.createDescriptorPool(&info, GetAllocator(), &descriptor_pool));
+	CHECK_VULKAN_RESULT(device.createDescriptorPool(&info, GetAllocator(), &descriptor_pool));
 }
 
 void SDFSample::CreateDescriptorSet() {
@@ -482,7 +482,7 @@ void SDFSample::CreateDescriptorSet() {
 		.pSetLayouts        = &descriptor_set_layout,
 	};
 
-	CHECK_RESULT(device.allocateDescriptorSets(&info, &descriptor_set));
+	CHECK_VULKAN_RESULT(device.allocateDescriptorSets(&info, &descriptor_set));
 }
 
 void SDFSample::CreateSwapchain() {
@@ -494,7 +494,7 @@ void SDFSample::CreateSwapchain() {
 		.queue_family_index = queue_family_index,
 		.frames_in_flight   = kFramesInFlight,
 	};
-	CHECK_RESULT(swapchain.Create(device, physical_device, info, GetAllocator()));
+	CHECK_VULKAN_RESULT(swapchain.Create(device, physical_device, info, GetAllocator()));
 }
 
 void SDFSample::CreatePipelineLayout() {
@@ -511,7 +511,7 @@ void SDFSample::CreatePipelineLayout() {
 		.pPushConstantRanges    = &push_constant_range,
 	};
 
-	CHECK_RESULT(device.createPipelineLayout(&info, GetAllocator(), &pipeline_layout));
+	CHECK_VULKAN_RESULT(device.createPipelineLayout(&info, GetAllocator(), &pipeline_layout));
 }
 
 void SDFSample::CreatePipelines() {
@@ -533,7 +533,7 @@ void SDFSample::CreatePipelines() {
 	for (u32 i = 0; i < std::size(shader_codes); ++i) {
 		shader_module_infos[i].codeSize = shader_codes[i].value().size();
 		shader_module_infos[i].pCode    = reinterpret_cast<const u32*>(shader_codes[i].value().data());
-		CHECK_RESULT(device.createShaderModule(&shader_module_infos[i], GetAllocator(), &shader_modules[i]));
+		CHECK_VULKAN_RESULT(device.createShaderModule(&shader_module_infos[i], GetAllocator(), &shader_modules[i]));
 	}
 
 	pipelines[int(SdfFunctionType::eCoopVec)]      = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eCoopVec);
@@ -655,7 +655,7 @@ auto SDFSample::CreatePipeline(vk::ShaderModule vertex_shader_module,
 	};
 
 	vk::Pipeline pipeline;
-	CHECK_RESULT(device.createGraphicsPipelines(GetPipelineCache(), 1, &info, GetAllocator(), &pipeline));
+	CHECK_VULKAN_RESULT(device.createGraphicsPipelines(GetPipelineCache(), 1, &info, GetAllocator(), &pipeline));
 
 	return pipeline;
 }
@@ -668,7 +668,7 @@ void SDFSample::CreateAndUploadBuffers() {
 	std::size_t row_major_size_bytes = 0;
 
 	// Optimal layout
-	CHECK_RESULT(sdf_network.UpdateOffsetsAndSize(
+	CHECK_VULKAN_RESULT(sdf_network.UpdateOffsetsAndSize(
 		device, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal,
 		kDstMatrixType, kDstVectorType));
 	optimal_size_bytes = AlignTo(sdf_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
@@ -684,7 +684,7 @@ void SDFSample::CreateAndUploadBuffers() {
 	}
 
 	// Row-major layout
-	CHECK_RESULT(sdf_network.UpdateOffsetsAndSize(
+	CHECK_VULKAN_RESULT(sdf_network.UpdateOffsetsAndSize(
 		device, vk::CooperativeVectorMatrixLayoutNV::eRowMajor,
 		kDstMatrixType, kDstVectorType));
 	row_major_size_bytes = AlignTo(sdf_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
@@ -703,13 +703,13 @@ void SDFSample::CreateAndUploadBuffers() {
 	std::size_t total_size_bytes = optimal_size_bytes + row_major_size_bytes;
 
 	// clang-format off
-	CHECK_RESULT(sdf_weights_buffer.Create(device, vma_allocator, {
+	CHECK_VULKAN_RESULT(sdf_weights_buffer.Create(device, vma_allocator, {
 		.size   = total_size_bytes,
 		.usage  = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
 		.memory = vk::MemoryPropertyFlagBits::eDeviceLocal,
 	}));
 
-	CHECK_RESULT(staging_buffer.Create(device, vma_allocator, {
+	CHECK_VULKAN_RESULT(staging_buffer.Create(device, vma_allocator, {
 		.size   = total_size_bytes,
 		.usage  = vk::BufferUsageFlagBits::eTransferSrc,
 		.memory = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
@@ -739,7 +739,7 @@ void SDFSample::CreateAndUploadBuffers() {
 	// Upload weights
 	{
 		auto update_and_write = [&](u32 offset, vk::CooperativeVectorMatrixLayoutNV layout) {
-			CHECK_RESULT(sdf_network.UpdateOffsetsAndSize(device, layout, kDstMatrixType, kDstVectorType))
+			CHECK_VULKAN_RESULT(sdf_network.UpdateOffsetsAndSize(device, layout, kDstMatrixType, kDstVectorType))
 			WriteNetworkWeights(sdf_network, staging_buffer, offset, layout);
 		};
 		std::size_t offset = 0;
@@ -748,7 +748,7 @@ void SDFSample::CreateAndUploadBuffers() {
 		update_and_write(offset, vk::CooperativeVectorMatrixLayoutNV::eRowMajor);
 
 		vk::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
-		CHECK_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
+		CHECK_VULKAN_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
 		// clang-format off
 		cmd.copyBuffer(staging_buffer, sdf_weights_buffer, {{
 			.srcOffset = 0,
@@ -756,9 +756,9 @@ void SDFSample::CreateAndUploadBuffers() {
 			.size      = total_size_bytes,
 		}});
 		// clang-format on
-		CHECK_RESULT(cmd.end());
-		CHECK_RESULT(queue.submit({vk::SubmitInfo{.commandBufferCount = 1, .pCommandBuffers = &cmd}}));
-		CHECK_RESULT(queue.waitIdle());
+		CHECK_VULKAN_RESULT(cmd.end());
+		CHECK_VULKAN_RESULT(queue.submit({vk::SubmitInfo{.commandBufferCount = 1, .pCommandBuffers = &cmd}}));
+		CHECK_VULKAN_RESULT(queue.waitIdle());
 	}
 }
 
@@ -787,13 +787,13 @@ void SDFSample::WriteNetworkWeights(VulkanCoopVecNetwork const&         network,
 		};
 
 		info.dstData.hostAddress = nullptr;
-		CHECK_RESULT(device.convertCooperativeVectorMatrixNV(&info));
+		CHECK_VULKAN_RESULT(device.convertCooperativeVectorMatrixNV(&info));
 		if (required_size != expected_size) {
 			std::printf("Expected size: %zu, actual size: %zu\n", expected_size, required_size);
 			std::exit(1);
 		}
 		info.dstData.hostAddress = dst + linear.GetWeightsOffset();
-		CHECK_RESULT(device.convertCooperativeVectorMatrixNV(&info));
+		CHECK_VULKAN_RESULT(device.convertCooperativeVectorMatrixNV(&info));
 	};
 
 	std::byte* staging_ptr = staging_offset + reinterpret_cast<std::byte*>(staging_buffer.GetMappedData());
@@ -834,7 +834,7 @@ auto SDFSample::GetQueryResult() -> u64 {
 		std::printf("Timestamp not ready\n");
 		break;
 	default:
-		CHECK_RESULT(result);
+		CHECK_VULKAN_RESULT(result);
 	}
 	return 0ull;
 }
@@ -846,12 +846,12 @@ auto SDFSample::DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets)
 		case vk::Result::eErrorOutOfDateKHR: swapchain_dirty = true; return false;
 		case vk::Result::eSuboptimalKHR:     swapchain_dirty = true; return true;
 		default:
-			CHECK_RESULT(result);
+			CHECK_VULKAN_RESULT(result);
 		}
 		return false;
 	};
-	CHECK_RESULT(device.waitForFences(1, &swapchain.GetCurrentFence(), vk::True, std::numeric_limits<u32>::max()));
-	CHECK_RESULT(device.resetFences(1, &swapchain.GetCurrentFence()));
+	CHECK_VULKAN_RESULT(device.waitForFences(1, &swapchain.GetCurrentFence(), vk::True, std::numeric_limits<u32>::max()));
+	CHECK_VULKAN_RESULT(device.resetFences(1, &swapchain.GetCurrentFence()));
 	device.resetCommandPool(swapchain.GetCurrentCommandPool());
 	if (!HandleSwapchainResult(swapchain.AcquireNextImage())) return 0ull;
 	RecordCommands(pipeline, offsets);
@@ -869,7 +869,7 @@ void SDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offs
 
 	vk::Rect2D               render_rect{0, 0, static_cast<u32>(width), static_cast<u32>(height)};
 	VulkanRHI::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
-	CHECK_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
+	CHECK_VULKAN_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
 	cmd.resetQueryPool(timestamp_query_pool, GetCurrentTimestampIndex(), kTimestampsPerFrame);
 	cmd.writeTimestamp(vk::PipelineStageFlagBits::eTopOfPipe, timestamp_query_pool, GetCurrentTimestampIndex());
 
@@ -924,14 +924,14 @@ void SDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offs
 
 	// Write timestamp at end
 	cmd.writeTimestamp(vk::PipelineStageFlagBits::eBottomOfPipe, timestamp_query_pool, GetCurrentTimestampIndex() + 1);
-	CHECK_RESULT(cmd.end());
+	CHECK_VULKAN_RESULT(cmd.end());
 }
 
 void SDFSample::RecreateSwapchain(int width, int height) {
 	for (auto& frame : swapchain.GetFrameData()) {
-		CHECK_RESULT(device.waitForFences(1, &frame.GetFence(), vk::True, std::numeric_limits<u32>::max()));
+		CHECK_VULKAN_RESULT(device.waitForFences(1, &frame.GetFence(), vk::True, std::numeric_limits<u32>::max()));
 	}
-	CHECK_RESULT(swapchain.Recreate(width, height));
+	CHECK_VULKAN_RESULT(swapchain.Recreate(width, height));
 	swapchain_dirty = false;
 }
 static auto last_frame_time = std::chrono::steady_clock::now();

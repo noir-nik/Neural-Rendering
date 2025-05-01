@@ -6,10 +6,8 @@ add_library(${SAMPLE_NAME} ${TEST_SOURCE_FILES})
 
 target_link_libraries(${SAMPLE_NAME} PRIVATE ${PROJECT_NAME}::${PROJECT_NAME})
 
-set(GLFW_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../External/Glfw)
-
 set(INCLUDE_DIRS
-	${GLFW_DIR}/include
+	${CMAKE_CURRENT_SOURCE_DIR}/Include
 )
 
 target_include_directories(${SAMPLE_NAME} PUBLIC ${INCLUDE_DIRS})
@@ -24,7 +22,7 @@ target_sources(${SAMPLE_NAME} PUBLIC
 )
 
 if(NOT TARGET glfw)
-add_subdirectory(${GLFW_DIR} ../External/Glfw)
+add_subdirectory(${GLFW_DIR} ${PROJECT_SOURCE_DIR}/External/Glfw ${CMAKE_CURRENT_BINARY_DIR}/External/Glfw)
 target_link_libraries(${SAMPLE_NAME} PRIVATE glfw)
 endif()
 
