@@ -89,11 +89,9 @@ public:
 
 	auto GetAllocator() const -> vk::AllocationCallbacks const* { return allocator; }
 	auto GetPipelineCache() const -> vk::PipelineCache { return pipeline_cache; }
-
-	void SetTestMode(bool value) { bIsTestMode = value; }
 	bool IsTestMode() const { return bIsTestMode; }
-	void SetVerbose(bool value) { bVerbose = value; }
-	void SetUseValidation(bool value) { bUseValidation = value; }
+
+auto ParseArgs(int argc, char const* argv[]) -> char const* ;
 
 	bool bIsTestMode    = false;
 	bool bVerbose       = false;
@@ -169,27 +167,33 @@ public:
 	vk::QueryPool timestamp_query_pool{};
 };
 
-static SDFSample* gSDFSample = nullptr;
-
 static void FramebufferSizeCallback(GLFWWindow* window, int width, int height) {
-	gSDFSample->swapchain_dirty = true;
+	SDFSample* sample = static_cast<SDFSample*>(window->GetUserPointer());
+
+	sample->swapchain_dirty = true;
 	if (width <= 0 || height <= 0) return;
-	gSDFSample->RecreateSwapchain(width, height);
+	sample->RecreateSwapchain(width, height);
 }
 
 static void WindowRefreshCallback(GLFWWindow* window) {
+	SDFSample* sample = static_cast<SDFSample*>(window->GetUserPointer());
+
 	int x, y, width, height;
 	window->GetRect(x, y, width, height);
 	if (width <= 0 || height <= 0) return;
-	gSDFSample->DrawWindow(gSDFSample->pipelines[u32(SdfFunctionType::eCoopVec)], gSDFSample->optimal_offsets);
+	sample->DrawWindow(sample->pipelines[u32(SdfFunctionType::eCoopVec)], sample->optimal_offsets);
 }
 
 static void CursorPosCallback(GLFWWindow* window, double xpos, double ypos) {
-	gSDFSample->mouse.x = static_cast<float>(xpos);
-	gSDFSample->mouse.y = static_cast<float>(ypos);
+	SDFSample* sample = static_cast<SDFSample*>(window->GetUserPointer());
+
+	sample->mouse.x = static_cast<float>(xpos);
+	sample->mouse.y = static_cast<float>(ypos);
 }
 
 static void KeyCallback(GLFWWindow* window, int key, int scancode, int action, int mods) {
+	SDFSample* sample = static_cast<SDFSample*>(window->GetUserPointer());
+
 	switch (key) {
 	case 256:
 		window->SetShouldClose(true);
@@ -207,6 +211,7 @@ void SDFSample::Init() {
 	}
 	window.GetInputCallbacks().cursorPosCallback = CursorPosCallback;
 	window.GetInputCallbacks().keyCallback       = KeyCallback;
+	window.SetUserPointer(this);
 	CreateInstance();
 
 	CHECK_VULKAN_RESULT(WindowManager::CreateWindowSurface(
@@ -991,22 +996,21 @@ void SDFSample::RunTest() {
 	}
 }
 
-auto ParseArgs(int argc, char const* argv[]) -> char const* {
+auto SDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 	for (std::string_view const arg : std::span(argv + 1, argc - 1)) {
-		if (arg == "--test" || arg == "-t") gSDFSample->SetTestMode(true);
-		else if (arg == "--verbose") gSDFSample->SetVerbose(true);
-		else if (arg == "--validation") gSDFSample->SetUseValidation(true);
+		if (arg == "--test" || arg == "-t") bIsTestMode = true;
+		else if (arg == "--verbose") bVerbose = true;
+		else if (arg == "--validation") bUseValidation = true;
 		else return arg.data();
 	}
 	return nullptr;
-}
+} 
 
 auto main(int argc, char const* argv[]) -> int {
 	std::filesystem::current_path(std::filesystem::absolute(argv[0]).parent_path());
 	SDFSample sample;
-	gSDFSample = &sample;
 
-	if (char const* unknown_arg = ParseArgs(argc, argv); unknown_arg) {
+	if (char const* unknown_arg = sample.ParseArgs(argc, argv); unknown_arg) {
 		std::printf("Unknown argument: %s\n", unknown_arg);
 		std::printf("Usage: %ls [--test] [--verbose] [--validation]\n",
 					std::filesystem::path(argv[0]).filename().c_str());
