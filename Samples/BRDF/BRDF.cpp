@@ -1,6 +1,5 @@
 #include "CheckResult.h"
-#include "Shaders/SDFConfig.h"
-#include "Shaders/SDFConstants.h"
+#include "Shaders/BRDFConfig.h"
 
 import NeuralGraphics;
 import vulkan_hpp;
@@ -10,17 +9,24 @@ import VulkanFunctions;
 import Window;
 import vk_mem_alloc;
 import SamplesCommon;
+import Math;
 import std;
+
+using namespace math;
+extern "C++" {
+#include "Shaders/BRDFConstants.h"
+}
 
 #ifdef COOPVEC_TYPE
 #undef COOPVEC_TYPE
 #endif
 #define COOPVEC_TYPE numeric::float16_t
-#include "Shaders/SDFWeights.h"
 
 using namespace Utils;
 
-class SDFSample {
+using VulkanRHI::Buffer;
+
+class BRDFSample {
 public:
 	static constexpr u32 kApiVersion = vk::ApiVersion13;
 
@@ -40,18 +46,11 @@ public:
 
 	static constexpr u32 kFramesInFlight = 3;
 
-	static constexpr u32 kNetworkLayers = 4;
-
-	struct NetworkOffsets {
-		u32 weights_offsets[kNetworkLayers];
-		u32 biases_offsets[kNetworkLayers];
-	};
-
-	~SDFSample();
+	~BRDFSample();
 
 	void Init();
 	void Run();
-	void RunTest();
+	void RunTest() {};
 	void Destroy();
 	void CreateInstance();
 	void SelectPhysicalDevice();
@@ -71,8 +70,7 @@ public:
 	[[nodiscard]]
 	auto CreatePipeline(
 		vk::ShaderModule vertex_shader_module,
-		vk::ShaderModule fragment_shader_module,
-		SdfFunctionType  function_type = SdfFunctionType::eCoopVec) -> vk::Pipeline;
+		BrdfFunctionType function_type = BrdfFunctionType::eCoopVec) -> vk::Pipeline;
 
 	// void BuildNetwork();
 	void CreateAndUploadBuffers();
@@ -81,73 +79,86 @@ public:
 							 std::size_t                         staging_offset,
 							 vk::CooperativeVectorMatrixLayoutNV dst_layout);
 
-	void RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offsets);
 	// Return time in nanoseconds
 	auto GetQueryResult() -> u64;
-	auto DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets) -> u64;
 	void RecreateSwapchain(int width, int height);
 
 	auto GetAllocator() const -> vk::AllocationCallbacks const* { return allocator; }
 	auto GetPipelineCache() const -> vk::PipelineCache { return pipeline_cache; }
+
 	bool IsTestMode() const { return bIsTestMode; }
 
-auto ParseArgs(int argc, char const* argv[]) -> char const* ;
+	auto ParseArgs(int argc, char const* argv[]) -> char const*;
 
 	bool bIsTestMode    = false;
 	bool bVerbose       = false;
-	bool bUseValidation = false;
+	bool bUseValidation = true;
 
 	GLFWWindow window{};
 	struct {
 		float x = 300.0f;
 		float y = 300.0f;
+
+		float        delta_x = 0.0f;
+		float        delta_y = 0.0f;
+		Glfw::Action button_state[std::underlying_type_t<Glfw::MouseButton>(Glfw::MouseButton::eLast) + 1];
 	} mouse;
+	void ProcessViewportInput();
 
-	vk::Instance                    instance{};
-	vk::AllocationCallbacks const*  allocator{nullptr};
-	VmaAllocator                    vma_allocator{};
-	vk::PipelineCache               pipeline_cache{nullptr};
-	vk::DebugUtilsMessengerEXT      debug_messenger{};
-	std::span<char const* const>    enabled_layers{};
-	std::vector<vk::PhysicalDevice> vulkan_physical_devices{};
-	PhysicalDevice                  physical_device{};
-	vk::Device                      device{};
-	VulkanRHI::Swapchain            swapchain{};
+	vk::Instance                    instance;
+	vk::AllocationCallbacks const*  allocator     = nullptr;
+	VmaAllocator                    vma_allocator = nullptr;
+	vk::PipelineCache               pipeline_cache;
+	vk::DebugUtilsMessengerEXT      debug_messenger;
+	std::span<char const* const>    enabled_layers;
+	std::vector<vk::PhysicalDevice> vulkan_physical_devices;
+	PhysicalDevice                  physical_device;
+	vk::Device                      device;
+	VulkanRHI::Swapchain            swapchain;
 	bool                            swapchain_dirty = false;
-	vk::SurfaceKHR                  surface{};
+	vk::SurfaceKHR                  surface;
 
-	vk::Queue queue{};
+	vk::Queue queue;
 	u32       queue_family_index = ~0u;
 
 	bool timestamps_supported = false;
 
-	vk::DescriptorSetLayout descriptor_set_layout{};
-	vk::DescriptorPool      descriptor_pool{};
-	vk::DescriptorSet       descriptor_set{};
+	vk::DescriptorSetLayout descriptor_set_layout;
+	vk::DescriptorPool      descriptor_pool;
+	vk::DescriptorSet       descriptor_set;
 
-	vk::PipelineLayout pipeline_layout{};
+	vk::PipelineLayout pipeline_layout;
 
 	// vk::Pipeline coopvec_pipeline;
 	// vk::Pipeline scalar_inline_pipeline;
 	// vk::Pipeline scalar_buffer_pipeline;
 	// vk::Pipeline vec4_pipeline;
 
-	std::array<vk::Pipeline, u32(SdfFunctionType::eCount)> pipelines;
+	std::array<vk::Pipeline, u32(BrdfFunctionType::eCount)> pipelines;
 
-	VulkanRHI::Buffer staging_buffer{};
-	VulkanRHI::Buffer sdf_weights_buffer{};
+	Buffer vertex_buffer;
+	Buffer index_buffer;
+	Buffer staging_buffer;
+	Buffer brdf_weights_buffer;
 
-	VulkanCoopVecNetwork sdf_network = {
-		Linear(3, 16),
-		Linear(16, 16),
-		Linear(16, 16),
-		Linear(16, 1),
+	VulkanCoopVecNetwork brdf_network = {
+		Linear(6, 64),
+		Linear(64, 64),
+		Linear(64, 64),
+		Linear(64, 6),
+		Linear(6, 3),
+	};
+
+	static constexpr u32 kNetworkLinearLayers = 5;
+
+	struct NetworkOffsets {
+		u32 weights_offsets[kNetworkLinearLayers];
+		u32 biases_offsets[kNetworkLinearLayers];
 	};
 
 	NetworkOffsets optimal_offsets;
-	NetworkOffsets row_major_offsets;
-
-	// std::vector<std::byte> network_parameters;
+	void           RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offsets);
+	auto           DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets) -> u64;
 
 	static constexpr u32 kTimestampsPerFrame = 2;
 
@@ -165,10 +176,12 @@ auto ParseArgs(int argc, char const* argv[]) -> char const* ;
 	auto GetCurrentTimestampIndex() -> u32 { return swapchain.GetCurrentFrameIndex() * kTimestampsPerFrame; }
 
 	vk::QueryPool timestamp_query_pool{};
+
+	Camera camera;
 };
 
 static void FramebufferSizeCallback(GLFWWindow* window, int width, int height) {
-	SDFSample* sample = static_cast<SDFSample*>(window->GetUserPointer());
+	BRDFSample* sample = static_cast<BRDFSample*>(window->GetUserPointer());
 
 	sample->swapchain_dirty = true;
 	if (width <= 0 || height <= 0) return;
@@ -176,23 +189,88 @@ static void FramebufferSizeCallback(GLFWWindow* window, int width, int height) {
 }
 
 static void WindowRefreshCallback(GLFWWindow* window) {
-	SDFSample* sample = static_cast<SDFSample*>(window->GetUserPointer());
+	BRDFSample* sample = static_cast<BRDFSample*>(window->GetUserPointer());
 
 	int x, y, width, height;
 	window->GetRect(x, y, width, height);
 	if (width <= 0 || height <= 0) return;
-	sample->DrawWindow(sample->pipelines[u32(SdfFunctionType::eCoopVec)], sample->optimal_offsets);
+	sample->DrawWindow(sample->pipelines[u32(BrdfFunctionType::eDefault)], sample->optimal_offsets);
 }
 
-static void CursorPosCallback(GLFWWindow* window, double xpos, double ypos) {
-	SDFSample* sample = static_cast<SDFSample*>(window->GetUserPointer());
+void BRDFSample::ProcessViewportInput() {
+	using namespace Glfw;
 
-	sample->mouse.x = static_cast<float>(xpos);
-	sample->mouse.y = static_cast<float>(ypos);
+	auto&       camera_pos     = camera.getPosition();
+	auto const& camera_right   = camera.getRight();
+	auto const& camera_up      = camera.getUp();
+	auto const& camera_forward = camera.getForward();
+
+	vec2 delta_pos = {mouse.delta_x, mouse.delta_y};
+
+	GLFWwindow* glfw_window = static_cast<GLFWwindow*>(window.GetHandle());
+
+	bool const is_more_than_one_button_pressed =
+		std::ranges::fold_left(
+			std::span(mouse.button_state) | std::views::take(3 /* left, middle, right */),
+			false, [](bool state, Action action) {
+				return state || action == Action::ePress || action == Action::eRepeat;
+			});
+
+	if (is_more_than_one_button_pressed) [[unlikely]]
+		return;
+
+	float rotation_sign = std::copysignf(1.0f, camera.getUp().y);
+
+	auto t = rotation_sign * camera_right;
+	// auto t =  camera_right * rotation_sign;
+
+	if (mouse.button_state[std::to_underlying(MouseButton::eRight)] == Action::ePress) {
+		if (glfwGetKey(glfw_window, std::to_underlying(Glfw::Key::eLeftAlt)) == std::to_underlying(Glfw::Action::ePress)) {
+			auto zoom_factor = camera.zoom_factor * length(camera_pos - camera.focus);
+			auto movement    = (zoom_factor * delta_pos.x) * camera_forward;
+			camera.view      = camera.view | translate(movement);
+			// camera.focus += movement;
+		} else {
+			camera_pos -= camera.focus;
+			// camera.view = rotate4x4(camera_up, deltaPos.x * camera.rotation_factor)
+			//	 * rotate4x4(camera_right, deltaPos.y * camera.rotation_factor)
+			//	 * camera.view; // trackball
+			camera.view = camera.view
+						  | rotate(camera_right, delta_pos.y * camera.rotation_factor)
+						  | rotateY(rotation_sign * delta_pos.x * camera.rotation_factor);
+			camera_pos += camera.focus;
+		}
+		// window->AddFramesToDraw(1);
+		return;
+	}
+
+	if (mouse.button_state[std::to_underlying(MouseButton::eMiddle)] == Action::ePress) {
+		auto move_factor = camera.move_factor * length(camera_pos - camera.focus);
+		auto movement    = move_factor * (camera_up * -delta_pos.y + camera_right * delta_pos.x);
+		camera.view = camera.view | translate(movement);
+		return;
+	}
+
+	if (mouse.button_state[std::to_underlying(MouseButton::eLeft)] == Action::ePress) {
+		// window->AddFramesToDraw(1);
+		return;
+	}
+}
+static void CursorPosCallback(GLFWWindow* window, double xpos, double ypos) {
+	BRDFSample* sample = static_cast<BRDFSample*>(window->GetUserPointer());
+
+	sample->mouse.delta_x = static_cast<float>(xpos - sample->mouse.x);
+	sample->mouse.delta_y = static_cast<float>(ypos - sample->mouse.y);
+	sample->mouse.x       = static_cast<float>(xpos);
+	sample->mouse.y       = static_cast<float>(ypos);
+
+	sample->ProcessViewportInput();
+
+	std::printf("mouse position: (%f, %f), delta: (%f, %f)\n", sample->mouse.x, sample->mouse.y, sample->mouse.delta_x, sample->mouse.delta_y);
 }
 
 static void KeyCallback(GLFWWindow* window, int key, int scancode, int action, int mods) {
-	SDFSample* sample = static_cast<SDFSample*>(window->GetUserPointer());
+	BRDFSample* sample = static_cast<BRDFSample*>(window->GetUserPointer());
 
 	switch (key) {
 	case 256:
@@ -201,17 +279,31 @@ static void KeyCallback(GLFWWindow* window, int key, int scancode, int action, i
 	}
 }
 
-void SDFSample::Init() {
+static void MouseButtonCallback(GLFWWindow* in_window, int in_button, int in_action, int in_mods) {
+	BRDFSample* sample = static_cast<BRDFSample*>(in_window->GetUserPointer());
+	using namespace Glfw;
+
+	MouseButton button = static_cast<MouseButton>(in_button);
+	Action      action = static_cast<Action>(in_action);
+	Mod         mods   = static_cast<Mod>(in_mods);
+
+	sample->mouse.button_state[in_button] = action;
+	std::printf("button %d %d %d\n", in_button, in_action, in_mods);
+}
+
+void BRDFSample::Init() {
 	WindowManager::SetErrorCallback(WindowErrorCallback);
 	WindowManager::Init();
-	window.Init({.x = 30, .y = 30, .width = 800, .height = 600, .title = "SDF"});
+	window.Init({.x = 30, .y = 30, .width = 800, .height = 600, .title = "BRDF Sample"});
 	window.GetWindowCallbacks().framebufferSizeCallback = FramebufferSizeCallback;
 	if (!bIsTestMode) {
 		window.GetWindowCallbacks().windowRefreshCallback = WindowRefreshCallback;
 	}
-	window.GetInputCallbacks().cursorPosCallback = CursorPosCallback;
-	window.GetInputCallbacks().keyCallback       = KeyCallback;
+	window.GetInputCallbacks().cursorPosCallback   = CursorPosCallback;
+	window.GetInputCallbacks().keyCallback         = KeyCallback;
+	window.GetInputCallbacks().mouseButtonCallback = MouseButtonCallback;
 	window.SetUserPointer(this);
+
 	CreateInstance();
 
 	CHECK_VULKAN_RESULT(WindowManager::CreateWindowSurface(
@@ -262,9 +354,9 @@ void SDFSample::Init() {
 	}
 }
 
-SDFSample::~SDFSample() { Destroy(); }
+BRDFSample::~BRDFSample() { Destroy(); }
 
-void SDFSample::Destroy() {
+void BRDFSample::Destroy() {
 
 	if (device) {
 		CHECK_VULKAN_RESULT(device.waitIdle());
@@ -275,7 +367,9 @@ void SDFSample::Destroy() {
 		}
 
 		staging_buffer.Destroy();
-		sdf_weights_buffer.Destroy();
+		vertex_buffer.Destroy();
+		index_buffer.Destroy();
+		brdf_weights_buffer.Destroy();
 
 		for (vk::Pipeline& pipeline : pipelines) {
 			device.destroyPipeline(pipeline, GetAllocator());
@@ -307,7 +401,7 @@ void SDFSample::Destroy() {
 	WindowManager::Terminate();
 }
 
-void SDFSample::CreateInstance() {
+void BRDFSample::CreateInstance() {
 	vk::ApplicationInfo applicationInfo{.apiVersion = kApiVersion};
 
 	u32 glfw_extensions_count;
@@ -325,8 +419,7 @@ void SDFSample::CreateInstance() {
 						   //    vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose |
 						   //    vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo |
 						   vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
-		.messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
-					   vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
+		.messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
 					   //    vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding |
 					   vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
 		.pfnUserCallback = DebugUtilsCallback,
@@ -353,7 +446,7 @@ void SDFSample::CreateInstance() {
 	CHECK_VULKAN_RESULT(result);
 }
 
-void SDFSample::SelectPhysicalDevice() {
+void BRDFSample::SelectPhysicalDevice() {
 	for (vk::PhysicalDevice const& device : vulkan_physical_devices) {
 		physical_device.Assign(device);
 		CHECK_VULKAN_RESULT(physical_device.GetDetails());
@@ -376,10 +469,10 @@ void SDFSample::SelectPhysicalDevice() {
 	std::exit(1);
 }
 
-void SDFSample::GetPhysicalDeviceInfo() {
+void BRDFSample::GetPhysicalDeviceInfo() {
 }
 
-void SDFSample::CreateDevice() {
+void BRDFSample::CreateDevice() {
 	float const queue_priorities[] = {1.0f};
 
 	auto [result, index] = physical_device.GetQueueFamilyIndex({.flags = vk::QueueFlagBits::eGraphics, .surface = surface});
@@ -427,7 +520,7 @@ void SDFSample::CreateDevice() {
 	queue = device.getQueue(queue_create_infos[0].queueFamilyIndex, 0);
 }
 
-void SDFSample::CreateVmaAllocator() {
+void BRDFSample::CreateVmaAllocator() {
 	VmaVulkanFunctions vulkan_functions = {
 		.vkGetInstanceProcAddr = &vkGetInstanceProcAddr,
 		.vkGetDeviceProcAddr   = &vkGetDeviceProcAddr,
@@ -435,9 +528,7 @@ void SDFSample::CreateVmaAllocator() {
 
 	using ::VmaAllocatorCreateFlagBits;
 	VmaAllocatorCreateInfo info = {
-		.flags = VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT |
-				 VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT |
-				 VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
+		.flags            = VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT | VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT | VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
 		.physicalDevice   = physical_device,
 		.device           = device,
 		.pVulkanFunctions = &vulkan_functions,
@@ -447,11 +538,13 @@ void SDFSample::CreateVmaAllocator() {
 	CHECK_VULKAN_RESULT(vk::Result(vmaCreateAllocator(&info, &vma_allocator)));
 }
 
-void SDFSample::CreateDescriptorSetLayout() {
+constexpr u32 kStorageBuffersCount = 2;
+
+void BRDFSample::CreateDescriptorSetLayout() {
 	vk::DescriptorSetLayoutBinding descriptor_set_layout_binding{
 		.binding         = 0,
 		.descriptorType  = vk::DescriptorType::eStorageBuffer,
-		.descriptorCount = 1,
+		.descriptorCount = kStorageBuffersCount,
 		.stageFlags      = vk::ShaderStageFlagBits::eFragment,
 	};
 
@@ -464,9 +557,9 @@ void SDFSample::CreateDescriptorSetLayout() {
 	CHECK_VULKAN_RESULT(device.createDescriptorSetLayout(&info, GetAllocator(), &descriptor_set_layout));
 }
 
-void SDFSample::CreateDescriptorPool() {
+void BRDFSample::CreateDescriptorPool() {
 	vk::DescriptorPoolSize descriptor_pool_sizes[] = {
-		{.type = vk::DescriptorType::eStorageBuffer, .descriptorCount = 1},
+		{.type = vk::DescriptorType::eStorageBuffer, .descriptorCount = kStorageBuffersCount},
 	};
 
 	vk::DescriptorPoolCreateInfo info{
@@ -479,7 +572,7 @@ void SDFSample::CreateDescriptorPool() {
 	CHECK_VULKAN_RESULT(device.createDescriptorPool(&info, GetAllocator(), &descriptor_pool));
 }
 
-void SDFSample::CreateDescriptorSet() {
+void BRDFSample::CreateDescriptorSet() {
 	vk::DescriptorSetAllocateInfo info{
 		.descriptorPool     = descriptor_pool,
 		.descriptorSetCount = 1,
@@ -489,7 +582,7 @@ void SDFSample::CreateDescriptorSet() {
 	CHECK_VULKAN_RESULT(device.allocateDescriptorSets(&info, &descriptor_set));
 }
 
-void SDFSample::CreateSwapchain() {
+void BRDFSample::CreateSwapchain() {
 	int x, y, width, height;
 	window.GetRect(x, y, width, height);
 	VulkanRHI::SwapchainInfo info{
@@ -501,11 +594,12 @@ void SDFSample::CreateSwapchain() {
 	CHECK_VULKAN_RESULT(swapchain.Create(device, physical_device, info, GetAllocator()));
 }
 
-void SDFSample::CreatePipelineLayout() {
+void BRDFSample::CreatePipelineLayout() {
 	vk::PushConstantRange push_constant_range{
-		.stageFlags = vk::ShaderStageFlagBits::eFragment,
-		.offset     = 0,
-		.size       = physical_device.GetMaxPushConstantsSize(),
+		.stageFlags = vk::ShaderStageFlagBits::eVertex
+					  | vk::ShaderStageFlagBits::eFragment,
+		.offset = 0,
+		.size   = physical_device.GetMaxPushConstantsSize(),
 	};
 
 	vk::PipelineLayoutCreateInfo info{
@@ -518,70 +612,71 @@ void SDFSample::CreatePipelineLayout() {
 	CHECK_VULKAN_RESULT(device.createPipelineLayout(&info, GetAllocator(), &pipeline_layout));
 }
 
-void SDFSample::CreatePipelines() {
-	std::optional<std::vector<std::byte>> shader_codes[] = {
-		ReadBinaryFile("Shaders/Quad.vert.spv"),
-		ReadBinaryFile("Shaders/SdfMain.slang.spv"),
-	};
+void BRDFSample::CreatePipelines() {
 
-	for (auto const code : shader_codes) {
-		if (!code.has_value()) {
+	std::optional<std::vector<std::byte>> shader_codes[] = {
+		ReadBinaryFile("Shaders/BRDFMain.slang.spv").or_else([] {
 			std::printf("Failed to read shader file!\n");
 			std::exit(1);
-		}
-	}
+			return std::optional<std::vector<std::byte>>{};
+		}),
+	};
 
 	vk::ShaderModuleCreateInfo shader_module_infos[std::size(shader_codes)];
 	vk::ShaderModule           shader_modules[std::size(shader_codes)];
 
 	for (u32 i = 0; i < std::size(shader_codes); ++i) {
-		shader_module_infos[i].codeSize = shader_codes[i].value().size();
-		shader_module_infos[i].pCode    = reinterpret_cast<const u32*>(shader_codes[i].value().data());
+		shader_module_infos[i].codeSize = (*shader_codes[i]).size();
+		shader_module_infos[i].pCode    = reinterpret_cast<const u32*>((*shader_codes[i]).data());
 		CHECK_VULKAN_RESULT(device.createShaderModule(&shader_module_infos[i], GetAllocator(), &shader_modules[i]));
 	}
 
-	pipelines[int(SdfFunctionType::eCoopVec)]      = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eCoopVec);
-	pipelines[int(SdfFunctionType::eScalarInline)] = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eScalarInline);
-	pipelines[int(SdfFunctionType::eScalarBuffer)] = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eScalarBuffer);
-	pipelines[int(SdfFunctionType::eVec4)]         = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eVec4);
+	pipelines[int(BrdfFunctionType::eDefault)] = CreatePipeline(shader_modules[0], BrdfFunctionType::eDefault);
+	pipelines[int(BrdfFunctionType::eCoopVec)] = CreatePipeline(shader_modules[0], BrdfFunctionType::eCoopVec);
 
 	for (auto& shader_module : shader_modules) {
 		device.destroyShaderModule(shader_module, GetAllocator());
 	}
 }
 
-auto SDFSample::CreatePipeline(vk::ShaderModule vertex_shader_module,
-							   vk::ShaderModule fragment_shader_module,
-							   SdfFunctionType  function_type) -> vk::Pipeline {
+auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, BrdfFunctionType function_type) -> vk::Pipeline {
 
 	// Specialization constant for type of inferencing function
-	SdfFunctionType specialization_value = function_type;
+	BrdfFunctionType specialization_value = function_type;
 
 	vk::SpecializationMapEntry specialization_entry{
 		.constantID = 0,
 		.offset     = 0,
-		.size       = sizeof(SdfFunctionType),
+		.size       = sizeof(BrdfFunctionType),
 	};
 	vk::SpecializationInfo specialization_info{
 		.mapEntryCount = 1,
 		.pMapEntries   = &specialization_entry,
-		.dataSize      = sizeof(SdfFunctionType),
+		.dataSize      = sizeof(BrdfFunctionType),
 		.pData         = &specialization_value,
 	};
 
 	vk::PipelineShaderStageCreateInfo shader_stages[] = {
-		{.stage = vk::ShaderStageFlagBits::eVertex, .module = vertex_shader_module, .pName = "main"},
-		{.stage = vk::ShaderStageFlagBits::eFragment, .module = fragment_shader_module, .pName = "main", .pSpecializationInfo = &specialization_info},
+		{.stage = vk::ShaderStageFlagBits::eVertex, .module = shader_module, .pName = "vs_main"},
+		{.stage = vk::ShaderStageFlagBits::eFragment, .module = shader_module, .pName = "ps_main", .pSpecializationInfo = &specialization_info},
 	};
 
-	vk::VertexInputAttributeDescription vertex_input_attribute_descriptions[] = {{
-		.location = 0,
-		.binding  = 0,
-		.format   = vk::Format::eR32G32B32Sfloat,
-		.offset   = 0,
+	vk::VertexInputBindingDescription vertex_input_binding_descriptions[] = {{
+		.binding   = 0,
+		.stride    = sizeof(CubeVertex),
+		.inputRate = vk::VertexInputRate::eVertex,
 	}};
 
-	vk::PipelineVertexInputStateCreateInfo vertex_input_state{};
+	vk::VertexInputAttributeDescription vertex_input_attribute_descriptions[] = {
+		{.location = 0, .binding = 0, .format = vk::Format::eR32G32B32Sfloat, .offset = 0},
+	};
+
+	vk::PipelineVertexInputStateCreateInfo vertex_input_state{
+		.vertexBindingDescriptionCount   = std::size(vertex_input_binding_descriptions),
+		.pVertexBindingDescriptions      = vertex_input_binding_descriptions,
+		.vertexAttributeDescriptionCount = std::size(vertex_input_attribute_descriptions),
+		.pVertexAttributeDescriptions    = vertex_input_attribute_descriptions,
+	};
 
 	vk::PipelineInputAssemblyStateCreateInfo input_assembly_state{
 		.flags                  = {},
@@ -614,10 +709,7 @@ auto SDFSample::CreatePipeline(vk::ShaderModule vertex_shader_module,
 
 	vk::PipelineColorBlendAttachmentState color_blend_attachment_state{
 		.blendEnable    = vk::False,
-		.colorWriteMask = vk::ColorComponentFlagBits::eR |
-						  vk::ColorComponentFlagBits::eG |
-						  vk::ColorComponentFlagBits::eB |
-						  vk::ColorComponentFlagBits::eA,
+		.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
 	};
 
 	vk::PipelineColorBlendStateCreateInfo color_blend_state{
@@ -639,8 +731,6 @@ auto SDFSample::CreatePipeline(vk::ShaderModule vertex_shader_module,
 		.viewMask                = 0,
 		.colorAttachmentCount    = 1,
 		.pColorAttachmentFormats = &swapchain.GetFormat(),
-		// .depthAttachmentFormat   = vk::Format::eD32Sfloat,
-		// .stencilAttachmentFormat = vk::Format::eUndefined,
 	};
 
 	vk::GraphicsPipelineCreateInfo info{
@@ -664,49 +754,44 @@ auto SDFSample::CreatePipeline(vk::ShaderModule vertex_shader_module,
 	return pipeline;
 }
 
-void SDFSample::CreateAndUploadBuffers() {
-	// BuildNetwork();
-	std::size_t optimal_size_bytes   = 0;
+void BRDFSample::CreateAndUploadBuffers() {
+
+	// Create vertex buffer
+	auto vertices = GetCubeVertices();
+
+	std::size_t vertices_size_bytes  = vertices.size_bytes();
+	std::size_t brdf_size_bytes      = 0;
 	std::size_t row_major_size_bytes = 0;
 
 	// Optimal layout
-	CHECK_VULKAN_RESULT(sdf_network.UpdateOffsetsAndSize(
+	CHECK_VULKAN_RESULT(brdf_network.UpdateOffsetsAndSize(
 		device, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal,
 		kDstMatrixType, kDstVectorType));
-	optimal_size_bytes = AlignTo(sdf_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
-	if (bVerbose) sdf_network.Print();
+	brdf_size_bytes = AlignTo(brdf_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
+	if (bVerbose) brdf_network.Print();
 
 	// Write optimal offsets
-	for (u32 i = 0; i < kNetworkLayers; ++i) {
-		u32 weights_offset = static_cast<u32>(sdf_network.GetLayer<Linear>(i).GetWeightsOffset());
-		u32 biases_offset  = static_cast<u32>(sdf_network.GetLayer<Linear>(i).GetBiasesOffset());
+	for (u32 i = 0; i < kNetworkLinearLayers; ++i) {
+		u32 weights_offset = static_cast<u32>(brdf_network.GetLayer<Linear>(i).GetWeightsOffset());
+		u32 biases_offset  = static_cast<u32>(brdf_network.GetLayer<Linear>(i).GetBiasesOffset());
 
 		optimal_offsets.weights_offsets[i] = weights_offset;
 		optimal_offsets.biases_offsets[i]  = biases_offset;
 	}
 
-	// Row-major layout
-	CHECK_VULKAN_RESULT(sdf_network.UpdateOffsetsAndSize(
-		device, vk::CooperativeVectorMatrixLayoutNV::eRowMajor,
-		kDstMatrixType, kDstVectorType));
-	row_major_size_bytes = AlignTo(sdf_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
-
-	if (bVerbose) sdf_network.Print();
-
-	// Write row-major offsets
-	for (u32 i = 0; i < kNetworkLayers; ++i) {
-		u32 weights_offset = static_cast<u32>(sdf_network.GetLayer<Linear>(i).GetWeightsOffset());
-		u32 biases_offset  = static_cast<u32>(sdf_network.GetLayer<Linear>(i).GetBiasesOffset());
-
-		row_major_offsets.weights_offsets[i] = optimal_size_bytes + weights_offset;
-		row_major_offsets.biases_offsets[i]  = optimal_size_bytes + biases_offset;
-	}
-
-	std::size_t total_size_bytes = optimal_size_bytes + row_major_size_bytes;
+	std::size_t total_size_bytes = brdf_size_bytes + vertices_size_bytes;
 
 	// clang-format off
-	CHECK_VULKAN_RESULT(sdf_weights_buffer.Create(device, vma_allocator, {
-		.size   = total_size_bytes,
+	CHECK_VULKAN_RESULT(vertex_buffer.Create(device, vma_allocator, {
+		.size   = vertices_size_bytes,
+		.usage  = vk::BufferUsageFlagBits::eTransferDst 
+		| vk::BufferUsageFlagBits::eStorageBuffer
+		| vk::BufferUsageFlagBits::eVertexBuffer,
+		.memory = vk::MemoryPropertyFlagBits::eDeviceLocal,
+	}));
+
+	CHECK_VULKAN_RESULT(brdf_weights_buffer.Create(device, vma_allocator, {
+		.size   = brdf_size_bytes,
 		.usage  = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
 		.memory = vk::MemoryPropertyFlagBits::eDeviceLocal,
 	}));
@@ -718,56 +803,61 @@ void SDFSample::CreateAndUploadBuffers() {
 	}));
 	// clang-format on
 
-	// Update descriptor
-	{
-		vk::DescriptorBufferInfo buffer_info{
-			.buffer = sdf_weights_buffer,
-			.offset = 0,
-			.range  = total_size_bytes,
-		};
+	// Update descriptor set
+	using namespace std::views;
+	auto buffers = zip(iota(0u), std::array{std::ref(vertex_buffer), std::ref(brdf_weights_buffer)});
 
-		vk::WriteDescriptorSet write{
-			.dstSet          = descriptor_set,
-			.dstBinding      = 0,
-			.dstArrayElement = 0,
-			.descriptorCount = 1,
-			.descriptorType  = vk::DescriptorType::eStorageBuffer,
-			.pBufferInfo     = &buffer_info,
-		};
+	vk::DescriptorBufferInfo buffer_infos[] = {
+		{.buffer = vertex_buffer, .offset = 0, .range = vertex_buffer.GetSize()},
+		{.buffer = brdf_weights_buffer, .offset = 0, .range = brdf_weights_buffer.GetSize()},
+	};
 
-		device.updateDescriptorSets(1, &write, 0, nullptr);
-	}
+	vk::WriteDescriptorSet writes[] = {{
+		.dstSet          = descriptor_set,
+		.dstBinding      = 0,
+		.dstArrayElement = 0,
+		.descriptorCount = static_cast<u32>(std::size(buffer_infos)),
+		.descriptorType  = vk::DescriptorType::eStorageBuffer,
+		.pBufferInfo     = buffer_infos,
+	}};
+
+	u32 descriptor_copy_count = 0;
+
+	vk::CopyDescriptorSet* copy_descriptor_sets = nullptr;
+	device.updateDescriptorSets(std::size(writes), writes, descriptor_copy_count, copy_descriptor_sets);
 
 	// Upload weights
-	{
-		auto update_and_write = [&](u32 offset, vk::CooperativeVectorMatrixLayoutNV layout) {
-			CHECK_VULKAN_RESULT(sdf_network.UpdateOffsetsAndSize(device, layout, kDstMatrixType, kDstVectorType))
-			WriteNetworkWeights(sdf_network, staging_buffer, offset, layout);
-		};
-		std::size_t offset = 0;
-		update_and_write(offset, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal);
-		offset += optimal_size_bytes;
-		update_and_write(offset, vk::CooperativeVectorMatrixLayoutNV::eRowMajor);
+	auto update_and_write = [this](u32 offset, vk::CooperativeVectorMatrixLayoutNV layout) {
+		CHECK_VULKAN_RESULT(brdf_network.UpdateOffsetsAndSize(device, layout, kDstMatrixType, kDstVectorType))
+		WriteNetworkWeights(brdf_network, staging_buffer, offset, layout);
+	};
+	std::memcpy(staging_buffer.GetMappedData(), vertices.data(), vertices_size_bytes);
+	// std::size_t offset = vertices_size_bytes;
+	// update_and_write(offset, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal);
 
-		vk::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
-		CHECK_VULKAN_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
-		// clang-format off
-		cmd.copyBuffer(staging_buffer, sdf_weights_buffer, {{
-			.srcOffset = 0,
-			.dstOffset = 0,
-			.size      = total_size_bytes,
-		}});
-		// clang-format on
-		CHECK_VULKAN_RESULT(cmd.end());
-		CHECK_VULKAN_RESULT(queue.submit({vk::SubmitInfo{.commandBufferCount = 1, .pCommandBuffers = &cmd}}));
-		CHECK_VULKAN_RESULT(queue.waitIdle());
-	}
+	vk::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
+	CHECK_VULKAN_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
+	// clang-format off
+	cmd.copyBuffer(staging_buffer, vertex_buffer, {{
+		.srcOffset = 0,
+		.dstOffset = 0,
+		.size      = vertices_size_bytes,
+	}});
+	// cmd.copyBuffer(staging_buffer, brdf_weights_buffer, {{
+	// 	.srcOffset = vertices_size_bytes,
+	// 	.dstOffset = 0,
+	// 	.size      = brdf_size_bytes,
+	// }});
+	// clang-format on
+	CHECK_VULKAN_RESULT(cmd.end());
+	CHECK_VULKAN_RESULT(queue.submit({{.commandBufferCount = 1, .pCommandBuffers = &cmd}}));
+	CHECK_VULKAN_RESULT(queue.waitIdle());
 }
 
-void SDFSample::WriteNetworkWeights(VulkanCoopVecNetwork const&         network,
-									VulkanRHI::Buffer const&            staging_buffer,
-									std::size_t                         staging_offset,
-									vk::CooperativeVectorMatrixLayoutNV dst_layout) {
+void BRDFSample::WriteNetworkWeights(VulkanCoopVecNetwork const&         network,
+									 VulkanRHI::Buffer const&            staging_buffer,
+									 std::size_t                         staging_offset,
+									 vk::CooperativeVectorMatrixLayoutNV dst_layout) {
 	auto ConvertLayerWeights = [this, dst_layout](void const* src, std::size_t src_size,
 												  std::byte* dst, Linear const& linear) {
 		std::size_t expected_size = linear.GetWeightsSize();
@@ -800,18 +890,18 @@ void SDFSample::WriteNetworkWeights(VulkanCoopVecNetwork const&         network,
 
 	std::byte* staging_ptr = staging_offset + reinterpret_cast<std::byte*>(staging_buffer.GetMappedData());
 
-	ConvertLayerWeights(kSDFWeights0, sizeof(kSDFWeights0), staging_ptr, network.GetLayer<Linear>(0));
-	ConvertLayerWeights(kSDFWeights1, sizeof(kSDFWeights1), staging_ptr, network.GetLayer<Linear>(1));
-	ConvertLayerWeights(kSDFWeights2, sizeof(kSDFWeights2), staging_ptr, network.GetLayer<Linear>(2));
-	ConvertLayerWeights(kSDFWeights3, sizeof(kSDFWeights3), staging_ptr, network.GetLayer<Linear>(3));
+	// ConvertLayerWeights(kSDFWeights0, sizeof(kSDFWeights0), staging_ptr, network.GetLayer<Linear>(0));
+	// ConvertLayerWeights(kSDFWeights1, sizeof(kSDFWeights1), staging_ptr, network.GetLayer<Linear>(1));
+	// ConvertLayerWeights(kSDFWeights2, sizeof(kSDFWeights2), staging_ptr, network.GetLayer<Linear>(2));
+	// ConvertLayerWeights(kSDFWeights3, sizeof(kSDFWeights3), staging_ptr, network.GetLayer<Linear>(3));
 
-	std::memcpy(staging_ptr + network.GetLayer<Linear>(0).GetBiasesOffset(), kSDFBias0, sizeof(kSDFBias0));
-	std::memcpy(staging_ptr + network.GetLayer<Linear>(1).GetBiasesOffset(), kSDFBias1, sizeof(kSDFBias1));
-	std::memcpy(staging_ptr + network.GetLayer<Linear>(2).GetBiasesOffset(), kSDFBias2, sizeof(kSDFBias2));
-	std::memcpy(staging_ptr + network.GetLayer<Linear>(3).GetBiasesOffset(), kSDFBias3, sizeof(kSDFBias3));
+	// std::memcpy(staging_ptr + network.GetLayer<Linear>(0).GetBiasesOffset(), kSDFBias0, sizeof(kSDFBias0));
+	// std::memcpy(staging_ptr + network.GetLayer<Linear>(1).GetBiasesOffset(), kSDFBias1, sizeof(kSDFBias1));
+	// std::memcpy(staging_ptr + network.GetLayer<Linear>(2).GetBiasesOffset(), kSDFBias2, sizeof(kSDFBias2));
+	// std::memcpy(staging_ptr + network.GetLayer<Linear>(3).GetBiasesOffset(), kSDFBias3, sizeof(kSDFBias3));
 }
 
-auto SDFSample::GetQueryResult() -> u64 {
+auto BRDFSample::GetQueryResult() -> u64 {
 	vk::Result result =
 		device.getQueryPoolResults(
 			timestamp_query_pool,
@@ -841,7 +931,7 @@ auto SDFSample::GetQueryResult() -> u64 {
 	return 0ull;
 }
 
-auto SDFSample::DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets) -> u64 {
+auto BRDFSample::DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets) -> u64 {
 	auto HandleSwapchainResult = [this](vk::Result result) -> bool {
 		switch (result) {
 		case vk::Result::eSuccess:           return true;
@@ -853,9 +943,9 @@ auto SDFSample::DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets)
 		return false;
 	};
 	CHECK_VULKAN_RESULT(device.waitForFences(1, &swapchain.GetCurrentFence(), vk::True, std::numeric_limits<u32>::max()));
-	CHECK_VULKAN_RESULT(device.resetFences(1, &swapchain.GetCurrentFence()));
 	device.resetCommandPool(swapchain.GetCurrentCommandPool());
 	if (!HandleSwapchainResult(swapchain.AcquireNextImage())) return 0ull;
+	CHECK_VULKAN_RESULT(device.resetFences(1, &swapchain.GetCurrentFence()));
 	RecordCommands(pipeline, offsets);
 	if (!HandleSwapchainResult(swapchain.SubmitAndPresent(queue, queue))) return 0ull;
 
@@ -865,7 +955,7 @@ auto SDFSample::DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets)
 	return elapsed;
 }
 
-void SDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offsets) {
+void BRDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offsets) {
 	int x, y, width, height;
 	window.GetRect(x, y, width, height);
 
@@ -898,19 +988,29 @@ void SDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offs
 	});
 	cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
 	cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
-	// std::printf("W offsets: %u %u %u %u\n", offsets.weights_offsets[0], offsets.weights_offsets[1], offsets.weights_offsets[2], offsets.weights_offsets[3]);
-	// std::printf("B offsets: %u %u %u %u\n", offsets.biases_offsets[0], offsets.biases_offsets[1], offsets.biases_offsets[2], offsets.biases_offsets[3]);
-	SDFConstants constants{
-		.resolution = {static_cast<float>(width), static_cast<float>(height)},
-		.mouse      = {mouse.x, static_cast<float>(height) - mouse.y},
+	BRDFConstants constants{
+		.view_proj  = camera.getProjViewInv(),
+		.camera_pos = camera.getPosition(),
 	};
-	for (int i = 0; i < kNetworkLayers; ++i) {
+	for (int i = 0; i < kNetworkLinearLayers; ++i) {
 		constants.weights_offsets[i] = offsets.weights_offsets[i];
 		constants.bias_offsets[i]    = offsets.biases_offsets[i];
 	}
 
-	cmd.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(constants), &constants);
-	u32 vertex_count = 6u;
+	// cmd.pushConstants2({
+	// 	.layout     = pipeline_layout,
+	// 	.stageFlags = vk::ShaderStageFlagBits::eVertex
+	// 				  | vk::ShaderStageFlagBits::eFragment,
+	// 	.offset  = 0,
+	// 	.size    = sizeof(constants),
+	// 	.pValues = &constants,
+	// });
+	cmd.pushConstants(pipeline_layout,
+					  vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+					  0, sizeof(constants), &constants);
+
+	u32 vertex_count = GetCubeVertices().size();
+	cmd.bindVertexBuffers(0, vertex_buffer, {0});
 	cmd.draw(vertex_count, 1, 0, 0);
 	cmd.endRendering();
 	cmd.Barrier({
@@ -929,7 +1029,7 @@ void SDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offs
 	CHECK_VULKAN_RESULT(cmd.end());
 }
 
-void SDFSample::RecreateSwapchain(int width, int height) {
+void BRDFSample::RecreateSwapchain(int width, int height) {
 	for (auto& frame : swapchain.GetFrameData()) {
 		CHECK_VULKAN_RESULT(device.waitForFences(1, &frame.GetFence(), vk::True, std::numeric_limits<u32>::max()));
 	}
@@ -938,65 +1038,18 @@ void SDFSample::RecreateSwapchain(int width, int height) {
 }
 static auto last_frame_time = std::chrono::steady_clock::now();
 
-void SDFSample::Run() {
+void BRDFSample::Run() {
 	do {
 		WindowManager::WaitEvents();
 		if (window.GetShouldClose()) break;
 		int x, y, width, height;
 		window.GetRect(x, y, width, height);
 		if (width <= 0 || height <= 0) continue;
-		DrawWindow(pipelines[u32(SdfFunctionType::eCoopVec)], optimal_offsets);
+		DrawWindow(pipelines[u32(BrdfFunctionType::eDefault)], optimal_offsets);
 	} while (true);
 }
 
-void SDFSample::RunTest() {
-	struct TestData {
-		vk::Pipeline   pipeline;
-		NetworkOffsets offsets;
-	};
-	// WindowManager::WaitEvents();
-	// if (window.GetShouldClose()) return;
-
-	window.SetWindowMode(WindowMode::eFullscreen);
-	int x, y, width, height;
-	window.GetRect(x, y, width, height);
-	// std::printf("Resizing to %dx%d\n", width, height);
-	RecreateSwapchain(width, height);
-	// DrawWindow();
-	constexpr u32 kNumTestRuns  = 1000;
-	constexpr u32 kNumTestKinds = u32(SdfFunctionType::eCount);
-
-	TestData test_data[kNumTestKinds] = {
-		{pipelines[u32(SdfFunctionType::eCoopVec)], optimal_offsets},
-		{pipelines[u32(SdfFunctionType::eScalarInline)], row_major_offsets},
-		{pipelines[u32(SdfFunctionType::eScalarBuffer)], row_major_offsets},
-		{pipelines[u32(SdfFunctionType::eVec4)], row_major_offsets},
-	};
-
-	std::vector<std::array<u64, kNumTestKinds>> test_times(kNumTestRuns);
-
-	for (u32 test_kind_index = 0; test_kind_index < kNumTestKinds; ++test_kind_index) {
-		TestData& data = test_data[test_kind_index];
-		for (u32 iter = 0; iter < kNumTestRuns; ++iter) {
-			// WindowManager::PollEvents();
-			u64   time_nanoseconds            = DrawWindow(data.pipeline, data.offsets);
-			float ns_per_tick                 = physical_device.GetNsPerTick();
-			float elapsed_ms                  = (time_nanoseconds * ns_per_tick) / 1e6f;
-			test_times[iter][test_kind_index] = time_nanoseconds;
-		}
-	}
-
-	// Print csv
-	std::printf("CoopVec, ScalarInline, ScalarBuffer, Vec4 \n");
-	for (u32 iter = 0; iter < kNumTestRuns; ++iter) {
-		for (u32 test_kind_index = 0; test_kind_index < kNumTestKinds - 1; ++test_kind_index) {
-			std::printf("%llu, ", test_times[iter][test_kind_index]);
-		}
-		std::printf("%llu \n", test_times[iter][kNumTestKinds - 1]);
-	}
-}
-
-auto SDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
+auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 	for (std::string_view const arg : std::span(argv + 1, argc - 1)) {
 		if (arg == "--test" || arg == "-t") bIsTestMode = true;
 		else if (arg == "--verbose") bVerbose = true;
@@ -1004,11 +1057,11 @@ auto SDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 		else return arg.data();
 	}
 	return nullptr;
-} 
+}
 
 auto main(int argc, char const* argv[]) -> int {
 	std::filesystem::current_path(std::filesystem::absolute(argv[0]).parent_path());
-	SDFSample sample;
+	BRDFSample sample;
 
 	if (char const* unknown_arg = sample.ParseArgs(argc, argv); unknown_arg) {
 		std::printf("Unknown argument: %s\n", unknown_arg);

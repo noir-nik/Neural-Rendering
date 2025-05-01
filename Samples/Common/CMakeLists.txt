@@ -8,6 +8,7 @@ target_link_libraries(${SAMPLE_NAME} PRIVATE ${PROJECT_NAME}::${PROJECT_NAME})
 
 set(INCLUDE_DIRS
 	${CMAKE_CURRENT_SOURCE_DIR}/Include
+	${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Include
 )
 
 target_include_directories(${SAMPLE_NAME} PUBLIC ${INCLUDE_DIRS})

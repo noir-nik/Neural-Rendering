@@ -11,7 +11,6 @@ struct BufferInfo {
 	vk::DeviceSize          size;
 	vk::BufferUsageFlags    usage;
 	vk::MemoryPropertyFlags memory = Memory::eGPU;
-	std::string_view        name   = "";
 };
 
 class Buffer : public vk::Buffer {

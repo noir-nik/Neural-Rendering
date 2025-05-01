@@ -1,6 +1,6 @@
 module;
 
-#include <glfw/glfw3.h>
+#include <GLFW/glfw3.h>
 
 export module WindowManager;
 import vulkan_hpp;
