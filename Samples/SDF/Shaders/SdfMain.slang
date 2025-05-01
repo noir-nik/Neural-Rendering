@@ -8,10 +8,6 @@ import SDFScalarBuffer;
 
 // clang-format off
 
-#ifndef SHADER_TYPE
-#define SHADER_TYPE COOPVEC
-#endif
-
 [[vk::binding(0, 0)]]
 StructuredBuffer<COOPVEC_TYPE> gSDFWeights;
 

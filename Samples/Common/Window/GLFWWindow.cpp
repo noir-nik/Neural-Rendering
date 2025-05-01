@@ -23,9 +23,9 @@ static void CharCallback(GLFWwindow* window, unsigned int codepoint);
 static void CharModsCallback(GLFWwindow* window, unsigned int codepoint, int mods);
 static void DropCallback(GLFWwindow* window, int path_count, char const* paths[]);
 
-Window::Window() {}
+GLFWWindow::GLFWWindow() {}
 
-void Window::Init(WindowCreateInfo const& info) {
+void GLFWWindow::Init(WindowCreateInfo const& info) {
 	if (info.mode == WindowMode::eFullscreen) {
 		SetWindowMode(WindowMode::eFullscreen);
 		auto monitor   = glfwGetPrimaryMonitor();
@@ -59,8 +59,8 @@ void Window::Init(WindowCreateInfo const& info) {
 	}
 
 	// Get Stored Rect
-	glfwGetWindowPos(window, &windowedDimensions.x, &windowedDimensions.y);
-	glfwGetWindowSize(window, &windowedDimensions.width, &windowedDimensions.height);
+	glfwGetWindowPos(window, &windowed_dimensions.x, &windowed_dimensions.y);
+	glfwGetWindowSize(window, &windowed_dimensions.width, &windowed_dimensions.height);
 
 	glfwSetWindowPosCallback(window, WindowPosCallback);
 	glfwSetWindowSizeCallback(window, WindowSizeCallback);
@@ -81,19 +81,19 @@ void Window::Init(WindowCreateInfo const& info) {
 	glfwSetDropCallback(window, DropCallback);
 }
 
-Window::~Window() {
+GLFWWindow::~GLFWWindow() {
 	Destroy();
 }
 
-void Window::SetPos(int x, int y) {
+void GLFWWindow::SetPos(int x, int y) {
 	glfwSetWindowPos(window, x, y);
 }
 
-void Window::SetSize(int width, int height) {
+void GLFWWindow::SetSize(int width, int height) {
 	glfwSetWindowSize(window, width, height);
 }
 
-bool Window::GetFullScreenRect(int& x, int& y, int& width, int& height) const {
+bool GLFWWindow::GetFullScreenRect(int& x, int& y, int& width, int& height) const {
 	auto monitor   = glfwGetPrimaryMonitor();
 	auto videoMode = glfwGetVideoMode(monitor);
 	glfwGetMonitorPos(monitor, &x, &y);
@@ -102,7 +102,7 @@ bool Window::GetFullScreenRect(int& x, int& y, int& width, int& height) const {
 	return true;
 }
 
-void Window::SetSizeLimits(int minWidth, int minHeight, int maxWidth, int maxHeight) {
+void GLFWWindow::SetSizeLimits(int minWidth, int minHeight, int maxWidth, int maxHeight) {
 	auto TranslateWindowDontCare = [](int value) {
 		if (value == kWindowDontCare) {
 			return GLFW_DONT_CARE;
@@ -113,104 +113,112 @@ void Window::SetSizeLimits(int minWidth, int minHeight, int maxWidth, int maxHei
 							TranslateWindowDontCare(maxWidth), TranslateWindowDontCare(maxHeight));
 }
 
-void Window::Destroy() {
+void GLFWWindow::Destroy() {
 	if (window) {
 		glfwDestroyWindow(window);
 		window = nullptr;
 	}
 }
 
-void Window::Minimize() {
+void GLFWWindow::Minimize() {
 	glfwIconifyWindow(window);
 }
 
-void Window::Maximize() {
+void GLFWWindow::Maximize() {
 	glfwMaximizeWindow(window);
 }
 
-void Window::Restore() {
+void GLFWWindow::Restore() {
 	glfwRestoreWindow(window);
 }
 
-void Window::Show() {
+void GLFWWindow::Show() {
 	glfwShowWindow(window);
 }
 
-void Window::Hide() {
+void GLFWWindow::Hide() {
 	glfwHideWindow(window);
 }
 
-void Window::SetWindowMode(WindowMode mode) {
+void GLFWWindow::SetWindowMode(WindowMode mode) {
 	auto monitor   = glfwGetPrimaryMonitor();
 	auto videoMode = glfwGetVideoMode(monitor);
 	switch (mode) {
 	case WindowMode::eWindowed:
-		glfwSetWindowMonitor(window, nullptr, windowedDimensions.x, windowedDimensions.y, windowedDimensions.width, windowedDimensions.height, GLFW_DONT_CARE);
+		glfwSetWindowMonitor(window, nullptr, windowed_dimensions.x, windowed_dimensions.y, windowed_dimensions.width, windowed_dimensions.height, GLFW_DONT_CARE);
 		break;
 	case WindowMode::eWindowedFullscreen:
-		glfwGetWindowPos(window, &windowedDimensions.x, &windowedDimensions.y);
-		glfwGetWindowSize(window, &windowedDimensions.width, &windowedDimensions.height);
+		glfwGetWindowPos(window, &windowed_dimensions.x, &windowed_dimensions.y);
+		glfwGetWindowSize(window, &windowed_dimensions.width, &windowed_dimensions.height);
 		glfwSetWindowMonitor(window, nullptr, 0, 0, videoMode->width, videoMode->height, GLFW_DONT_CARE);
 		break;
 	case WindowMode::eFullscreen:
-		glfwGetWindowPos(window, &windowedDimensions.x, &windowedDimensions.y);
-		glfwGetWindowSize(window, &windowedDimensions.width, &windowedDimensions.height);
+		glfwGetWindowPos(window, &windowed_dimensions.x, &windowed_dimensions.y);
+		glfwGetWindowSize(window, &windowed_dimensions.width, &windowed_dimensions.height);
 		glfwSetWindowMonitor(window, monitor, 0, 0, videoMode->width, videoMode->height, videoMode->refreshRate);
 		break;
 	}
 }
 
-auto Window::GetWindowMode() const -> WindowMode {
+auto GLFWWindow::GetWindowMode() const -> WindowMode {
 	return mode;
 }
 
-bool Window::IsMaximized() const {
+bool GLFWWindow::IsMaximized() const {
 	return glfwGetWindowAttrib(window, GLFW_MAXIMIZED);
 }
 
-bool Window::IsMinimized() const {
+bool GLFWWindow::IsMinimized() const {
 	return glfwGetWindowAttrib(window, GLFW_ICONIFIED);
 }
 
-bool Window::GetRestoredRect(int& x, int& y, int& width, int& height) {
-	x      = windowedDimensions.x;
-	y      = windowedDimensions.y;
-	width  = windowedDimensions.width;
-	height = windowedDimensions.height;
+bool GLFWWindow::GetRestoredRect(int& x, int& y, int& width, int& height) {
+	x      = windowed_dimensions.x;
+	y      = windowed_dimensions.y;
+	width  = windowed_dimensions.width;
+	height = windowed_dimensions.height;
 	return true;
 }
 
-void Window::GetRect(int& x, int& y, int& width, int& height) {
+void GLFWWindow::GetRect(int& x, int& y, int& width, int& height) {
 	glfwGetWindowPos(window, &x, &y);
 	glfwGetWindowSize(window, &width, &height);
 }
 
-void Window::SetFocus() {
+void GLFWWindow::SetFocus() {
 	glfwFocusWindow(window);
 }
 
-void Window::SetOpacity(float const value) {
+void GLFWWindow::SetOpacity(float const value) {
 	glfwSetWindowOpacity(window, value);
 }
 
-void Window::Enable(bool bEnable) {
+void GLFWWindow::Enable(bool bEnable) {
 	glfwSetInputMode(window, GLFW_CURSOR, bEnable ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
 }
 
-auto Window::GetHandle() const -> void* {
+auto GLFWWindow::GetHandle() const -> void* {
 	return window;
 }
 
-void Window::SetText(const char* const text) {
+void GLFWWindow::SetText(const char* const text) {
 	glfwSetWindowTitle(window, text);
 }
 
-bool Window::GetShouldClose() const {
+bool GLFWWindow::GetShouldClose() const {
 	return glfwWindowShouldClose(window);
 }
 
-void Window::SetShouldClose(bool value) const {
+void GLFWWindow::SetShouldClose(bool value) const {
 	glfwSetWindowShouldClose(window, value ? GLFW_TRUE : GLFW_FALSE);
+}
+
+void GLFWWindow::SetUserPointer(void* user_pointer) {
+	this->user_pointer = user_pointer;
+}
+
+auto GLFWWindow::GetUserPointer() const -> void* {
+	return this->user_pointer;
 }
 
 #if 0
@@ -223,28 +231,28 @@ void Window::SetShouldClose(bool value) const {
 #endif
 
 static void WindowPosCallback(GLFWwindow* window, int x, int y) {
-	Window* pWindow = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+	GLFWWindow* pWindow = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
 	LOG_WINDOW("Window %p moved to %dx%d", pWindow, x, y);
 	if (pWindow->GetWindowCallbacks().windowPosCallback)
 		pWindow->GetWindowCallbacks().windowPosCallback(pWindow, x, y);
 }
 
 static void WindowSizeCallback(GLFWwindow* window, int width, int height) {
-	Window* pWindow = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+	GLFWWindow* pWindow = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
 	LOG_WINDOW("Window %p resized to %dx%d", pWindow, width, height);
 	if (pWindow->GetWindowCallbacks().windowSizeCallback)
 		pWindow->GetWindowCallbacks().windowSizeCallback(pWindow, width, height);
 }
 
 static void WindowCloseCallback(GLFWwindow* window) {
-	Window* pWindow = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+	GLFWWindow* pWindow = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
 	LOG_WINDOW("Window %p closed", pWindow);
 	if (pWindow->GetWindowCallbacks().windowCloseCallback)
 		pWindow->GetWindowCallbacks().windowCloseCallback(pWindow);
 }
 
 static void WindowRefreshCallback(GLFWwindow* window) {
-	Window* pWindow = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+	GLFWWindow* pWindow = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
 	LOG_WINDOW("Window %p refreshed", pWindow);
 
 	if (pWindow->GetWindowCallbacks().windowRefreshCallback)
@@ -252,14 +260,14 @@ static void WindowRefreshCallback(GLFWwindow* window) {
 }
 
 static void WindowFocusCallback(GLFWwindow* window, int focused) {
-	Window* pWindow = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+	GLFWWindow* pWindow = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
 	LOG_WINDOW("Window %p focused %d", pWindow, focused);
 	if (pWindow->GetWindowCallbacks().windowFocusCallback)
 		pWindow->GetWindowCallbacks().windowFocusCallback(pWindow, focused);
 }
 
 static void WindowIconifyCallback(GLFWwindow* window, int iconified) {
-	Window* pWindow = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+	GLFWWindow* pWindow = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
 	LOG_WINDOW("Window %p iconified %d", pWindow, iconified);
 
 	if (pWindow->GetWindowCallbacks().windowIconifyCallback)
@@ -267,77 +275,77 @@ static void WindowIconifyCallback(GLFWwindow* window, int iconified) {
 }
 
 static void WindowMaximizeCallback(GLFWwindow* window, int maximize) {
-	Window* pWindow = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+	GLFWWindow* pWindow = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
 	LOG_WINDOW("Window %p maximized %d", pWindow, maximize);
 	if (pWindow->GetWindowCallbacks().windowMaximizeCallback)
 		pWindow->GetWindowCallbacks().windowMaximizeCallback(pWindow, maximize);
 }
 
 static void FramebufferSizeCallback(GLFWwindow* window, int width, int height) {
-	Window* pWindow = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+	GLFWWindow* pWindow = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
 	LOG_WINDOW("Window %p framebuffer resized to %dx%d", pWindow, width, height);
 	if (pWindow->GetWindowCallbacks().framebufferSizeCallback)
 		pWindow->GetWindowCallbacks().framebufferSizeCallback(pWindow, width, height);
 }
 
 static void WindowContentScaleCallback(GLFWwindow* window, float xscale, float yscale) {
-	Window* pWindow = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+	GLFWWindow* pWindow = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
 	LOG_WINDOW("Window %p content scale changed to %fx%f", pWindow, xscale, yscale);
 	if (pWindow->GetWindowCallbacks().windowContentScaleCallback)
 		pWindow->GetWindowCallbacks().windowContentScaleCallback(pWindow, xscale, yscale);
 }
 
 static void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
-	Window* pWindow = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+	GLFWWindow* pWindow = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
 	LOG_INPUT("Window %p mouse button: %d, action: %d, mods: %d", pWindow, button, action, mods);
 	if (pWindow->GetInputCallbacks().mouseButtonCallback)
 		pWindow->GetInputCallbacks().mouseButtonCallback(pWindow, button, action, mods);
 }
 
 static void CursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
-	Window* pWindow = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+	GLFWWindow* pWindow = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
 	LOG_INPUT("Window %p cursor pos: %lf, %lf", pWindow, xpos, ypos);
 	if (pWindow->GetInputCallbacks().cursorPosCallback)
 		pWindow->GetInputCallbacks().cursorPosCallback(pWindow, xpos, ypos);
 }
 
 static void CursorEnterCallback(GLFWwindow* window, int entered) {
-	Window* pWindow = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+	GLFWWindow* pWindow = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
 	LOG_INPUT("Window %p cursor entered: %d", pWindow, entered);
 	if (pWindow->GetInputCallbacks().cursorEnterCallback)
 		pWindow->GetInputCallbacks().cursorEnterCallback(pWindow, entered);
 }
 
 static void ScrollCallback(GLFWwindow* window, double x, double y) {
-	Window* pWindow = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+	GLFWWindow* pWindow = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
 	LOG_INPUT("Window %p scroll: %lf, %lf", pWindow, x, y);
 	if (pWindow->GetInputCallbacks().scrollCallback)
 		pWindow->GetInputCallbacks().scrollCallback(pWindow, x, y);
 }
 
 static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-	Window* pWindow = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+	GLFWWindow* pWindow = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
 	LOG_INPUT("Window %p key: %d, scancode: %d, action: %d, mods: %d", pWindow, key, scancode, action, mods);
 	if (pWindow->GetInputCallbacks().keyCallback)
 		pWindow->GetInputCallbacks().keyCallback(pWindow, key, scancode, action, mods);
 }
 
 static void CharCallback(GLFWwindow* window, unsigned int codepoint) {
-	Window* pWindow = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+	GLFWWindow* pWindow = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
 	LOG_INPUT("Window %p char: %d", pWindow, codepoint);
 	if (pWindow->GetInputCallbacks().charCallback)
 		pWindow->GetInputCallbacks().charCallback(pWindow, codepoint);
 }
 
 static void CharModsCallback(GLFWwindow* window, unsigned int codepoint, int mods) {
-	Window* pWindow = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+	GLFWWindow* pWindow = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
 	LOG_INPUT("Window %p char: %d, mods: %d", pWindow, codepoint, mods);
 	if (pWindow->GetInputCallbacks().charModsCallback)
 		pWindow->GetInputCallbacks().charModsCallback(pWindow, codepoint, mods);
 }
 
 static void DropCallback(GLFWwindow* window, int path_count, char const* paths[]) {
-	Window* pWindow = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+	GLFWWindow* pWindow = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
 	LOG_INPUT("Window %p drop: %d", pWindow, path_count);
 	if (pWindow->GetInputCallbacks().dropCallback)
 		pWindow->GetInputCallbacks().dropCallback(pWindow, path_count, paths);

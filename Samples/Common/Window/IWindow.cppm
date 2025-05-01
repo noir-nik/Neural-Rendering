@@ -24,7 +24,7 @@ export class IWindow {
 	virtual void SetPos(int x, int y) = 0;
 	virtual void SetSize(int width, int height) = 0;
 	virtual bool GetFullScreenRect(int& x, int& y, int& width, int& height) const = 0;
-	virtual void SetSizeLimits(int minWidth, int minHeight, int maxWidth, int maxHeight) = 0;
+	virtual void SetSizeLimits(int min_width, int min_height, int max_width, int max_height) = 0;
 	virtual void Destroy() = 0;
 	virtual void Minimize() = 0;
 	virtual void Maximize() = 0;
@@ -42,4 +42,7 @@ export class IWindow {
 	virtual void Enable(bool bEnable) = 0;
 	virtual auto GetHandle() const -> void* = 0;
 	virtual void SetText(const char* const text) = 0;
+
+	virtual void SetUserPointer(void* user_pointer) = 0;
+	virtual auto GetUserPointer() const -> void* = 0;
 };
