@@ -3,7 +3,7 @@
 #define _CHECK_VULKAN_RESULT2(func, line) \
 	{ \
 		::vk::Result local_result_##line = ::vk::Result(func); \
-		if (local_result_##line != ::vk::Result::eSuccess) { \
+		if (local_result_##line != ::vk::Result::eSuccess) [[unlikely]] { \
 			::std::printf("Vulkan error: %s " #func " in " __FILE__ ":" #line, ::vk::to_string(local_result_##line).c_str()); \
 			::std::exit(1); \
 		} \
