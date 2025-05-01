@@ -141,7 +141,7 @@ public:
 	VulkanRHI::Buffer staging_buffer{};
 	VulkanRHI::Buffer sdf_weights_buffer{};
 
-	VulkanCoopVecNetwork network = {
+	VulkanCoopVecNetwork sdf_network = {
 		Linear(3, 16),
 		Linear(16, 16),
 		Linear(16, 16),
@@ -668,33 +668,33 @@ void SDFSample::CreateAndUploadBuffers() {
 	std::size_t row_major_size_bytes = 0;
 
 	// Optimal layout
-	CHECK_RESULT(network.UpdateOffsetsAndSize(
+	CHECK_RESULT(sdf_network.UpdateOffsetsAndSize(
 		device, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal,
 		kDstMatrixType, kDstVectorType));
-	optimal_size_bytes = AlignTo(network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
-	if (bVerbose) network.Print();
+	optimal_size_bytes = AlignTo(sdf_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
+	if (bVerbose) sdf_network.Print();
 
 	// Write optimal offsets
 	for (u32 i = 0; i < kNetworkLayers; ++i) {
-		u32 weights_offset = static_cast<u32>(network.GetLayer<Linear>(i).GetWeightsOffset());
-		u32 biases_offset  = static_cast<u32>(network.GetLayer<Linear>(i).GetBiasesOffset());
+		u32 weights_offset = static_cast<u32>(sdf_network.GetLayer<Linear>(i).GetWeightsOffset());
+		u32 biases_offset  = static_cast<u32>(sdf_network.GetLayer<Linear>(i).GetBiasesOffset());
 
 		optimal_offsets.weights_offsets[i] = weights_offset;
 		optimal_offsets.biases_offsets[i]  = biases_offset;
 	}
 
 	// Row-major layout
-	CHECK_RESULT(network.UpdateOffsetsAndSize(
+	CHECK_RESULT(sdf_network.UpdateOffsetsAndSize(
 		device, vk::CooperativeVectorMatrixLayoutNV::eRowMajor,
 		kDstMatrixType, kDstVectorType));
-	row_major_size_bytes = AlignTo(network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
+	row_major_size_bytes = AlignTo(sdf_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
 
-	if (bVerbose) network.Print();
+	if (bVerbose) sdf_network.Print();
 
 	// Write row-major offsets
 	for (u32 i = 0; i < kNetworkLayers; ++i) {
-		u32 weights_offset = static_cast<u32>(network.GetLayer<Linear>(i).GetWeightsOffset());
-		u32 biases_offset  = static_cast<u32>(network.GetLayer<Linear>(i).GetBiasesOffset());
+		u32 weights_offset = static_cast<u32>(sdf_network.GetLayer<Linear>(i).GetWeightsOffset());
+		u32 biases_offset  = static_cast<u32>(sdf_network.GetLayer<Linear>(i).GetBiasesOffset());
 
 		row_major_offsets.weights_offsets[i] = optimal_size_bytes + weights_offset;
 		row_major_offsets.biases_offsets[i]  = optimal_size_bytes + biases_offset;
@@ -739,8 +739,8 @@ void SDFSample::CreateAndUploadBuffers() {
 	// Upload weights
 	{
 		auto update_and_write = [&](u32 offset, vk::CooperativeVectorMatrixLayoutNV layout) {
-			CHECK_RESULT(network.UpdateOffsetsAndSize(device, layout, kDstMatrixType, kDstVectorType))
-			WriteNetworkWeights(network, staging_buffer, offset, layout);
+			CHECK_RESULT(sdf_network.UpdateOffsetsAndSize(device, layout, kDstMatrixType, kDstVectorType))
+			WriteNetworkWeights(sdf_network, staging_buffer, offset, layout);
 		};
 		std::size_t offset = 0;
 		update_and_write(offset, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal);

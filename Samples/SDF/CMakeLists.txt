@@ -12,7 +12,7 @@ target_sources(${SAMPLE_NAME} PUBLIC
 	FILES ${MODULE_SOURCES}
 )
 
-target_link_libraries(${SAMPLE_NAME} PRIVATE NeuralGraphics::NeuralGraphics)
+target_link_libraries(${SAMPLE_NAME} PRIVATE ${PROJECT_NAME}::${PROJECT_NAME})
 
 set(INCLUDE_DIRS
 )
@@ -21,38 +21,21 @@ target_include_directories(${SAMPLE_NAME} PUBLIC ${INCLUDE_DIRS})
 
 target_link_libraries(${SAMPLE_NAME} PRIVATE SamplesCommon)
 
+set(SHADERS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Shaders CACHE PATH "Path to shaders")
+set(SHADERS_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/Shaders CACHE PATH "Path to shaders output")
 
-function(generate_spv_shader_glsl input_file output_file)
-	add_custom_command(
-		OUTPUT ${output_file}
-		COMMAND ${Vulkan_GLSLC_EXECUTABLE} ${input_file} -fentry-point=main --target-spv=spv1.6 -o ${output_file} -g
-		DEPENDS ${input_file}
-		COMMENT "Compiling SPIR-V: ${input_file}"
-		VERBATIM
-		COMMAND_EXPAND_LISTS
-	)
-endfunction()
-
-function(generate_spv_shader_slang input_file output_file)
-	add_custom_command(
-		OUTPUT ${output_file}
-		COMMAND slangc ${input_file} -entry main -target spirv -o ${output_file} -depfile ${output_file}.d -I${CMAKE_CURRENT_SOURCE_DIR}/../../Source/Shaders
-		DEPENDS ${input_file}
-		COMMENT "Compiling SPIR-V: ${input_file}"
-		DEPFILE ${output_file}.d
-		VERBATIM
-		COMMAND_EXPAND_LISTS
-	)
-endfunction()
-
-set(SHADERS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Shaders)
-set(SHADERS_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/Shaders)
-
-generate_spv_shader_glsl(${SHADERS_DIR}/Quad.vert ${SHADERS_OUTPUT_DIR}/Quad.vert.spv)
 generate_spv_shader_slang(${SHADERS_DIR}/SdfMain.slang ${SHADERS_OUTPUT_DIR}/SdfMain.slang.spv)
 
 add_custom_target(shaders_spv ALL DEPENDS
 	${SHADERS_OUTPUT_DIR}/Quad.vert.spv
 	${SHADERS_OUTPUT_DIR}/SdfMain.slang.spv
 )
+
 add_dependencies(${SAMPLE_NAME} shaders_spv)
+
+add_custom_command(
+	OUTPUT ${SHADERS_OUTPUT_DIR}/Quad.vert.spv
+	COMMAND ${CMAKE_COMMAND} -E copy ${COMMON_SHADERS_OUTPUT_DIR}/Quad.vert.spv ${SHADERS_OUTPUT_DIR}/Quad.vert.spv
+	DEPENDS ${COMMON_SHADERS_OUTPUT_DIR}/Quad.vert.spv
+	VERBATIM
+)
