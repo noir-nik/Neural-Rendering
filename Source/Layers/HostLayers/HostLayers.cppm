@@ -3,7 +3,6 @@ import :GenericLayers;
 import :Core;
 import std;
 
-export namespace ng {
 
 template <typename T>
 class HostLinear : public Linear {
@@ -46,10 +45,8 @@ public:
 };
 
 
-} // namespace ng
 
 
-export namespace ng {
 
 // MatMul
 // C = A * B
@@ -209,4 +206,3 @@ void HostSin<T>::Backward(T const* forwardOutputs, T* gradOutputs) {
 	}
 }
 
-} // namespace ng

@@ -2,8 +2,7 @@ export module NeuralGraphics:VulkanUtils;
 import std;
 import vulkan_hpp;
 
-export
-namespace ng::inline Utils {
+export namespace Utils {
 
 template <typename T>
 concept VulkanStructureT = requires(T t) { t.pNext; };
@@ -54,4 +53,4 @@ constexpr auto GetVulkanComponentSize(vk::ComponentTypeKHR const type) -> std::s
 		return 0;
 	}
 }
-} // namespace ng::inline Utils
+} // namespace  Utils

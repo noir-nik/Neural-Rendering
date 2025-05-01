@@ -3,9 +3,10 @@ import :Core;
 import :Utils;
 import std;
 
-export namespace ng {
+using u32 = std::uint32_t;
+using Utils::IsAnyV;
 
-class ILayer {
+export class ILayer {
 public:
 	ILayer(u32 inputs_count, u32 output_count) : input_count(inputs_count), output_count(output_count) {}
 	virtual ~ILayer() {}
@@ -19,7 +20,7 @@ private:
 	u32 output_count;
 };
 
-class Linear : public ILayer {
+export class Linear : public ILayer {
 public:
 	Linear(u32 input_size, u32 output_size) : ILayer(input_size, output_size) {}
 
@@ -47,34 +48,35 @@ private:
 	std::size_t bias_size = 0;
 };
 
-class Relu : public ILayer {
+export class Relu : public ILayer {
 public:
 	Relu(u32 size = 0) : ILayer(size, size) {}
 
 	auto GetParametersCount() const -> u32 { return 0; }
 };
 
-class Sigmoid : public ILayer {
+export class Sigmoid : public ILayer {
 public:
 	Sigmoid(u32 size = 0) : ILayer(size, size) {}
 };
 
-class Softmax : public ILayer {
+export class Softmax : public ILayer {
 public:
 	Softmax(u32 size = 0) : ILayer(size, size) {}
 };
 
-class Sin : public ILayer {
+export class Sin : public ILayer {
 public:
 	Sin(u32 size = 0) : ILayer(size, size) {}
 };
 
+
 template <typename T>
 concept GenericLayerType = IsAnyV<T, Linear, Relu, Sigmoid, Softmax, Sin>;
 
-using LayerVariantBase = std::variant<Linear, Relu, Sigmoid, Softmax, Sin>;
+export using LayerVariantBase = std::variant<Linear, Relu, Sigmoid, Softmax, Sin>;
 
-struct LayerVariant : LayerVariantBase {
+export struct LayerVariant : LayerVariantBase {
 	using LayerVariantBase::LayerVariantBase;
 
 	auto GetOutputsCount() const -> u32 {
@@ -88,12 +90,11 @@ struct LayerVariant : LayerVariantBase {
 	constexpr auto Get() -> T& { return std::get<T>(*this); }
 };
 
-template <typename T>
+export template <typename T>
 struct IsActivationLayer {
 	static constexpr bool value = IsAnyV<T, Relu, Sigmoid, Softmax, Sin>;
 };
 
-template <typename T>
+export template <typename T>
 inline constexpr bool IsActivationLayerV = IsActivationLayer<T>::value;
 
-} // namespace ng
