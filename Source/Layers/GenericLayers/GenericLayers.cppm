@@ -10,10 +10,10 @@ export class ILayer {
 public:
 	ILayer(u32 inputs_count, u32 output_count) : input_count(inputs_count), output_count(output_count) {}
 	virtual ~ILayer() {}
-	virtual auto GetInputsCount() const -> u32 { return input_count; }
-	virtual auto GetOutputsCount() const -> u32 { return output_count; }
-	virtual void SetInputsCount(u32 size) { input_count = size; }
-	virtual void SetOutputsCount(u32 size) { output_count = size; }
+	constexpr virtual auto GetInputsCount() const -> u32 { return input_count; }
+	constexpr virtual auto GetOutputsCount() const -> u32 { return output_count; }
+	constexpr virtual void SetInputsCount(u32 size) { input_count = size; }
+	constexpr virtual void SetOutputsCount(u32 size) { output_count = size; }
 
 private:
 	u32 input_count;

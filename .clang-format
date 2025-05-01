@@ -36,4 +36,6 @@ AlignOperands: Align
 AllowShortIfStatementsOnASingleLine: AllIfsAndElse
 # SeparateDefinitionBlocks: Always
 AllowShortCaseLabelsOnASingleLine: true
-# AlignArrayOfStructures: Left
+# AlignArrayOfStructures: Right
+
+BreakBeforeBinaryOperators : NonAssignment
