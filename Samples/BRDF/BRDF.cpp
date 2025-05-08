@@ -108,6 +108,10 @@ public:
 		float        delta_x                                                                               = 0.0f;
 		float        delta_y                                                                               = 0.0f;
 		Glfw::Action button_state[std::underlying_type_t<Glfw::MouseButton>(Glfw::MouseButton::eLast) + 1] = {};
+
+		bool is_dragging = false;
+		void StartDragging() { is_dragging = true; }
+		void StopDragging() { is_dragging = false; }
 	} mouse;
 	void ProcessViewportInput();
 
@@ -248,7 +252,8 @@ void BRDFSample::ProcessViewportInput() {
 	auto button_pressed = [this](MouseButton button) { return mouse.button_state[std::to_underlying(button)] == Action::ePress; };
 
 	if (button_pressed(MouseButton::eRight)) {
-		if (glfwGetKey(glfw_window, std::to_underlying(Glfw::Key::eLeftAlt)) == std::to_underlying(Glfw::Action::ePress)) {
+		// if (glfwGetKey(glfw_window, std::to_underlying(Glfw::Key::eLeftAlt)) == std::to_underlying(Glfw::Action::ePress)) {
+		if (mouse.is_dragging) {
 			auto zoom_factor = camera.zoom_factor * length(camera_pos - camera.focus);
 			auto movement    = (zoom_factor * delta_pos.x) * camera_forward;
 			camera.view      = camera.view | translate(movement);
@@ -317,6 +322,16 @@ static void MouseButtonCallback(GLFWWindow* in_window, int in_button, int in_act
 	Mod         mods   = static_cast<Mod>(in_mods);
 
 	sample->mouse.button_state[in_button] = action;
+
+	if (button == MouseButton::eRight) {
+		if (action == Action::ePress) {
+			if (mods == Mod::eAlt) {
+				sample->mouse.StartDragging();
+			}
+		} else if (action == Action::eRelease) {
+			sample->mouse.StopDragging();
+		}
+	}
 }
 
 void BRDFSample::Init() {
@@ -361,7 +376,7 @@ void BRDFSample::Init() {
 
 	depth_image.Create(
 		device, vma_allocator, allocator,
-		{.create_info = {
+		{.image_info = {
 			 .flags         = {},
 			 .imageType     = vk::ImageType::e2D,
 			 .format        = vk::Format::eD32Sfloat,
@@ -1036,6 +1051,11 @@ auto BRDFSample::DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets
 void BRDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offsets) {
 	int x, y, width, height;
 	window.GetRect(x, y, width, height);
+
+	auto depth_extent = depth_image.GetExtent();
+	if (width > depth_extent.width || height > depth_extent.height) {
+		depth_image.Recreate({static_cast<u32>(width), static_cast<u32>(height), 1});
+	}
 
 	vk::Rect2D               render_rect{0, 0, static_cast<u32>(width), static_cast<u32>(height)};
 	VulkanRHI::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
