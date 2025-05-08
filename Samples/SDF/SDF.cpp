@@ -673,7 +673,7 @@ void SDFSample::CreateAndUploadBuffers() {
 	CHECK_VULKAN_RESULT(sdf_network.UpdateOffsetsAndSize(
 		device, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal,
 		kDstMatrixType, kDstVectorType));
-	optimal_size_bytes = AlignTo(sdf_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
+	optimal_size_bytes = AlignUpPowerOfTwo(sdf_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
 	if (bVerbose) sdf_network.Print();
 
 	// Write optimal offsets
@@ -689,7 +689,7 @@ void SDFSample::CreateAndUploadBuffers() {
 	CHECK_VULKAN_RESULT(sdf_network.UpdateOffsetsAndSize(
 		device, vk::CooperativeVectorMatrixLayoutNV::eRowMajor,
 		kDstMatrixType, kDstVectorType));
-	row_major_size_bytes = AlignTo(sdf_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
+	row_major_size_bytes = AlignUpPowerOfTwo(sdf_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
 
 	if (bVerbose) sdf_network.Print();
 

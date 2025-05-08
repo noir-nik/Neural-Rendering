@@ -1,7 +1,6 @@
 #include "BRDFConfig.h"
 #include "BRDFConstants.h"
 
-
 [[vk::push_constant]]
 BRDFConstants ctx;
 
@@ -11,20 +10,31 @@ const int shader_type = 0;
 // clang-format off
 struct VSInput {
 	[[vk::location(0)]] float4 pos : POSITION0;
+	[[vk::location(1)]] float4 normal : COLOR0;
 };
+
+struct VSOutput {
+	[[vk::location(0)]] float4 clip_pos : SV_POSITION;
+	[[vk::location(1)]] float3 normal : NORMAL0;
+	[[vk::location(2)]] float3 frag_pos : POSITION;
+}
 // clang-format on
 
 [[shader("vertex")]]
-void vs_main(VSInput in_vertex, out float4 out_clip_pos: SV_Position, out float3 frag_pos) {
-	// out_clip_pos = mul(float4(in_vertex.pos.xyz * 0.5, 1.0f), mat);
-	out_clip_pos = mul(ctx.view_proj, float4(in_vertex.pos.xyz, 1.0f));
-	// out_clip_pos = mul(in_vertex.pos, ctx.view_proj);
-	frag_pos = in_vertex.pos.xyz;
+func vs_main(VSInput in_vertex)->VSOutput {
+	VSOutput output;
+	output.clip_pos = mul(ctx.view_proj, float4(in_vertex.pos.xyz, 1.0f));
+	output.frag_pos = in_vertex.pos.xyz;
+	output.normal   = in_vertex.normal.xyz;
+
+	return output;
 }
 
 [[shader("fragment")]]
-void ps_main(in float3 frag_pos, out float4 frag_color: SV_Target0) {
-	// frag_color = float4(0.2f, 0.8f, 0.0f, 1.0f);
-	frag_color = float4(frag_pos, 1.0f);
+func ps_main(VSOutput input) -> float4{
+
+	float4 color = float4(input.normal.xyz, 1.0f);
+	return color;
 }
+
 

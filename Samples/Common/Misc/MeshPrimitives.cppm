@@ -21,8 +21,12 @@ public:
 
 	struct Vertex {
 		float pos[3];
-		float uv[2];
+		float u;
+		float normal[3];
+		float v;
 	};
+
+	using IndexType = u32;
 
 	UVSphere(float radius, u32 segments, u32 rings) : radius(radius), segments(segments), rings(rings) {}
 
