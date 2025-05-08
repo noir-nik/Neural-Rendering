@@ -50,7 +50,7 @@ auto Image::Create(vk::Device device, VmaAllocator vma_allocator, vk::Allocation
 }
 
 auto Image::Recreate(vk::Extent3D const& extent) -> vk::Result {
-	if (!IsValid()) return vk::Result::eErrorUnknown;
+	if (!IsValid()) return vk::Result::eErrorInitializationFailed;
 	Destroy();
 	this->info.image_info.extent = extent;
 
@@ -67,7 +67,7 @@ auto Image::Recreate(vk::Extent3D const& extent) -> vk::Result {
 									  &allocInfo,
 									  reinterpret_cast<VkImage*>(static_cast<vk::Image*>(this)),
 									  &allocation, nullptr));
-		if (result != vk::Result::eSuccess) continue;
+		if (result != vk::Result::eSuccess) break;
 
 		vk::ImageViewCreateInfo viewInfo{
 			.image    = *this,
@@ -80,9 +80,9 @@ auto Image::Recreate(vk::Extent3D const& extent) -> vk::Result {
 							  .layerCount     = GetArrayLayers()},
 		};
 
-		// todo(nm): Create image view only if usage if Sampled or Storage or other fitting
+		// Create image view 
 		result = device.createImageView(&viewInfo, vk_allocator, &view);
-		if (result != vk::Result::eSuccess) continue;
+		if (result != vk::Result::eSuccess) break;
 
 		return result;
 	} while (false);
