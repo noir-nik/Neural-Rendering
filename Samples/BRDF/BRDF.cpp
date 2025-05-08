@@ -1112,7 +1112,20 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& off
 
 	camera.updateProjectionViewInverse();
 	BRDFConstants constants{
-		.view_proj  = camera.getProjViewInv(),
+		.view_proj = camera.getProjViewInv(),
+		.material  = {
+			 .base_color = {0.8f, 0.8f, 0.8f, 0.8f},
+			 .metallic   = 0.0f,
+			 .roughness  = 0.5f,
+        },
+		.light = {
+			.position          = vec3(2.0, 2.0, 2.0),
+			.range             = 10.0,
+			.color             = vec3(0.8, 0.8, 0.8),
+			.intensity         = 8.0,
+			.ambient_color     = vec3(0.9, 0.9, 0.9),
+			.ambient_intensity = 0.03,
+		},
 		.camera_pos = camera.getPosition(),
 	};
 	// std::memcpy(constants.view_proj.M, &camera.getProjViewInv(), sizeof(float4x4));
