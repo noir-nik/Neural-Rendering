@@ -7,7 +7,7 @@ project(NeuralRendering LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_MODULE_STD 1)
 
-option(NG_BUILD_SAMPLES "Build samples" ON)
+option(BUILD_SAMPLES "Build samples" ON)
 
 # Sources
 file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "Source/*.cpp")
@@ -88,10 +88,10 @@ set(${PROJECT_NAME}_SHADERS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Source/Shaders CACHE
 set(${PROJECT_NAME}_SHADERS_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/Source/Shaders CACHE PATH "${PROJECT_NAME} shaders output")
 
 # Samples
-if (NG_BUILD_SAMPLES)
+if (BUILD_SAMPLES)
 	add_subdirectory(Samples)
 endif()
 
-# cmake . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS="-stdlib=libc++ -fno-rtti -fno-exceptions" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DNG_BUILD_SAMPLES=ON
+# cmake . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS="-stdlib=libc++ -fno-rtti -fno-exceptions" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DBUILD_SAMPLES=ON
 # cmake . -B build/cl -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DNG_BUILD_SAMPLES=ON -DCMAKE_CXX_FLAGS="/D_HAS_EXCEPTIONS=0 /GR-"
 # cmake --build build

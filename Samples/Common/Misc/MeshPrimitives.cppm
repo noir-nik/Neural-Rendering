@@ -1,27 +1,50 @@
 export module SamplesCommon:MeshPrimitives;
 import std;
+export namespace mesh {
 
-export using u32 = std::uint32_t;
+using u32 = std::uint32_t;
 
-export struct CubeVertex {
+struct CubeVertex {
 	float pos[4];
 	// int pad;
 };
 
-export template <typename VertexType, typename IndexType>
+template <typename VertexType, typename IndexType>
 struct Mesh {
 	std::vector<VertexType> vertices;
 	std::vector<IndexType>  indices;
 };
 
-export struct UVSphereVertex {
-	float pos[3];
-	float uv[2];
+class UVSphere {
+public:
+	static constexpr float pi = 3.14159265358979323846f;
+
+	struct Vertex {
+		float pos[3];
+		float uv[2];
+	};
+
+	UVSphere(float radius, u32 segments, u32 rings) : radius(radius), segments(segments), rings(rings) {}
+
+	auto GetVertexCount() const -> u32 { return (rings + 1) * (segments + 1); }
+	auto GetIndexCount() const -> u32 { return rings * segments * 6; }
+
+	auto WriteVertices(Vertex* vertices) const -> void;
+
+	auto WriteIndices(u32* indices) const -> void;
+
+private:
+	float radius;
+	u32   segments;
+	u32   rings;
 };
 
-export auto GetCubeVertices() -> std::span<CubeVertex const>;
 
-export auto GenerateUVSphereVerticesAndIndices(
+auto GetCubeVertices() -> std::span<CubeVertex const>;
+
+auto GenerateUVSphereVerticesAndIndices(
 	float radius, u32 segments, u32 rings,
-	std::vector<UVSphereVertex>& vertices,
+	std::vector<UVSphere::Vertex>& vertices,
 	std::vector<u32>&            indices) -> void;
+
+} // namespace mesh

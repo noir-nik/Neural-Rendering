@@ -13,6 +13,7 @@ import Math;
 import std;
 
 using namespace math;
+using namespace mesh;
 extern "C++" {
 #include "Shaders/BRDFConstants.h"
 }
@@ -25,6 +26,7 @@ extern "C++" {
 using namespace Utils;
 
 using VulkanRHI::Buffer;
+using VulkanRHI::Image;
 
 class BRDFSample {
 public:
@@ -45,6 +47,8 @@ public:
 	vk::ComponentTypeKHR kDstVectorType    = vk::ComponentTypeKHR::eFloat16;
 
 	static constexpr u32 kFramesInFlight = 3;
+
+	using Vertex = mesh::UVSphere::Vertex;
 
 	~BRDFSample();
 
@@ -99,9 +103,9 @@ public:
 		float x = 300.0f;
 		float y = 300.0f;
 
-		float        delta_x = 0.0f;
-		float        delta_y = 0.0f;
-		Glfw::Action button_state[std::underlying_type_t<Glfw::MouseButton>(Glfw::MouseButton::eLast) + 1];
+		float        delta_x                                                                               = 0.0f;
+		float        delta_y                                                                               = 0.0f;
+		Glfw::Action button_state[std::underlying_type_t<Glfw::MouseButton>(Glfw::MouseButton::eLast) + 1] = {};
 	} mouse;
 	void ProcessViewportInput();
 
@@ -136,10 +140,13 @@ public:
 
 	std::array<vk::Pipeline, u32(BrdfFunctionType::eCount)> pipelines;
 
-	Buffer vertex_buffer;
-	Buffer index_buffer;
+	Buffer device_buffer;
+	// Buffer x_buffer;
 	Buffer staging_buffer;
-	Buffer brdf_weights_buffer;
+	// Buffer brdf_weights_buffer;
+
+	Image depth_image;
+	bool  use_depth = true;
 
 	VulkanCoopVecNetwork brdf_network = {
 		Linear(6, 64),
@@ -177,7 +184,9 @@ public:
 
 	vk::QueryPool timestamp_query_pool{};
 
-	Camera camera;
+	Camera camera{vec3(1.0f, 3.0f, 5.0f),
+				  vec3(0.0f, 0.0f, 0.0f),
+				  vec3(0.0f, 1.0f, 0.0f)};
 };
 
 static void FramebufferSizeCallback(GLFWWindow* window, int width, int height) {
@@ -186,6 +195,8 @@ static void FramebufferSizeCallback(GLFWWindow* window, int width, int height) {
 	sample->swapchain_dirty = true;
 	if (width <= 0 || height <= 0) return;
 	sample->RecreateSwapchain(width, height);
+
+	sample->camera.updateProjection(width, height);
 }
 
 static void WindowRefreshCallback(GLFWWindow* window) {
@@ -197,6 +208,12 @@ static void WindowRefreshCallback(GLFWWindow* window) {
 	sample->DrawWindow(sample->pipelines[u32(BrdfFunctionType::eDefault)], sample->optimal_offsets);
 }
 
+void PrintMat4(float4x4 const& mat) {
+	for (int i = 0; i < 4; ++i) {
+		std::printf("%f %f %f %f\n", mat[i][0], mat[i][1], mat[i][2], mat[i][3]);
+	}
+}
+
 void BRDFSample::ProcessViewportInput() {
 	using namespace Glfw;
 
@@ -205,7 +222,8 @@ void BRDFSample::ProcessViewportInput() {
 	auto const& camera_up      = camera.getUp();
 	auto const& camera_forward = camera.getForward();
 
-	vec2 delta_pos = {mouse.delta_x, mouse.delta_y};
+	vec2 delta_pos = {-mouse.delta_x, mouse.delta_y};
+	// vec2 delta_pos = {mouse.delta_x, mouse.delta_y};
 
 	GLFWwindow* glfw_window = static_cast<GLFWwindow*>(window.GetHandle());
 
@@ -216,15 +234,11 @@ void BRDFSample::ProcessViewportInput() {
 				return state || action == Action::ePress || action == Action::eRepeat;
 			});
 
-	if (is_more_than_one_button_pressed) [[unlikely]]
-		return;
+	// if (is_more_than_one_button_pressed) [[unlikely]]
+	// 	return;
+	auto button_pressed = [this](MouseButton button) { return mouse.button_state[std::to_underlying(button)] == Action::ePress; };
 
-	float rotation_sign = std::copysignf(1.0f, camera.getUp().y);
-
-	auto t = rotation_sign * camera_right;
-	// auto t =  camera_right * rotation_sign;
-
-	if (mouse.button_state[std::to_underlying(MouseButton::eRight)] == Action::ePress) {
+	if (button_pressed(MouseButton::eRight)) {
 		if (glfwGetKey(glfw_window, std::to_underlying(Glfw::Key::eLeftAlt)) == std::to_underlying(Glfw::Action::ePress)) {
 			auto zoom_factor = camera.zoom_factor * length(camera_pos - camera.focus);
 			auto movement    = (zoom_factor * delta_pos.x) * camera_forward;
@@ -235,23 +249,28 @@ void BRDFSample::ProcessViewportInput() {
 			// camera.view = rotate4x4(camera_up, deltaPos.x * camera.rotation_factor)
 			//	 * rotate4x4(camera_right, deltaPos.y * camera.rotation_factor)
 			//	 * camera.view; // trackball
+
+			// Correct upside down
+			float rotation_sign = std::copysignf(1.0f, camera.getUp().y);
+
 			camera.view = camera.view
 						  | rotate(camera_right, delta_pos.y * camera.rotation_factor)
 						  | rotateY(rotation_sign * delta_pos.x * camera.rotation_factor);
 			camera_pos += camera.focus;
 		}
 		// window->AddFramesToDraw(1);
+		// camera.updateProjView();
 		return;
 	}
 
-	if (mouse.button_state[std::to_underlying(MouseButton::eMiddle)] == Action::ePress) {
+	if (button_pressed(MouseButton::eMiddle)) {
 		auto move_factor = camera.move_factor * length(camera_pos - camera.focus);
-		auto movement    = move_factor * (camera_up * -delta_pos.y + camera_right * delta_pos.x);
-		camera.view = camera.view | translate(movement);
+		auto movement    = move_factor * (camera_up * delta_pos.y + camera_right * delta_pos.x);
+		camera.view      = camera.view | translate(movement);
 		return;
 	}
 
-	if (mouse.button_state[std::to_underlying(MouseButton::eLeft)] == Action::ePress) {
+	if (button_pressed(MouseButton::eLeft)) {
 		// window->AddFramesToDraw(1);
 		return;
 	}
@@ -266,7 +285,8 @@ static void CursorPosCallback(GLFWWindow* window, double xpos, double ypos) {
 
 	sample->ProcessViewportInput();
 
-	std::printf("mouse position: (%f, %f), delta: (%f, %f)\n", sample->mouse.x, sample->mouse.y, sample->mouse.delta_x, sample->mouse.delta_y);
+	// std::printf("mouse position: (%f, %f), delta: (%f, %f)\n", sample->mouse.x, sample->mouse.y,
+	// 			sample->mouse.delta_x, sample->mouse.delta_y);
 }
 
 static void KeyCallback(GLFWWindow* window, int key, int scancode, int action, int mods) {
@@ -288,7 +308,6 @@ static void MouseButtonCallback(GLFWWindow* in_window, int in_button, int in_act
 	Mod         mods   = static_cast<Mod>(in_mods);
 
 	sample->mouse.button_state[in_button] = action;
-	std::printf("button %d %d %d\n", in_button, in_action, in_mods);
 }
 
 void BRDFSample::Init() {
@@ -299,6 +318,12 @@ void BRDFSample::Init() {
 	if (!bIsTestMode) {
 		window.GetWindowCallbacks().windowRefreshCallback = WindowRefreshCallback;
 	}
+
+	int x, y, width, height;
+	window.GetFullScreenRect(x, y, width, height);
+
+	camera.updateProjection(800, 600);
+
 	window.GetInputCallbacks().cursorPosCallback   = CursorPosCallback;
 	window.GetInputCallbacks().keyCallback         = KeyCallback;
 	window.GetInputCallbacks().mouseButtonCallback = MouseButtonCallback;
@@ -325,6 +350,24 @@ void BRDFSample::Init() {
 	LoadInstanceCooperativeVectorFunctionsNV(instance);
 	CreateAndUploadBuffers();
 
+	depth_image.Create(
+		device, vma_allocator, allocator,
+		{.create_info = {
+			 .flags         = {},
+			 .imageType     = vk::ImageType::e2D,
+			 .format        = vk::Format::eD32Sfloat,
+			 .extent        = {static_cast<u32>(width), static_cast<u32>(height), 1},
+			 .mipLevels     = 1,
+			 .arrayLayers   = 1,
+			 .samples       = vk::SampleCountFlagBits::e1,
+			 .tiling        = vk::ImageTiling::eOptimal,
+			 .usage         = vk::ImageUsageFlagBits::eDepthStencilAttachment,
+			 .sharingMode   = vk::SharingMode::eExclusive,
+			 .initialLayout = vk::ImageLayout::eUndefined,
+		 },
+		 .aspect = vk::ImageAspectFlagBits::eDepth});
+
+	// After depth, because depth format is need in rendering info
 	CreatePipelines();
 
 	// Create timestamp query pool
@@ -367,9 +410,11 @@ void BRDFSample::Destroy() {
 		}
 
 		staging_buffer.Destroy();
-		vertex_buffer.Destroy();
-		index_buffer.Destroy();
-		brdf_weights_buffer.Destroy();
+		device_buffer.Destroy();
+
+		depth_image.Destroy();
+		// device_buffer.Destroy();
+		// brdf_weights_buffer.Destroy();
 
 		for (vk::Pipeline& pipeline : pipelines) {
 			device.destroyPipeline(pipeline, GetAllocator());
@@ -668,7 +713,7 @@ auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, BrdfFunctionType
 	}};
 
 	vk::VertexInputAttributeDescription vertex_input_attribute_descriptions[] = {
-		{.location = 0, .binding = 0, .format = vk::Format::eR32G32B32Sfloat, .offset = 0},
+		{.location = 0, .binding = 0, .format = vk::Format::eR32G32B32A32Sfloat, .offset = 0},
 	};
 
 	vk::PipelineVertexInputStateCreateInfo vertex_input_state{
@@ -690,7 +735,7 @@ auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, BrdfFunctionType
 	};
 
 	vk::PipelineRasterizationStateCreateInfo rasterization_state{
-		// .cullMode  = vk::CullModeFlagBits::eBack,
+		.cullMode  = vk::CullModeFlagBits::eBack,
 		.frontFace = vk::FrontFace::eCounterClockwise,
 		.lineWidth = 1.0f,
 	};
@@ -731,6 +776,7 @@ auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, BrdfFunctionType
 		.viewMask                = 0,
 		.colorAttachmentCount    = 1,
 		.pColorAttachmentFormats = &swapchain.GetFormat(),
+		.depthAttachmentFormat   = depth_image.GetFormat(),
 	};
 
 	vk::GraphicsPipelineCreateInfo info{
@@ -742,10 +788,10 @@ auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, BrdfFunctionType
 		.pViewportState      = &viewport_state,
 		.pRasterizationState = &rasterization_state,
 		.pMultisampleState   = &multisample_state,
-		// .pDepthStencilState  = &depth_stencil_state,
-		.pColorBlendState = &color_blend_state,
-		.pDynamicState    = &dynamic_state,
-		.layout           = pipeline_layout,
+		.pDepthStencilState  = &depth_stencil_state,
+		.pColorBlendState    = &color_blend_state,
+		.pDynamicState       = &dynamic_state,
+		.layout              = pipeline_layout,
 	};
 
 	vk::Pipeline pipeline;
@@ -779,37 +825,31 @@ void BRDFSample::CreateAndUploadBuffers() {
 		optimal_offsets.biases_offsets[i]  = biases_offset;
 	}
 
-	std::size_t total_size_bytes = brdf_size_bytes + vertices_size_bytes;
+	vk::DeviceSize const kMinSize = 256 * 1024;
+
+	std::size_t total_size_bytes = std::min(brdf_size_bytes + vertices_size_bytes, kMinSize);
 
 	// clang-format off
-	CHECK_VULKAN_RESULT(vertex_buffer.Create(device, vma_allocator, {
-		.size   = vertices_size_bytes,
+	CHECK_VULKAN_RESULT(device_buffer.Create(device, vma_allocator, {
+		.size   = total_size_bytes,
 		.usage  = vk::BufferUsageFlagBits::eTransferDst 
-		| vk::BufferUsageFlagBits::eStorageBuffer
-		| vk::BufferUsageFlagBits::eVertexBuffer,
+				| vk::BufferUsageFlagBits::eStorageBuffer
+				| vk::BufferUsageFlagBits::eVertexBuffer
+				| vk::BufferUsageFlagBits::eIndexBuffer,
 		.memory = vk::MemoryPropertyFlagBits::eDeviceLocal,
 	}));
-
-	CHECK_VULKAN_RESULT(brdf_weights_buffer.Create(device, vma_allocator, {
-		.size   = brdf_size_bytes,
-		.usage  = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
-		.memory = vk::MemoryPropertyFlagBits::eDeviceLocal,
-	}));
-
+ 
 	CHECK_VULKAN_RESULT(staging_buffer.Create(device, vma_allocator, {
 		.size   = total_size_bytes,
 		.usage  = vk::BufferUsageFlagBits::eTransferSrc,
-		.memory = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
+		.memory = vk::MemoryPropertyFlagBits::eHostVisible 
+				| vk::MemoryPropertyFlagBits::eHostCoherent,
 	}));
 	// clang-format on
 
 	// Update descriptor set
-	using namespace std::views;
-	auto buffers = zip(iota(0u), std::array{std::ref(vertex_buffer), std::ref(brdf_weights_buffer)});
-
 	vk::DescriptorBufferInfo buffer_infos[] = {
-		{.buffer = vertex_buffer, .offset = 0, .range = vertex_buffer.GetSize()},
-		{.buffer = brdf_weights_buffer, .offset = 0, .range = brdf_weights_buffer.GetSize()},
+		{.buffer = device_buffer, .offset = 0, .range = device_buffer.GetSize()},
 	};
 
 	vk::WriteDescriptorSet writes[] = {{
@@ -838,7 +878,7 @@ void BRDFSample::CreateAndUploadBuffers() {
 	vk::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
 	CHECK_VULKAN_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
 	// clang-format off
-	cmd.copyBuffer(staging_buffer, vertex_buffer, {{
+	cmd.copyBuffer(staging_buffer, device_buffer, {{
 		.srcOffset = 0,
 		.dstOffset = 0,
 		.size      = vertices_size_bytes,
@@ -949,7 +989,6 @@ auto BRDFSample::DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets
 	RecordCommands(pipeline, offsets);
 	if (!HandleSwapchainResult(swapchain.SubmitAndPresent(queue, queue))) return 0ull;
 
-	// Call it here
 	u64 elapsed = GetQueryResult();
 	swapchain.EndFrame();
 	return elapsed;
@@ -984,14 +1023,38 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& off
 		.colorAttachments = {{{
 			.imageView   = swapchain.GetCurrentImageView(),
 			.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
+			.loadOp      = vk::AttachmentLoadOp::eClear,
+			.storeOp     = vk::AttachmentStoreOp::eStore,
+			.clearValue  = {{{{0.1f, 0.1f, 0.1f, 1.0f}}}},
 		}}},
+		.depthAttachment  = {
+			 .imageView   = depth_image.GetView(),
+			 .imageLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal,
+			 .loadOp      = vk::AttachmentLoadOp::eClear,
+			 .storeOp     = vk::AttachmentStoreOp::eDontCare,
+			 .clearValue  = {{{{1.0f, 0}}}},
+        },
 	});
 	cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
 	cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
+
+	// std::printf("View\n");
+	// PrintMat4(camera.view);
+	// std::printf("\n");
+	// PrintMat4(camera.proj);
+	// std::printf("\n");
+	// PrintMat4(camera.getProjViewInv());
+	// std::printf("\n");
+	// std::printf("\n");
+	// std::printf("\n");
+
+	camera.updateProjectionViewInverse();
 	BRDFConstants constants{
 		.view_proj  = camera.getProjViewInv(),
 		.camera_pos = camera.getPosition(),
 	};
+	// std::memcpy(constants.view_proj.M, &camera.getProjViewInv(), sizeof(float4x4));
+
 	for (int i = 0; i < kNetworkLinearLayers; ++i) {
 		constants.weights_offsets[i] = offsets.weights_offsets[i];
 		constants.bias_offsets[i]    = offsets.biases_offsets[i];
@@ -1009,8 +1072,11 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& off
 					  vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
 					  0, sizeof(constants), &constants);
 
+	// std::printf("camera pos %f %f %f\n", constants.camera_pos.x, constants.camera_pos.y, constants.camera_pos.z);
+
 	u32 vertex_count = GetCubeVertices().size();
-	cmd.bindVertexBuffers(0, vertex_buffer, {0});
+	cmd.bindVertexBuffers(0, device_buffer, {0});
+	// cmd.draw(3, 1, 0, 0);
 	cmd.draw(vertex_count, 1, 0, 0);
 	cmd.endRendering();
 	cmd.Barrier({

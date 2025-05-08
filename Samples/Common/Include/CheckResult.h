@@ -5,6 +5,7 @@
 		::vk::Result local_result_##line = ::vk::Result(func); \
 		if (local_result_##line != ::vk::Result::eSuccess) [[unlikely]] { \
 			::std::printf("Vulkan error: %s " #func " in " __FILE__ ":" #line, ::vk::to_string(local_result_##line).c_str()); \
+			::std::getchar(); \
 			::std::exit(1); \
 		} \
 	}
