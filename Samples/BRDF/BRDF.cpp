@@ -1,3 +1,5 @@
+#include <cstddef>
+
 #include "CheckResult.h"
 #include "Shaders/BRDFConfig.h"
 
@@ -140,10 +142,17 @@ public:
 
 	std::array<vk::Pipeline, u32(BrdfFunctionType::eCount)> pipelines;
 
-	Buffer device_buffer;
+	Buffer         device_buffer;
+	vk::DeviceSize vertices_offset = 0;
+	vk::DeviceSize indices_offset  = 0;
 	// Buffer x_buffer;
 	Buffer staging_buffer;
 	// Buffer brdf_weights_buffer;
+
+	// float    radius   = 1.0f;
+	// u32      segments = 8;
+	// u32      rings    = 8;
+	UVSphere sphere = UVSphere(1.0f, 32, 16);
 
 	Image depth_image;
 	bool  use_depth = true;
@@ -708,12 +717,13 @@ auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, BrdfFunctionType
 
 	vk::VertexInputBindingDescription vertex_input_binding_descriptions[] = {{
 		.binding   = 0,
-		.stride    = sizeof(CubeVertex),
+		.stride    = sizeof(Vertex),
 		.inputRate = vk::VertexInputRate::eVertex,
 	}};
 
 	vk::VertexInputAttributeDescription vertex_input_attribute_descriptions[] = {
-		{.location = 0, .binding = 0, .format = vk::Format::eR32G32B32A32Sfloat, .offset = 0},
+		{.location = 0, .binding = 0, .format = vk::Format::eR32G32B32A32Sfloat, .offset = offsetof(Vertex, pos)},
+		{.location = 1, .binding = 0, .format = vk::Format::eR32G32B32A32Sfloat, .offset = offsetof(Vertex, normal)},
 	};
 
 	vk::PipelineVertexInputStateCreateInfo vertex_input_state{
@@ -800,12 +810,29 @@ auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, BrdfFunctionType
 	return pipeline;
 }
 
+void DumpVertexData(std::span<const UVSphere::Vertex> vertices, std::span<const UVSphere::IndexType> indices) {
+	std::printf("Vertices:\n");
+	for (u32 i = 0; i < vertices.size(); ++i) {
+		const auto& vertex = vertices[i];
+		std::printf("%u) pos = (%f, %f, %f), uv = (%f, %f), normal = (%f, %f, %f)\n", i, vertex.pos[0], vertex.pos[1], vertex.pos[2], vertex.u, vertex.v, vertex.normal[0], vertex.normal[1], vertex.normal[2]);
+	}
+	std::printf("Indices:\n");
+	for (u32 i = 0; i < indices.size() / 3; ++i) {
+		std::printf("%u) %u, %u, %u\n", i, indices[i * 3], indices[i * 3 + 1], indices[i * 3 + 2]);
+	}
+}
+
 void BRDFSample::CreateAndUploadBuffers() {
 
 	// Create vertex buffer
-	auto vertices = GetCubeVertices();
+	// auto vertices = GetCubeVertices();
 
-	std::size_t vertices_size_bytes  = vertices.size_bytes();
+	std::size_t vertices_size_bytes   = sphere.GetVertexCount() * sizeof(UVSphere::Vertex);
+	std::size_t indices_size_bytes    = sphere.GetIndexCount() * sizeof(UVSphere::IndexType);
+	std::size_t alignment             = sizeof(float) * 4;
+	std::size_t vertices_size_aligned = AlignUpPowerOfTwo(vertices_size_bytes, alignment);
+	std::size_t indices_size_aligned  = AlignUpPowerOfTwo(indices_size_bytes, alignment);
+
 	std::size_t brdf_size_bytes      = 0;
 	std::size_t row_major_size_bytes = 0;
 
@@ -813,7 +840,7 @@ void BRDFSample::CreateAndUploadBuffers() {
 	CHECK_VULKAN_RESULT(brdf_network.UpdateOffsetsAndSize(
 		device, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal,
 		kDstMatrixType, kDstVectorType));
-	brdf_size_bytes = AlignTo(brdf_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
+	brdf_size_bytes = AlignUpPowerOfTwo(brdf_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
 	if (bVerbose) brdf_network.Print();
 
 	// Write optimal offsets
@@ -827,7 +854,7 @@ void BRDFSample::CreateAndUploadBuffers() {
 
 	vk::DeviceSize const kMinSize = 256 * 1024;
 
-	std::size_t total_size_bytes = std::min(brdf_size_bytes + vertices_size_bytes, kMinSize);
+	std::size_t total_size_bytes = std::max(brdf_size_bytes + vertices_size_aligned + indices_size_aligned, kMinSize);
 
 	// clang-format off
 	CHECK_VULKAN_RESULT(device_buffer.Create(device, vma_allocator, {
@@ -871,24 +898,36 @@ void BRDFSample::CreateAndUploadBuffers() {
 		CHECK_VULKAN_RESULT(brdf_network.UpdateOffsetsAndSize(device, layout, kDstMatrixType, kDstVectorType))
 		WriteNetworkWeights(brdf_network, staging_buffer, offset, layout);
 	};
-	std::memcpy(staging_buffer.GetMappedData(), vertices.data(), vertices_size_bytes);
-	// std::size_t offset = vertices_size_bytes;
+	// std::memcpy(staging_buffer.GetMappedData(), vertices.data(), vertices_size_bytes);
+	this->vertices_offset = 0;
+	this->indices_offset  = vertices_size_aligned;
+	auto p_staging        = static_cast<std::byte*>(staging_buffer.GetMappedData());
+	auto p_vertices       = reinterpret_cast<UVSphere::Vertex*>(p_staging + this->vertices_offset);
+	auto p_indices        = reinterpret_cast<UVSphere::IndexType*>(p_staging + this->indices_offset);
+	sphere.WriteVertices(p_vertices);
+	sphere.WriteIndices(p_indices);
+
 	// update_and_write(offset, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal);
+
+	// DumpVertexData({p_vertices, sphere.GetVertexCount()}, {p_indices, sphere.GetIndexCount()});
 
 	vk::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
 	CHECK_VULKAN_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
-	// clang-format off
-	cmd.copyBuffer(staging_buffer, device_buffer, {{
-		.srcOffset = 0,
-		.dstOffset = 0,
-		.size      = vertices_size_bytes,
-	}});
-	// cmd.copyBuffer(staging_buffer, brdf_weights_buffer, {{
-	// 	.srcOffset = vertices_size_bytes,
-	// 	.dstOffset = 0,
-	// 	.size      = brdf_size_bytes,
-	// }});
-	// clang-format on
+	vk::BufferCopy regions[] = {
+		{
+			.srcOffset = vertices_offset,
+			.dstOffset = vertices_offset,
+			.size      = vertices_size_bytes,
+		},
+		{
+			.srcOffset = indices_offset,
+			.dstOffset = indices_offset,
+			.size      = indices_size_bytes,
+		},
+	};
+
+	cmd.copyBuffer(staging_buffer, device_buffer, std::size(regions), regions);
+
 	CHECK_VULKAN_RESULT(cmd.end());
 	CHECK_VULKAN_RESULT(queue.submit({{.commandBufferCount = 1, .pCommandBuffers = &cmd}}));
 	CHECK_VULKAN_RESULT(queue.waitIdle());
@@ -1068,16 +1107,21 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& off
 	// 	.size    = sizeof(constants),
 	// 	.pValues = &constants,
 	// });
-	cmd.pushConstants(pipeline_layout,
-					  vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-					  0, sizeof(constants), &constants);
+	u32 const constants_offset = 0u;
+	cmd.pushConstants(
+		pipeline_layout,
+		vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+		constants_offset, sizeof(constants), &constants);
 
 	// std::printf("camera pos %f %f %f\n", constants.camera_pos.x, constants.camera_pos.y, constants.camera_pos.z);
 
-	u32 vertex_count = GetCubeVertices().size();
-	cmd.bindVertexBuffers(0, device_buffer, {0});
+	// u32 vertex_count = GetCubeVertices().size();
+	u32 vertex_count = sphere.GetVertexCount();
+	cmd.bindVertexBuffers(0, device_buffer, vertices_offset);
+	cmd.bindIndexBuffer(device_buffer, indices_offset, vk::IndexType::eUint32);
 	// cmd.draw(3, 1, 0, 0);
-	cmd.draw(vertex_count, 1, 0, 0);
+	// cmd.draw(vertex_count, 1, 0, 0);
+	cmd.drawIndexed(sphere.GetIndexCount(), 1, 0, 0, 0);
 	cmd.endRendering();
 	cmd.Barrier({
 		.image         = swapchain_image,

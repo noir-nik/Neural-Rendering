@@ -20,11 +20,11 @@ auto VulkanCoopVecNetwork::UpdateOffsetsAndSize(vk::Device                      
 				[&offset, &current_layer_outputs, this, device, layout, matrix_type, vector_type](Linear& layer) -> vk::Result {
 					auto [result, size] = CoopVecUtils::CalculateByteSize(device, layer.GetOutputsCount(), layer.GetInputsCount(), layout, matrix_type);
 					if (result != vk::Result::eSuccess) return result;
-					offset = AlignTo(offset, CoopVecUtils::GetMatrixAlignment());
+					offset = AlignUpPowerOfTwo(offset, CoopVecUtils::GetMatrixAlignment());
 					layer.SetWeightsOffset(offset);
 					layer.SetWeightsSize(size);
 					offset += size;
-					offset = AlignTo(offset, CoopVecUtils::GetVectorAlignment());
+					offset = AlignUpPowerOfTwo(offset, CoopVecUtils::GetVectorAlignment());
 					layer.SetBiasesOffset(offset);
 					layer.SetBiasesSize(layer.GetOutputsCount() * GetVulkanComponentSize(vector_type));
 					offset += layer.GetBiasesSize();

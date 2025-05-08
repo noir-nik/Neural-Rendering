@@ -34,8 +34,13 @@ constexpr inline auto GetVulkanComponentType() -> vk::ComponentTypeKHR {
 }
 
 export template <typename T, typename U>
-constexpr auto AlignTo(T const value, U const alignment) -> T {
+constexpr inline auto AlignUp(T const value, U const alignment) -> T {
 	return ((value + alignment - T(1)) / alignment) * alignment;
+}
+
+export template <typename T, typename U>
+constexpr inline auto AlignUpPowerOfTwo(T const value, U const alignment) -> T {
+	return (value + alignment - T(1)) & ~(alignment - T(1));
 }
 
 export class VulkanCoopVecNetwork : public GenericNetwork {
