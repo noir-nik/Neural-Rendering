@@ -9,23 +9,18 @@ import std;
 
 namespace VulkanRHI {
 Image::Image(vk::Image image, vk::ImageView view, vk::Extent3D const& extent)
-	: vk::Image(image),
-	  view(view),
-	  layout(vk::ImageLayout::eUndefined),
-	  aspect(vk::ImageAspectFlagBits::eColor),
-	  from_swapchain(true),
-	  extent(extent) {}
+	: vk::Image(image), view(view), from_swapchain(true) {
+	info.image_info.extent        = extent;
+	info.image_info.initialLayout = vk::ImageLayout::eUndefined;
+	info.aspect                   = vk::ImageAspectFlagBits::eColor;
+}
 
 Image::Image(Image&& other) noexcept
 	: vk::Image(std::exchange(static_cast<vk::Image&>(other), {})),
 	  //   ResourceBase<vk::Device>(std::move(other)), view(std::exchange(other.view, {})),
 	  allocation(std::exchange(other.allocation, {})),
-	  layout(std::move(other.layout)),
 	  device(std::move(other.device)),
-	  aspect(std::move(other.aspect)),
-	  extent(std::move(other.extent)),
-	  format(std::move(other.format)),
-	  usage(std::move(other.usage)),
+	  info(std::move(other.info)),
 	  from_swapchain(std::move(other.from_swapchain)) {}
 
 Image& Image::operator=(Image&& other) noexcept {
@@ -35,11 +30,7 @@ Image& Image::operator=(Image&& other) noexcept {
 		device         = std::move(other.device);
 		view           = std::exchange(other.view, {});
 		allocation     = std::exchange(other.allocation, {});
-		layout         = std::move(other.layout);
-		aspect         = std::move(other.aspect);
-		extent         = std::move(other.extent);
-		format         = std::move(other.format);
-		usage          = std::move(other.usage);
+		info           = std::move(other.info);
 		from_swapchain = std::move(other.from_swapchain);
 	}
 	return *this;
@@ -53,16 +44,19 @@ auto Image::Create(vk::Device device, VmaAllocator vma_allocator, vk::Allocation
 	this->vma_allocator = vma_allocator;
 	this->vk_allocator  = vk_allocator;
 
-	this->extent = info.create_info.extent;
-	this->format = info.create_info.format;
-	this->usage  = info.create_info.usage;
-	this->layout = info.create_info.initialLayout;
-	this->aspect = info.aspect;
+	this->info = info;
+
+	return Recreate(info.image_info.extent);
+}
+
+auto Image::Recreate(vk::Extent3D const& extent) -> vk::Result {
+	if (IsValid()) Destroy();
+	this->info.image_info.extent = extent;
 
 	VmaAllocationCreateInfo const allocInfo = {
 		.usage          = VMA_MEMORY_USAGE_AUTO,
 		.preferredFlags = VkMemoryPropertyFlags(
-			info.create_info.usage & vk::ImageUsageFlagBits::eTransientAttachment ? VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT : 0),
+			GetUsage() & vk::ImageUsageFlagBits::eTransientAttachment ? VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT : 0),
 	};
 
 	vk::Result result;
@@ -76,13 +70,14 @@ auto Image::Create(vk::Device device, VmaAllocator vma_allocator, vk::Allocation
 
 		vk::ImageViewCreateInfo viewInfo{
 			.image    = *this,
-			.viewType = info.create_info.arrayLayers == 1 ? vk::ImageViewType::e2D : vk::ImageViewType::eCube,
-			.format   = info.create_info.format,
-			.subresourceRange{.aspectMask     = aspect,
+			.viewType = GetArrayLayers() == 1 ? vk::ImageViewType::e2D : vk::ImageViewType::eCube,
+			.format   = GetFormat(),
+			.subresourceRange{.aspectMask     = GetAspect(),
 							  .baseMipLevel   = 0,
-							  .levelCount     = info.create_info.mipLevels,
+							  .levelCount     = GetMipLevels(),
 							  .baseArrayLayer = 0,
-							  .layerCount     = info.create_info.arrayLayers}};
+							  .layerCount     = GetArrayLayers()},
+		};
 
 		// todo(nm): Create image view only if usage if Sampled or Storage or other fitting
 		result = device.createImageView(&viewInfo, vk_allocator, &view);
