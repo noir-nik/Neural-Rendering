@@ -197,9 +197,12 @@ public:
 
 	vk::QueryPool timestamp_query_pool{};
 
-	Camera camera{vec3(1.0f, 3.0f, 5.0f),
-				  vec3(0.0f, 0.0f, 0.0f),
-				  vec3(0.0f, 1.0f, 0.0f)};
+	Camera camera{{
+		.position = {1.0f, 3.0f, 5.0f},
+		.fov      = 50.0f,
+		.z_near   = 0.01f,
+		.z_far    = 1000.0f,
+	}};
 };
 
 static void FramebufferSizeCallback(GLFWWindow* window, int width, int height) {
@@ -240,15 +243,15 @@ void BRDFSample::ProcessViewportInput() {
 
 	GLFWwindow* glfw_window = static_cast<GLFWwindow*>(window.GetHandle());
 
-	bool const is_more_than_one_button_pressed =
+	u32 const pressed_buttons_count =
 		std::ranges::fold_left(
 			std::span(mouse.button_state) | std::views::take(3 /* left, middle, right */),
-			false, [](bool state, Action action) {
-				return state || action == Action::ePress || action == Action::eRepeat;
+			0, [](u32 state, Action action) {
+				return state + (action == Action::ePress);
 			});
 
-	// if (is_more_than_one_button_pressed) [[unlikely]]
-	// 	return;
+	if (pressed_buttons_count > 1) [[unlikely]]
+		return;
 	auto button_pressed = [this](MouseButton button) { return mouse.button_state[std::to_underlying(button)] == Action::ePress; };
 
 	if (button_pressed(MouseButton::eRight)) {
@@ -260,9 +263,9 @@ void BRDFSample::ProcessViewportInput() {
 			// camera.focus += movement;
 		} else {
 			camera_pos -= camera.focus;
-			// camera.view = rotate4x4(camera_up, deltaPos.x * camera.rotation_factor)
-			//	 * rotate4x4(camera_right, deltaPos.y * camera.rotation_factor)
-			//	 * camera.view; // trackball
+			// camera.view = rotate4x4(camera_up, -delta_pos.x * camera.rotation_factor)
+			// 	 * rotate4x4(camera_right, delta_pos.y * camera.rotation_factor)
+			// 	 * camera.view; // trackball
 
 			// Correct upside down
 			float rotation_sign = std::copysignf(1.0f, camera.getUp().y);
@@ -278,10 +281,10 @@ void BRDFSample::ProcessViewportInput() {
 	}
 
 	if (button_pressed(MouseButton::eMiddle)) {
-		auto move_factor = camera.move_factor * length(camera_pos - camera.focus);
-		auto movement    = move_factor * (camera_up * delta_pos.y + camera_right * delta_pos.x);
-		camera.view      = camera.view | translate(movement);
-		return;
+
+		int x, y, width, height;
+		window.GetRect(x, y, width, height);
+		camera.moveFromMouse(width, height, delta_pos.x, delta_pos.y);
 	}
 
 	if (button_pressed(MouseButton::eLeft)) {
