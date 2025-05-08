@@ -371,7 +371,7 @@ inline float4x4 lookAtInverse(float3 eye, float3 center, float3 up) {
 	float4x4     res;
 	res.m_col[0] = float4{s.x, s.y, s.z, dot(s, eye)};
 	res.m_col[1] = float4{u.x, u.y, u.z, dot(u, eye)};
-	res.m_col[2] = float4{f.x, f.y, f.z, -dot(f, eye)};
+	res.m_col[2] = float4{f.x, f.y, f.z, dot(f, eye)};
 	res.m_col[3] = float4{0.0f, 0.0f, 0.0f, 1.0f};
 	return res;
 }
