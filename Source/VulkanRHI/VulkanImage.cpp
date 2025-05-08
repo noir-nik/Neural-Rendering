@@ -50,7 +50,8 @@ auto Image::Create(vk::Device device, VmaAllocator vma_allocator, vk::Allocation
 }
 
 auto Image::Recreate(vk::Extent3D const& extent) -> vk::Result {
-	if (IsValid()) Destroy();
+	if (!IsValid()) return vk::Result::eErrorUnknown;
+	Destroy();
 	this->info.image_info.extent = extent;
 
 	VmaAllocationCreateInfo const allocInfo = {
