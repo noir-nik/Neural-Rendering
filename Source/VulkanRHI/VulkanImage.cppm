@@ -17,7 +17,7 @@ public:
 	Image() = default;
 
 	// From swapchain
-	Image(vk::Image image, vk::ImageView view, vk::Extent3D const& extent, std::string_view name = "");
+	Image(vk::Image image, vk::ImageView view, vk::Extent3D const& extent);
 
 	Image(Image const&)            = delete;
 	Image& operator=(Image const&) = delete;
@@ -27,7 +27,7 @@ public:
 	// Calls Destroy
 	~Image();
 
-	auto Create(vk::Device device, VmaAllocator allocator, ImageInfo const& info) -> vk::Result;
+	auto Create(vk::Device device, VmaAllocator vma_allocator, vk::AllocationCallbacks const* vk_allocator, ImageInfo const& info) -> vk::Result;
 
 	// Manually free resources, safe to call multiple times
 	void Destroy();
@@ -44,7 +44,7 @@ public:
 	static auto MakeCreateInfo(vk::Format format, vk::Extent3D const& extent, vk::ImageUsageFlags usage) -> vk::ImageCreateInfo;
 
 	inline auto GetDevice() const -> vk::Device { return device; }
-	inline auto GetAllocator() const -> VmaAllocator { return allocator; }
+	inline auto GetAllocator() const -> VmaAllocator { return vma_allocator; }
 	inline auto GetAllocation() const -> VmaAllocation { return allocation; }
 	inline auto GetAllocationInfo() const -> VmaAllocationInfo { return allocation_info; }
 
@@ -56,10 +56,13 @@ public:
 	inline auto GetView() const -> vk::ImageView { return view; }
 	inline auto GetAspect() const -> vk::ImageAspectFlags { return aspect; }
 
+	bool IsValid() const { return vk::Image::operator bool(); }
+
 private:
 	vk::Device device;
+	vk::AllocationCallbacks const* vk_allocator;
 
-	VmaAllocator      allocator;
+	VmaAllocator      vma_allocator;
 	VmaAllocation     allocation;
 	VmaAllocationInfo allocation_info;
 

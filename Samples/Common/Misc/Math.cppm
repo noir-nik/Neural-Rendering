@@ -28,7 +28,7 @@ using std::cosf;
 using std::sinf;
 using std::tanf;
 
-constexpr inline float kDegreesToRadians = 3.14159265358979323846f / 180.0f;
+constexpr inline float DEG_TO_RAD = 3.14159265358979323846f / 180.0f;
 
 typedef struct int2 {
 	int x, y;
@@ -197,8 +197,8 @@ struct float4x4 {
 		return std::forward_like<decltype(self)>(self.operator[](i));
 	}
 
-	inline void set_col(int i, float4 const& a_col) { m_col[i] = a_col; }
-	inline void set_row(int i, float4 const& value) {
+	constexpr inline void set_col(int i, float4 const& a_col) { m_col[i] = a_col; }
+	constexpr inline void set_row(int i, float4 const& value) {
 		m_col[0][i] = value[0];
 		m_col[1][i] = value[1];
 		m_col[2][i] = value[2];
@@ -214,7 +214,7 @@ struct float4x4 {
 		float  M[16];
 	};
 };
-// clang-format off
+
 // clang-format off
 constexpr inline auto operator==(float2 const& lhs, float2 const& rhs) -> bool { return lhs.x == rhs.x && lhs.y == rhs.y; }
 constexpr inline auto operator!=(float2 const& lhs, float2 const& rhs) -> bool { return !(lhs == rhs); }
@@ -376,12 +376,12 @@ inline float4x4 lookAtInverse(float3 eye, float3 center, float3 up) {
 	return res;
 }
 
-inline float4x4 perspectiveX(float fovX, float aspect, float z_near, float z_far) {
-	float tanHalfFov = std::tanf(fovX * kDegreesToRadians / 2.0f);
+inline float4x4 perspectiveX(float fov_x, float aspect, float z_near, float z_far) {
+	float tan_half_fov_inverse = 1.0f / std::tanf(fov_x * DEG_TO_RAD / 2.0f);
 
 	float4x4 result;
-	result[0, 0] = 1.0f / tanHalfFov;
-	result[1, 1] = aspect * 1.0f / (tanHalfFov);
+	result[0, 0] = tan_half_fov_inverse;
+	result[1, 1] = aspect * tan_half_fov_inverse;
 	result[2, 2] = -(z_far + z_near) / (z_far - z_near);
 	result[3, 2] = -1.0f;
 	result[2, 3] = -(2.0f * z_far * z_near) / (z_far - z_near);
@@ -389,12 +389,12 @@ inline float4x4 perspectiveX(float fovX, float aspect, float z_near, float z_far
 	return result;
 }
 
-inline float4x4 perspectiveY(float fovY, float aspect, float z_near, float z_far) {
-	float tanHalfFov = std::tanf(fovY * kDegreesToRadians / 2.0f);
+inline float4x4 perspectiveY(float fov_y, float aspect, float z_near, float z_far) {
+	float tan_half_fov_inverse = 1.0f / std::tanf(fov_y * DEG_TO_RAD / 2.0f);
 
 	float4x4 result;
-	result[0, 0] = aspect * 1.0f / (tanHalfFov);
-	result[1, 1] = 1.0f / tanHalfFov;
+	result[0, 0] = aspect * tan_half_fov_inverse;
+	result[1, 1] = tan_half_fov_inverse;
 	result[2, 2] = -(z_far + z_near) / (z_far - z_near);
 	result[3, 2] = -1.0f;
 	result[2, 3] = -(2.0f * z_far * z_near) / (z_far - z_near);
@@ -538,11 +538,6 @@ inline float4x4 operator*(float4x4 m1, float4x4 m2) {
 	float4 const column3 = mul(m1, m2.col(2));
 	float4 const column4 = mul(m1, m2.col(3));
 
-	float4x4 res;
-	res[0] = column1;
-	res[1] = column2;
-	res[2] = column3;
-	res[3] = column4;
 	return float4x4{column1, column2, column3, column4};
 }
 
@@ -581,9 +576,10 @@ struct translate_op {
 	inline translate_op(float3 t) : translation(t) {}
 };
 
-
-inline translate_op translate(float3 t) {	return translate_op(t);}
-inline float4x4 operator|(float4x4 m, translate_op const& op) {	m.col(3) += float4{op.translation.x, op.translation.y, op.translation.z, 0.0f};	return m;
+inline translate_op translate(float3 t) { return translate_op(t); }
+inline float4x4     operator|(float4x4 m, translate_op const& op) {
+    m.col(3) += float4{op.translation.x, op.translation.y, op.translation.z, 0.0f};
+    return m;
 }
 
 struct rotateX_op {

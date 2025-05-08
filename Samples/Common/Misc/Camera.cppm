@@ -21,8 +21,8 @@ export struct Camera {
 
 	vec3  focus;
 	float fov   = 50.0f;
-	float zNear = 0.01f;
-	float zFar  = 1000.0f;
+	float z_near = 0.01f;
+	float z_far  = 1000.0f;
 
 	inline Camera(vec3 const& position = vec3(0.5f, 3.0f, 5.0f),
 				  vec3 const& focus    = vec3(0.0f, 0.0f, 0.0f),
@@ -46,24 +46,11 @@ export struct Camera {
 	inline auto getProjViewInv() const -> mat4 const& { return gpuCamera.projection_view_inv; }
 	inline auto getFocus() const -> vec3 const& { return focus; }
 
-	inline void setProj(float fov, int width, int height, float zNear, float zFar) {
-		proj = width > height
-				   ? perspectiveX(fov, (float)width / height, zNear, zFar)
-				   : perspectiveY(fov, (float)height / width, zNear, zFar);
+	void setProj(float fov, int width, int height, float z_near, float z_far);
 
-		this->fov   = fov;
-		this->zNear = zNear;
-		this->zFar  = zFar;
-
-		updateProjView();
+	inline void updateProjection(int width, int height) {
+		setProj(fov, width, height, z_near, z_far);
 	}
 
-	inline void updateProj(int width, int height) {
-		setProj(fov, width, height, zNear, zFar);
-	}
-
-	void updateProjView() {
-		gpuCamera.projection_view_inv = proj * (view | affineInverse);
-	}
+	void updateProjectionViewInverse();
 };
-
