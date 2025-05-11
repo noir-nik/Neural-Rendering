@@ -38,7 +38,10 @@ auto VulkanCoopVecNetwork::UpdateOffsetsAndSize(vk::Device                      
 				}},
 			layer);
 	}
-	parameters_size = offset;
+	parameters_size   = offset;
+	this->layout      = layout;
+	this->matrix_type = matrix_type;
+	this->vector_type = vector_type;
 	return vk::Result::eSuccess;
 }
 
@@ -63,4 +66,50 @@ auto VulkanCoopVecNetwork::Print() -> void {
 			layer);
 	}
 	std::printf("+--------+----------+----------+----------+----------+----------+----------+----------+----------+\n");
+}
+auto VulkanCoopVecNetwork::PrintLayerWeights(int layer_index, vk::ComponentTypeKHR component_type, std::byte const* parameters) -> void {
+	if (!parameters) return;
+	if (matrix_type != vk::ComponentTypeKHR::eFloat32) return;
+	if (GetLayer(layer_index).Is<Linear>()) {
+		auto const& layer    = GetLayer<Linear>(layer_index);
+		auto const* p_weight = reinterpret_cast<float const*>(parameters + layer.GetWeightsOffset());
+
+		for (u32 i = 0; i < layer.GetOutputsCount(); ++i) {
+			for (u32 j = 0; j < layer.GetInputsCount(); ++j) {
+				std::printf("%10.6f ", p_weight[i * layer.GetInputsCount() + j]);
+			}
+			std::printf("\n");
+		}
+	}
+}
+
+auto VulkanCoopVecNetwork::PrintLayerBiases(int layer_index, vk::ComponentTypeKHR component_type, std::byte const* parameters) -> void {
+	if (!parameters) return;
+	if (vector_type != vk::ComponentTypeKHR::eFloat32) return;
+	if (GetLayer(layer_index).Is<Linear>()) {
+		auto const& layer  = GetLayer<Linear>(layer_index);
+		auto const* p_bias = reinterpret_cast<float const*>(parameters + layer.GetBiasesOffset());
+
+		for (u32 i = 0; i < layer.GetBiasesCount(); ++i) {
+			std::printf("%10.6f ", p_bias[i]);
+		}
+		std::printf("\n");
+	}
+}
+
+auto VulkanCoopVecNetwork::PrintParameters(std::byte const* parameters) -> void {
+	if (!parameters) return;
+	if (matrix_type != vk::ComponentTypeKHR::eFloat32 || vector_type != vk::ComponentTypeKHR::eFloat32) return;
+	for (int layer_index = 0; layer_index < GetLayers().size(); ++layer_index) {
+		if (GetLayer(layer_index).Is<Linear>()) {
+			auto const& layer    = GetLayer<Linear>(layer_index);
+			auto const* p_weight = reinterpret_cast<float const*>(parameters + layer.GetWeightsOffset());
+			auto const* p_bias   = reinterpret_cast<float const*>(parameters + layer.GetBiasesOffset());
+
+			std::printf("Layer %d weights:\n", layer_index);
+			PrintLayerWeights(layer_index, matrix_type, parameters);
+			std::printf("Layer %d biases:\n", layer_index);
+			PrintLayerBiases(layer_index, vector_type, parameters);
+		}
+	}
 }

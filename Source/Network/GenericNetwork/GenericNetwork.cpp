@@ -25,6 +25,18 @@ GenericNetwork::GenericNetwork(std::initializer_list<LayerVariant> layers) : lay
 	ValidateLayers(layers);
 }
 
+auto GenericNetwork::operator=(std::span<LayerVariant> layers) -> GenericNetwork& {
+	bool result = Init(layers);
+	(void)result;
+	return *this;
+};
+
+auto GenericNetwork::Init(std::span<LayerVariant> layers) -> bool {
+	this->layers.assign(layers.begin(), layers.end());
+	ValidateLayers(layers);
+	return true;
+}
+
 auto GenericNetwork::GetParametersCount() const -> u32 {
 	u32 size = 0;
 	for (auto const& layer : GetLayers()) {
@@ -34,4 +46,3 @@ auto GenericNetwork::GetParametersCount() const -> u32 {
 	}
 	return size;
 }
-

@@ -88,6 +88,9 @@ export struct LayerVariant : LayerVariantBase {
 
 	template <GenericLayerType T>
 	constexpr auto Get() -> T& { return std::get<T>(*this); }
+
+	template <GenericLayerType T>
+	constexpr auto Is() const -> bool { return std::holds_alternative<T>(*this); }
 };
 
 export template <typename T>

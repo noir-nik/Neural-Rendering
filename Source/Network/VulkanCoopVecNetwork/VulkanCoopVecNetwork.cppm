@@ -46,8 +46,12 @@ constexpr inline auto AlignUpPowerOfTwo(T const value, U const alignment) -> T {
 export class VulkanCoopVecNetwork : public GenericNetwork {
 public:
 	VulkanCoopVecNetwork(std::initializer_list<LayerVariant> layers) : GenericNetwork(layers) {};
+	// VulkanCoopVecNetwork(std::span<LayerVariant> layers) : GenericNetwork(layers) {};
 	auto GetParametersSize() const -> std::size_t { return parameters_size; }
 	void Print();
+	auto PrintParameters(std::byte const* parameters) -> void;
+	auto PrintLayerWeights(int layer_index, vk::ComponentTypeKHR component_type, std::byte const* parameters) -> void;
+	auto PrintLayerBiases(int layer_index, vk::ComponentTypeKHR component_type, std::byte const* parameters) -> void;
 
 	[[nodiscard]] auto UpdateOffsetsAndSize(
 		vk::Device                          device,
@@ -56,7 +60,9 @@ public:
 		vk::ComponentTypeKHR const          vector_type) -> vk::Result;
 
 private:
-	vk::CooperativeVectorMatrixLayoutNV layout = vk::CooperativeVectorMatrixLayoutNV::eRowMajor;
+	vk::CooperativeVectorMatrixLayoutNV layout      = vk::CooperativeVectorMatrixLayoutNV::eRowMajor;
+	vk::ComponentTypeKHR                matrix_type = vk::ComponentTypeKHR::eFloat32;
+	vk::ComponentTypeKHR                vector_type = vk::ComponentTypeKHR::eFloat32;
 
 	vk::Device  device;
 	std::size_t parameters_size = 0;
