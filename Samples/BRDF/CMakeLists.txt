@@ -24,7 +24,9 @@ target_link_libraries(${SAMPLE_NAME} PRIVATE SamplesCommon)
 set(${SAMPLE_NAME}_SHADERS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Shaders CACHE PATH "${SAMPLE_NAME} shaders")
 set(${SAMPLE_NAME}_SHADERS_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/Shaders CACHE PATH "${SAMPLE_NAME} shaders output")
 
-generate_spv_shader_slang(${${SAMPLE_NAME}_SHADERS_DIR}/BRDFMain.slang ${${SAMPLE_NAME}_SHADERS_OUTPUT_DIR}/BRDFMain.slang.spv)
+generate_spv_shader_slang(${${SAMPLE_NAME}_SHADERS_DIR}/BRDFMain.slang ${${SAMPLE_NAME}_SHADERS_OUTPUT_DIR}/BRDFMain.slang.spv
+	INCLUDE ${${PROJECT_NAME}_SHADERS_DIR}
+)
 
 add_custom_target(${SAMPLE_NAME}_shaders_spv ALL DEPENDS
 	${${SAMPLE_NAME}_SHADERS_OUTPUT_DIR}/BRDFMain.slang.spv

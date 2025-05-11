@@ -7,15 +7,13 @@
 // https://github.com/x448/float16
 //
 
-#if 1
+#if !defined(FLOAT_16_MODULE) 
 #include <cstdint>
 #include <limits>
 #include <iostream>
 #include <cmath>
 #include <bitset>
 #include <type_traits>
-#else
-// import std;
 #endif
 
 using std::int16_t;
