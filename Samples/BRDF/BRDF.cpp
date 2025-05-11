@@ -176,18 +176,18 @@ public:
 
 	static constexpr u32 kNetworkLinearLayers = 5;
 
-	struct NetworkOffsets {
-		u32 weights_offsets[kNetworkLinearLayers];
-		u32 biases_offsets[kNetworkLinearLayers];
-	};
+	// struct NetworkOffsets {
+	// 	u32 weights_offsets[kNetworkLinearLayers];
+	// 	u32 biases_offsets[kNetworkLinearLayers];
+	// };
 
-	NetworkOffsets optimal_offsets;
-	NetworkOffsets row_major_offsets;
+	// NetworkOffsets optimal_offsets;
+	// NetworkOffsets row_major_offsets;
 
-	NetworkOffsets* default_offsets = nullptr;
+	// NetworkOffsets* default_offsets = nullptr;
 
-	void RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offsets);
-	auto DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets) -> u64;
+	void RecordCommands(vk::Pipeline pipeline, VulkanCoopVecNetwork const& network);
+	auto DrawWindow(vk::Pipeline pipeline, VulkanCoopVecNetwork const& network) -> u64;
 
 	static constexpr u32 kTimestampsPerFrame = 2;
 
@@ -214,6 +214,90 @@ public:
 	}};
 };
 
+class WeightsLoader {
+public:
+	constexpr static char const kHeader[] = "hydrann1";
+	WeightsLoader(std::string_view filename) { Init(filename); }
+
+	uint32_t NextRows() const { return rows; } // returns 0 on error
+	uint32_t NextCols() const { return cols; } // returns 0 on error
+	bool     LoadNext(float* weights, float* bias);
+	bool     HasNext() const { return layers > 0; }
+
+	auto GetFileSize() const -> std::size_t { return file_size; }
+
+private:
+	std::ifstream file;
+	uint32_t      rows      = 0;
+	uint32_t      cols      = 0;
+	uint32_t      layers    = 0;
+	std::size_t   file_size = 0;
+
+	// Return file size
+	std::size_t Init(std::string_view filename);
+
+	void ReadNextLayerInfo();
+};
+
+std::size_t WeightsLoader::Init(std::string_view filename) {
+	file.open(filename.data(), std::ios::ate | std::ios::binary);
+	file_size = static_cast<std::size_t>(file.tellg());
+
+	// Check header
+	auto header_size = std::size(kHeader);
+	if (file_size < header_size) return 0;
+	file.seekg(0);
+	char buf[header_size];
+	file.read(buf, header_size - 1);
+	buf[header_size - 1] = '\0';
+	if (std::string_view(kHeader) != buf) return 0;
+
+	file.read(reinterpret_cast<char*>(&layers), sizeof(uint32_t));
+	if (!file.good()) {
+		layers = 0;
+
+		file.close();
+
+		return 0;
+	} else {
+		ReadNextLayerInfo();
+		return 1;
+	}
+}
+
+bool WeightsLoader::LoadNext(float* weights, float* bias) {
+	if (layers == 0) return false;
+
+	const uint32_t count = rows * cols;
+	if (count > 0) {
+		file.read(reinterpret_cast<char*>(weights), count * sizeof(float));
+		file.read(reinterpret_cast<char*>(bias), rows * sizeof(float));
+	}
+
+	if (!file) {
+		layers = 0;
+		rows = cols = 0;
+		return false;
+	}
+
+	layers -= 1;
+	ReadNextLayerInfo();
+	return true;
+}
+
+void WeightsLoader::ReadNextLayerInfo() {
+	if (layers == 0) {
+		rows = cols = 0;
+		return;
+	}
+
+	file.read(reinterpret_cast<char*>(&rows), sizeof(uint32_t));
+	file.read(reinterpret_cast<char*>(&cols), sizeof(uint32_t));
+	if (!file.good()) {
+		layers = 0;
+	}
+}
+
 static void FramebufferSizeCallback(GLFWWindow* window, int width, int height) {
 	BRDFSample* sample = static_cast<BRDFSample*>(window->GetUserPointer());
 
@@ -230,7 +314,7 @@ static void WindowRefreshCallback(GLFWWindow* window) {
 	int x, y, width, height;
 	window->GetRect(x, y, width, height);
 	if (width <= 0 || height <= 0) return;
-	sample->DrawWindow(sample->pipelines[u32(BrdfFunctionType::eDefault)], *sample->default_offsets);
+	sample->DrawWindow(sample->pipelines[u32(BrdfFunctionType::eDefault)], sample->linear_network);
 }
 
 void PrintMat4(float4x4 const& mat) {
@@ -856,15 +940,46 @@ void BRDFSample::CreateAndUploadBuffers() {
 	std::size_t vertices_size_aligned = AlignUpPowerOfTwo(vertices_size_bytes, alignment);
 	std::size_t indices_size_aligned  = AlignUpPowerOfTwo(indices_size_bytes, alignment);
 
-	auto brdf_weights_opt =
-		ReadBinaryFile("Assets/simple_brdf_weights.bin")
-			.or_else([] -> std::invoke_result_t<decltype(ReadBinaryFile), decltype("")> {
-				std::printf("Failed to read BRDF weights file!\n");
-				std::exit(1);
-				return std::nullopt;
-			});
+	// auto brdf_weights_opt =
+	// 	ReadBinaryFile(weights_path)
+	// 		.or_else([] -> std::invoke_result_t<decltype(ReadBinaryFile), decltype("")> {
+	// 			std::printf("Failed to read BRDF weights file!\n");
+	// 			std::exit(1);
+	// 			return std::nullopt;
+	// 		});
 
-	auto brdf_weights = std::span<std::byte>(*brdf_weights_opt);
+	// auto brdf_weights = std::span<std::byte>(*brdf_weights_opt);
+
+	auto weights_path = "Assets/simple_brdf_weights.bin";
+
+	WeightsLoader loader{weights_path};
+
+	std::vector<float> brdf_weights_vec(loader.GetFileSize() / sizeof(float));
+
+	struct Layer {
+		int inputs;
+		int outputs;
+	};
+	Layer layers;
+
+	float* src_weights = brdf_weights_vec.data();
+	while (loader.HasNext()) {
+
+		std::size_t const rows = loader.NextRows();
+		std::size_t const cols = loader.NextCols();
+
+		std::size_t const weights_count = rows * cols;
+		std::size_t const biases_count  = rows;
+		// std::printf("Rows, cols: %u %u\n", rows, cols);
+
+		bool loaded = loader.LoadNext(src_weights, src_weights + weights_count);
+		if (!loaded) {
+			std::printf("Error loading weights\n");
+			std::exit(1);
+		}
+		src_weights += weights_count + biases_count;
+	}
+	// src_weights = brdf_weights.data();
 
 	using Component = vk::ComponentTypeKHR;
 	using Layout    = vk::CooperativeVectorMatrixLayoutNV;
@@ -872,7 +987,7 @@ void BRDFSample::CreateAndUploadBuffers() {
 	CHECK_VULKAN_RESULT(linear_network.UpdateOffsetsAndSize(device, Layout::eRowMajor, Component::eFloat32, Component::eFloat32));
 	CHECK_VULKAN_RESULT(optimal_network.UpdateOffsetsAndSize(device, Layout::eInferencingOptimal, Component::eFloat16, Component::eFloat16));
 
-	default_offsets = &row_major_offsets;
+	// default_offsets = &row_major_offsets;
 
 	vk::DeviceSize const kMinSize = 256 * 1024;
 
@@ -939,7 +1054,7 @@ void BRDFSample::CreateAndUploadBuffers() {
 	std::printf("Weights offsets, %llu\n", this->weights_offset);
 	std::printf("PR %llu\n", 36768 + this->weights_offset - (3 * sizeof(float)));
 
-	std::printf("Biases offsets, last layer = %u\n", this->row_major_offsets.biases_offsets[kNetworkLinearLayers - 1]);
+	// std::printf("Biases offsets, last layer = %u\n", this->row_major_offsets.biases_offsets[kNetworkLinearLayers - 1]);
 
 	auto write_weights = [&](void const*                         src,
 							 std::size_t                         src_size,
@@ -977,51 +1092,34 @@ void BRDFSample::CreateAndUploadBuffers() {
 	};
 
 	// auto const* src = brdf_weights.data();
-	auto* dst_weights = p_staging + this->weights_offset;
-	// auto dst_weights = reinterpret_cast<float*>(p_staging + this->weights_offset);
+	std::byte* dst_weights = p_staging + this->weights_offset;
 
 	// auto layer = linear_network.GetLayer<Linear>(0);
 	// write_weights(src, layer.GetWeightsSize(), dst, Layout::eRowMajor, Component::eFloat32, Component::eFloat32, layer);
 
-	/* 	for (u32 i = 1; i < kNetworkLinearLayers; ++i) {
-			auto        linear_layer = linear_network.GetLayer<Linear>(i);
-			auto const* src          = brdf_weights.data() + linear_layer.GetWeightsOffset();
-			auto const  src_size     = linear_layer.GetWeightsSize();
-			auto*       dst          = dst_weights;
-			write_weights(src, src_size, dst, Layout::eRowMajor, Component::eFloat32, Component::eFloat32, linear_layer);
-			// src += layer.GetWeightsSize();
+	auto brdf_weights = std::span{reinterpret_cast<std::byte*>(brdf_weights_vec.data()), brdf_weights_vec.size() * sizeof(float)};
 
-			auto bias_src = brdf_weights.data() + linear_layer.GetBiasesOffset();
-			memcpy(dst_weights + linear_layer.GetBiasesOffset(), bias_src, linear_layer.GetBiasesSize());
-		} */
+	auto src_component_size = sizeof(float);
 
-	memcpy(dst_weights, brdf_weights.data(), brdf_weights.size());
+	auto src_offset = std::size_t{0};
+	for (u32 i = 0; i < kNetworkLinearLayers; ++i) {
+		auto& linear_layer = linear_network.GetLayer<Linear>(i);
 
-	// print first layer weights
-	std::printf(" First layer weights:\n");
-	auto const layer0 = linear_network.GetLayer<Linear>(0);
-	for (u32 i = 0; i < layer0.GetOutputsCount(); ++i) {
-		for (u32 j = 0; j < layer0.GetInputsCount(); ++j) {
-			std::printf("%f ", *((float*)(dst_weights + layer0.GetWeightsOffset()) + i * layer0.GetInputsCount() + j));
-		}
-		std::printf("\n");
+		std::size_t const src_weights_size_bytes = linear_layer.GetWeightsCount() * src_component_size;
+		std::size_t const src_biases_size_bytes  = linear_layer.GetBiasesCount() * src_component_size;
+
+		auto const* src_weights = brdf_weights.data() + src_offset;
+		// std::byte*  dst_weights = dst_weights_base;
+		write_weights(src_weights, src_weights_size_bytes, dst_weights, Layout::eRowMajor, Component::eFloat32, Component::eFloat32, linear_layer);
+		src_offset += src_weights_size_bytes;
+
+		auto const* src_bias = brdf_weights.data() + src_offset;
+		std::byte*  dst_bias = dst_weights + linear_layer.GetBiasesOffset();
+		std::memcpy(dst_bias, src_bias, src_biases_size_bytes);
+		src_offset += src_biases_size_bytes;
 	}
 
-	// print last layer weights
-	std::printf(" Last layer weights:\n");
-	auto const layer = linear_network.GetLayer<Linear>(kNetworkLinearLayers - 1);
-	for (u32 i = 0; i < layer.GetOutputsCount(); ++i) {
-		for (u32 j = 0; j < layer.GetInputsCount(); ++j) {
-			std::printf("%f ", *((float*)(dst_weights + layer.GetWeightsOffset()) + i * layer.GetInputsCount() + j));
-		}
-		std::printf("\n");
-	}
-
-	// print last layer biases
-	std::printf(" Last layer biases:\n");
-	for (u32 i = 0; i < 3; ++i) {
-		std::printf("%f \n", *((float*)(dst_weights + layer.GetBiasesOffset()) + i));
-	}
+	linear_network.PrintLayerBiases(kNetworkLinearLayers - 1, Component::eFloat32, p_staging + this->weights_offset);
 
 	// update_and_write(offset, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal);
 
@@ -1044,7 +1142,7 @@ void BRDFSample::CreateAndUploadBuffers() {
 		{
 			.srcOffset = weights_offset,
 			.dstOffset = weights_offset,
-			.size      = brdf_weights.size_bytes(),
+			.size      = linear_network.GetParametersSize(),
 		},
 	};
 
@@ -1085,7 +1183,7 @@ auto BRDFSample::GetQueryResult() -> u64 {
 	return 0ull;
 }
 
-auto BRDFSample::DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets) -> u64 {
+auto BRDFSample::DrawWindow(vk::Pipeline pipeline, VulkanCoopVecNetwork const& network) -> u64 {
 	auto HandleSwapchainResult = [this](vk::Result result) -> bool {
 		switch (result) {
 		case vk::Result::eSuccess:           return true;
@@ -1100,7 +1198,7 @@ auto BRDFSample::DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets
 	device.resetCommandPool(swapchain.GetCurrentCommandPool());
 	if (!HandleSwapchainResult(swapchain.AcquireNextImage())) return 0ull;
 	CHECK_VULKAN_RESULT(device.resetFences(1, &swapchain.GetCurrentFence()));
-	RecordCommands(pipeline, offsets);
+	RecordCommands(pipeline, network);
 	if (!HandleSwapchainResult(swapchain.SubmitAndPresent(queue, queue))) return 0ull;
 
 	u64 elapsed = GetQueryResult();
@@ -1108,7 +1206,7 @@ auto BRDFSample::DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets
 	return elapsed;
 }
 
-void BRDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offsets) {
+void BRDFSample::RecordCommands(vk::Pipeline pipeline, VulkanCoopVecNetwork const& network) {
 	int x, y, width, height;
 	window.GetRect(x, y, width, height);
 
@@ -1179,8 +1277,11 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& off
 
 	// Update weight offsets in push constants
 	for (int i = 0; i < kNetworkLinearLayers; ++i) {
-		constants.weights_offsets[i] = offsets.weights_offsets[i];
-		constants.bias_offsets[i]    = offsets.biases_offsets[i];
+		auto layer = network.GetLayer<Linear>(i);
+		auto offset_base = this->weights_offset;
+		constants.weights_offsets[i] = offset_base + layer.GetWeightsOffset();
+		constants.bias_offsets[i]    = offset_base + layer.GetBiasesOffset();
+		// std::printf("Layer %d weights_offset %d bias_offset %d\n", i, constants.weights_offsets[i], constants.bias_offsets[i]);
 	}
 
 	u32 const constants_offset = 0u;
@@ -1231,7 +1332,7 @@ void BRDFSample::Run() {
 		int x, y, width, height;
 		window.GetRect(x, y, width, height);
 		if (width <= 0 || height <= 0) continue;
-		DrawWindow(pipelines[u32(BrdfFunctionType::eDefault)], *default_offsets);
+		DrawWindow(pipelines[u32(BrdfFunctionType::eDefault)], linear_network);
 	} while (true);
 }
 

@@ -89,7 +89,7 @@ func ps_main(VSOutput input)->float4 {
 	float3 albedo    = ctx.material.base_color.rgb;
 	float  metallic  = ctx.material.metallic;
 	float  roughness = ctx.material.roughness;
-	float3 light_dir = normalize(ctx.light.position - input.world_pos);
+	float3 light_dir = -normalize(ctx.light.position - input.world_pos);
 
 	float3 helper    = abs(normal.x) > 0.99f ? float3(0, 1, 0) : float3(1, 0, 0);
 	float3 tangent   = normalize(cross(helper, normal));
@@ -105,16 +105,17 @@ func ps_main(VSOutput input)->float4 {
 	view_tbn  = normalize(view_tbn);
 	light_tbn = normalize(light_tbn);
 
-	// float3 color = ClassicLight(input.world_pos, view, normal, albedo, metallic, roughness);
+	float3 color = float3(0, 0, 0);
+	// color = ClassicLight(input.world_pos, view, normal, albedo, metallic, roughness);
 
 	float3 brdf  = BRDFScalarBuffer(view_tbn, light_tbn, gWeights, ctx.weights_offsets, ctx.bias_offsets);
-	float3 color = brdf;
+	color = brdf;
 
-	// // Simple Reinhard tone mapping
-	// color = color / (color + float3(1.0, 1.0, 1.0));
+	// Simple Reinhard tone mapping
+	color = color / (color + float3(1.0, 1.0, 1.0));
 
-	// // Gamma correction
-	// color = pow(color, 1.0 / 2.2);
+	// Gamma correction
+	color = pow(color, 1.0 / 2.2);
 
 	// color   = f.xyz;
 	return float4(color, 1.0);

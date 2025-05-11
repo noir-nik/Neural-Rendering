@@ -68,3 +68,4 @@ func BRDFScalarBuffer<T : __BuiltinFloatingPointType>(
 
 	return { output4[0], output4[1], output4[2] };
 }
+
