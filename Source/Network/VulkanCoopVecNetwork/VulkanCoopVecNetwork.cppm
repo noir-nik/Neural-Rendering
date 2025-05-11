@@ -17,6 +17,7 @@ constexpr inline auto AlignUpPowerOfTwo(T const value, U const alignment) -> T {
 
 export class VulkanCoopVecNetwork : public GenericNetwork {
 public:
+	VulkanCoopVecNetwork() = default;
 	VulkanCoopVecNetwork(std::initializer_list<LayerVariant> layers) : GenericNetwork(layers) {};
 	// VulkanCoopVecNetwork(std::span<LayerVariant> layers) : GenericNetwork(layers) {};
 
@@ -36,6 +37,8 @@ public:
 	auto GetLayout() const -> vk::CooperativeVectorMatrixLayoutNV { return layout; };
 	auto GetMatrixType() const -> vk::ComponentTypeKHR { return matrix_type; };
 	auto GetVectorType() const -> vk::ComponentTypeKHR { return vector_type; };
+
+	auto IseValid() const -> bool { return GetLayers().size() > 0; };
 
 private:
 	vk::CooperativeVectorMatrixLayoutNV layout      = vk::CooperativeVectorMatrixLayoutNV::eRowMajor;

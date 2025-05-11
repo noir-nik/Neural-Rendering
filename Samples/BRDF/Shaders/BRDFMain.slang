@@ -88,7 +88,7 @@ func ps_main(VSOutput input)->float4 {
 	float3 normal = normalize(input.normal);
 	float3 view   = normalize(ctx.camera_pos - input.world_pos);
 
-	float3 light_dir = -normalize(ctx.light.position - input.world_pos);
+	float3 light_dir = normalize(ctx.light.position - input.world_pos);
 
 	float3 helper    = abs(normal.x) > 0.99f ? float3(0, 1, 0) : float3(1, 0, 0);
 	float3 tangent   = normalize(cross(helper, normal));

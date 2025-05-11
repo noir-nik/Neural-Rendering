@@ -90,13 +90,15 @@ public:
 	auto GetAllocator() const -> vk::AllocationCallbacks const* { return allocator; }
 	auto GetPipelineCache() const -> vk::PipelineCache { return pipeline_cache; }
 
-	bool IsTestMode() const { return bIsTestMode; }
+	bool IsTestMode() const { return is_test_mode; }
 
 	auto ParseArgs(int argc, char const* argv[]) -> char const*;
 
-	bool bIsTestMode    = false;
+	bool is_test_mode   = false;
 	bool verbose        = false;
-	bool bUseValidation = true;
+	bool use_validation = true;
+
+	BrdfFunctionType function_type = BrdfFunctionType::eCoopVec;
 
 	GLFWWindow window{};
 	struct {
@@ -160,23 +162,10 @@ public:
 	Image depth_image;
 	bool  use_depth = true;
 
-	VulkanCoopVecNetwork optimal_network = {
-		Linear(6, 64),
-		Linear(64, 64),
-		Linear(64, 64),
-		Linear(64, 6),
-		Linear(6, 3),
-	};
+	VulkanCoopVecNetwork optimal_network;
+	VulkanCoopVecNetwork linear_network;
 
-	VulkanCoopVecNetwork linear_network = {
-		Linear(6, 64),
-		Linear(64, 64),
-		Linear(64, 64),
-		Linear(64, 6),
-		Linear(6, 3),
-	};
-
-	static constexpr u32 kNetworkLinearLayers = 5;
+	// static constexpr u32 kNetworkLinearLayers = 5;
 
 	// struct NetworkOffsets {
 	// 	u32 weights_offsets[kNetworkLinearLayers];
@@ -438,7 +427,7 @@ void BRDFSample::Init() {
 	WindowManager::Init();
 	window.Init({.x = 30, .y = 30, .width = 800, .height = 600, .title = "BRDF Sample"});
 	window.GetWindowCallbacks().framebufferSizeCallback = FramebufferSizeCallback;
-	if (!bIsTestMode) {
+	if (!is_test_mode) {
 		window.GetWindowCallbacks().windowRefreshCallback = WindowRefreshCallback;
 	}
 
@@ -577,7 +566,7 @@ void BRDFSample::CreateInstance() {
 	char const** glfw_extensions = WindowManager::GetRequiredInstanceExtensions(&glfw_extensions_count);
 
 	std::vector<char const*> enabledExtensions(glfw_extensions, glfw_extensions + glfw_extensions_count);
-	if (bUseValidation) {
+	if (use_validation) {
 		enabled_layers = kEnabledLayers;
 		enabledExtensions.push_back(vk::EXTDebugUtilsExtensionName);
 	}
@@ -595,7 +584,7 @@ void BRDFSample::CreateInstance() {
 	};
 
 	vk::InstanceCreateInfo info{
-		.pNext                   = bUseValidation ? &kDebugUtilsCreateInfo : nullptr,
+		.pNext                   = use_validation ? &kDebugUtilsCreateInfo : nullptr,
 		.pApplicationInfo        = &applicationInfo,
 		.enabledLayerCount       = static_cast<u32>(std::size(enabled_layers)),
 		.ppEnabledLayerNames     = enabled_layers.data(),
@@ -604,7 +593,7 @@ void BRDFSample::CreateInstance() {
 	};
 	CHECK_VULKAN_RESULT(vk::createInstance(&info, GetAllocator(), &instance));
 
-	if (bUseValidation) {
+	if (use_validation) {
 		LoadInstanceDebugUtilsFunctionsEXT(instance);
 		CHECK_VULKAN_RESULT(instance.createDebugUtilsMessengerEXT(&kDebugUtilsCreateInfo, allocator, &debug_messenger));
 	}
@@ -799,7 +788,7 @@ void BRDFSample::CreatePipelines() {
 		CHECK_VULKAN_RESULT(device.createShaderModule(&shader_module_infos[i], GetAllocator(), &shader_modules[i]));
 	}
 
-	pipelines[int(BrdfFunctionType::eDefault)]      = CreatePipeline(shader_modules[0], BrdfFunctionType::eDefault);
+	pipelines[int(BrdfFunctionType::eClassic)]      = CreatePipeline(shader_modules[0], BrdfFunctionType::eClassic);
 	pipelines[int(BrdfFunctionType::eCoopVec)]      = CreatePipeline(shader_modules[0], BrdfFunctionType::eCoopVec);
 	pipelines[int(BrdfFunctionType::eScalarBuffer)] = CreatePipeline(shader_modules[0], BrdfFunctionType::eScalarBuffer);
 
@@ -956,33 +945,24 @@ void BRDFSample::CreateAndUploadBuffers() {
 	std::size_t vertices_size_aligned = AlignUpPowerOfTwo(vertices_size_bytes, alignment);
 	std::size_t indices_size_aligned  = AlignUpPowerOfTwo(indices_size_bytes, alignment);
 
-	// auto brdf_weights_opt =
-	// 	ReadBinaryFile(weights_path)
-	// 		.or_else([] -> std::invoke_result_t<decltype(ReadBinaryFile), decltype("")> {
-	// 			std::printf("Failed to read BRDF weights file!\n");
-	// 			std::exit(1);
-	// 			return std::nullopt;
-	// 		});
-
-	// auto brdf_weights = std::span<std::byte>(*brdf_weights_opt);
-
 	auto weights_path = "Assets/simple_brdf_weights.bin";
 
 	WeightsLoader loader{weights_path};
 
 	std::vector<float> brdf_weights_vec(loader.GetFileSize() / sizeof(float));
 
-	struct Layer {
-		int inputs;
-		int outputs;
-	};
-	Layer layers;
+	std::vector<LayerVariant> layers;
+
+	auto const expected_layer_count = 5;
+	layers.reserve(expected_layer_count);
 
 	float* src_weights = brdf_weights_vec.data();
 	while (loader.HasNext()) {
 
-		std::size_t const rows = loader.NextRows();
-		std::size_t const cols = loader.NextCols();
+		u32 const rows = loader.NextRows();
+		u32 const cols = loader.NextCols();
+
+		layers.push_back(Linear{cols, rows});
 
 		std::size_t const weights_count = rows * cols;
 		std::size_t const biases_count  = rows;
@@ -995,15 +975,18 @@ void BRDFSample::CreateAndUploadBuffers() {
 		}
 		src_weights += weights_count + biases_count;
 	}
-	// src_weights = brdf_weights.data();
 
 	using Component = vk::ComponentTypeKHR;
 	using Layout    = vk::CooperativeVectorMatrixLayoutNV;
+	if (layers.size() != expected_layer_count) {
+		std::printf("Error loading weights : wrong number of layers\n");
+		std::exit(1);
+	}
+	linear_network.Init(layers);
+	optimal_network.Init(layers);
 
 	CHECK_VULKAN_RESULT(linear_network.UpdateOffsetsAndSize(device, Layout::eRowMajor, Component::eFloat32, Component::eFloat32));
 	CHECK_VULKAN_RESULT(optimal_network.UpdateOffsetsAndSize(device, Layout::eInferencingOptimal, Component::eFloat16, Component::eFloat16));
-
-	// default_offsets = &row_major_offsets;
 
 	vk::DeviceSize const kMinSize = 256 * 1024;
 
@@ -1048,7 +1031,6 @@ void BRDFSample::CreateAndUploadBuffers() {
 	auto copy_descriptor_sets  = nullptr;
 	device.updateDescriptorSets(std::size(writes), writes, descriptor_copy_count, copy_descriptor_sets);
 
-	// std::memcpy(staging_buffer.GetMappedData(), vertices.data(), vertices_size_bytes);
 	this->vertices_offset        = 0;
 	this->indices_offset         = this->vertices_offset + vertices_size_aligned;
 	this->linear_weights_offset  = this->indices_offset + AlignUpPowerOfTwo(indices_size_bytes, CoopVecUtils::GetMatrixAlignment());
@@ -1059,8 +1041,6 @@ void BRDFSample::CreateAndUploadBuffers() {
 	auto p_indices  = reinterpret_cast<UVSphere::IndexType*>(p_staging + this->indices_offset);
 	sphere.WriteVertices(p_vertices);
 	sphere.WriteIndices(p_indices);
-
-	// std::printf("Biases offsets, last layer = %u\n", this->row_major_offsets.biases_offsets[kNetworkLinearLayers - 1]);
 
 	auto write_weights = [&](void const*                         src,
 							 std::size_t                         src_size,
@@ -1097,14 +1077,7 @@ void BRDFSample::CreateAndUploadBuffers() {
 		CHECK_VULKAN_RESULT(device.convertCooperativeVectorMatrixNV(&info));
 	};
 
-	// auto const* src = brdf_weights.data();
-
-	// auto layer = linear_network.GetLayer<Linear>(0);
-	// write_weights(src, layer.GetWeightsSize(), dst, Layout::eRowMajor, Component::eFloat32, Component::eFloat32, layer);
-
-	auto brdf_weights = std::span{reinterpret_cast<std::byte*>(brdf_weights_vec.data()), brdf_weights_vec.size() * sizeof(float)};
-
-	// auto src_component_size = sizeof(float);
+	auto brdf_weights_src = std::span{reinterpret_cast<std::byte*>(brdf_weights_vec.data()), brdf_weights_vec.size() * sizeof(float)};
 
 	auto write_network = [write_weights]<typename SrcBiasType, typename DstBiasType>(
 							 VulkanCoopVecNetwork const&         network,
@@ -1114,14 +1087,13 @@ void BRDFSample::CreateAndUploadBuffers() {
 							 vk::ComponentTypeKHR                src_component_type,
 							 vk::ComponentTypeKHR                dst_matrix_type) {
 		auto src_offset = std::size_t{0};
-		for (u32 i = 0; i < kNetworkLinearLayers; ++i) {
+		for (u32 i = 0; i < network.GetLayers().size(); ++i) {
 			auto& layer = network.GetLayer<Linear>(i);
 
 			std::size_t const src_weights_size_bytes = layer.GetWeightsCount() * GetVulkanComponentSize(src_component_type);
 			std::size_t const src_biases_size_bytes  = layer.GetBiasesCount() * GetVulkanComponentSize(src_component_type);
 
 			auto const* src_weights = src_parameters + src_offset;
-			// std::byte*  dst_weights = dst_weights_base;
 			write_weights(src_weights, src_weights_size_bytes, dst_parameters, dst_layout, src_component_type, dst_matrix_type, layer);
 			src_offset += src_weights_size_bytes;
 
@@ -1136,17 +1108,15 @@ void BRDFSample::CreateAndUploadBuffers() {
 		}
 	};
 
-	write_network.template operator()<float, float>(linear_network, brdf_weights.data(), p_staging + linear_weights_offset, Layout::eRowMajor, Component::eFloat32, Component::eFloat32);
-	write_network.template operator()<float, numeric::float16_t>(optimal_network, brdf_weights.data(), p_staging + optimal_weights_offset, Layout::eInferencingOptimal, Component::eFloat32, Component::eFloat16);
+	write_network.template operator()<float, float>(linear_network, brdf_weights_src.data(), p_staging + linear_weights_offset, Layout::eRowMajor, Component::eFloat32, Component::eFloat32);
+	write_network.template operator()<float, numeric::float16_t>(optimal_network, brdf_weights_src.data(), p_staging + optimal_weights_offset, Layout::eInferencingOptimal, Component::eFloat32, Component::eFloat16);
 
-	linear_network.Print();
-	optimal_network.Print();
-	// linear_network.PrintLayerBiases(kNetworkLinearLayers - 1, Component::eFloat32, p_staging + this->linear_weights_offset);
-	// linear_network.PrintParameters(p_staging + this->linear_weights_offset);
-	// optimal_network.PrintLayerBiases(kNetworkLinearLayers - 1, Component::eFloat32, p_staging + this->optimal_weights_offset);
-	PrintLayerBiases<float16_t>(optimal_network.GetLayer<Linear>(kNetworkLinearLayers - 1), p_staging + this->optimal_weights_offset);
-
-	// update_and_write(offset, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal);
+	if (verbose) {
+		linear_network.Print();
+		optimal_network.Print();
+		PrintLayerBiases<float16_t>(optimal_network.GetLayer<Linear>(optimal_network.GetLayers().size() - 1), p_staging + this->optimal_weights_offset);
+		linear_network.PrintLayerBiases(linear_network.GetLayers().size() - 1, Component::eFloat32, p_staging + this->linear_weights_offset);
+	}
 
 	// DumpVertexData({p_vertices, sphere.GetVertexCount()}, {p_indices, sphere.GetIndexCount()});
 
@@ -1215,9 +1185,8 @@ auto BRDFSample::GetQueryResult() -> u64 {
 }
 
 auto BRDFSample::DrawWindow() -> u64 {
-	// return DrawWindow(pipelines[u32(BrdfFunctionType::eDefault)], linear_network);
-	// return DrawWindow(pipelines[u32(BrdfFunctionType::eScalarBuffer)], linear_network);
-	return DrawWindow(pipelines[u32(BrdfFunctionType::eCoopVec)], optimal_network);
+	auto const& network = function_type == BrdfFunctionType::eCoopVec ? optimal_network : linear_network;
+	return DrawWindow(pipelines[std::to_underlying(function_type)], network);
 };
 
 auto BRDFSample::DrawWindow(vk::Pipeline pipeline, VulkanCoopVecNetwork const& network) -> u64 {
@@ -1296,14 +1265,14 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline, VulkanCoopVecNetwork cons
 	BRDFConstants constants{
 		.view_proj = camera.getProjViewInv(),
 		.material  = {
-			 .base_color = {0.8f, 0.8f, 0.8f, 0.8f},
+			 .base_color = float4{0.1, 0.6, 0.8, 1.0} * 0.2,
 			 .metallic   = 0.0f,
 			 .roughness  = 0.5f,
         },
 		.light = {
-			.position          = vec3(2.0, 2.0, 2.0),
+			.position          = vec3(1.5, 1.5, 1.5),
 			.range             = 10.0,
-			.color             = vec3(0.8, 0.8, 0.8),
+			.color             = vec3(0.75, 0.75, 0.75),
 			.intensity         = 8.0,
 			.ambient_color     = vec3(0.9, 0.9, 0.9),
 			.ambient_intensity = 0.03,
@@ -1313,7 +1282,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline, VulkanCoopVecNetwork cons
 	};
 
 	// Update weight offsets in push constants
-	for (int i = 0; i < kNetworkLinearLayers; ++i) {
+	for (int i = 0; i < network.GetLayers().size(); ++i) {
 		auto layer = network.GetLayer<Linear>(i);
 		auto offset_base =
 			network.GetLayout() == vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal
@@ -1372,28 +1341,56 @@ void BRDFSample::Run() {
 		int x, y, width, height;
 		window.GetRect(x, y, width, height);
 		if (width <= 0 || height <= 0) continue;
-		DrawWindow();
+		u64 elapsed_ns = DrawWindow();
+		std::printf("%f ms\n", elapsed_ns / 1000000.0);
 	} while (true);
 }
 
 auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
-	for (std::string_view const arg : std::span(argv + 1, argc - 1)) {
-		if (arg == "--test" || arg == "-t") bIsTestMode = true;
+	auto args_range = std::span(argv + 1, argc - 1);
+
+	if (std::ranges::contains(args_range, std::string_view("--help")))
+		return "--help";
+
+	char const* function_type_string = nullptr;
+	for (auto it = args_range.begin(); it != args_range.end(); ++it) {
+		auto arg = std::string_view(*it);
+		if (arg == "--test" || arg == "-t") is_test_mode = true;
 		else if (arg == "--verbose") verbose = true;
-		else if (arg == "--validation") bUseValidation = true;
-		else return arg.data();
+		else if (arg == "--validation") use_validation = true;
+		else if (arg == "--kind") {
+			if ((it + 1) == args_range.end()) return "expected <kind>";
+			auto kind = std::string_view(*(it + 1));
+			int  result;
+			auto res = std::from_chars(kind.data(), kind.data() + kind.size(), result);
+			if (res.ec != std::errc()) return *(it + 1);
+			if (result < 0 || result >= std::to_underlying(BrdfFunctionType::eCount)) return *(it + 1);
+			function_type = static_cast<BrdfFunctionType>(result);
+			++it;
+		} else return *it;
 	}
+
 	return nullptr;
 }
+
+auto PrintUsage(int argc, char const* argv[]) -> void {
+	std::printf("Usage: %s [--help] [--test] [--verbose] [--validation] [--kind <kind>]\n",
+				std::filesystem::path(argv[0]).filename().string().c_str());
+	std::printf("  --kind <kind>\n");
+	std::printf("      Kind of BRDF function to run:\n");
+	std::printf("        0: Classic\n");
+	std::printf("        1: Coop Vec (Default)\n");
+	std::printf("        2: Scalar Buffer\n");
+};
 
 auto main(int argc, char const* argv[]) -> int {
 	std::filesystem::current_path(std::filesystem::absolute(argv[0]).parent_path());
 	BRDFSample sample;
 
 	if (char const* unknown_arg = sample.ParseArgs(argc, argv); unknown_arg) {
-		std::printf("Unknown argument: %s\n", unknown_arg);
-		std::printf("Usage: %s [--test] [--verbose] [--validation]\n",
-					std::filesystem::path(argv[0]).filename().string().c_str());
+		if (unknown_arg != std::string_view("--help"))
+			std::printf("Error in argument: %s\n", unknown_arg);
+		PrintUsage(argc, argv);
 		return 0;
 	}
 

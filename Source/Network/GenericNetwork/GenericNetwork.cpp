@@ -26,14 +26,16 @@ GenericNetwork::GenericNetwork(std::initializer_list<LayerVariant> layers) : lay
 }
 
 auto GenericNetwork::operator=(std::span<LayerVariant> layers) -> GenericNetwork& {
+	this->layers.clear();
 	bool result = Init(layers);
 	(void)result;
 	return *this;
 };
 
 auto GenericNetwork::Init(std::span<LayerVariant> layers) -> bool {
+	this->layers.clear();
 	this->layers.assign(layers.begin(), layers.end());
-	ValidateLayers(layers);
+	ValidateLayers(this->layers);
 	return true;
 }
 
