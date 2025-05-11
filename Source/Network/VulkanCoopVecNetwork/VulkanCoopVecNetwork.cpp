@@ -17,7 +17,7 @@ auto VulkanCoopVecNetwork::UpdateOffsetsAndSize(vk::Device                      
 	for (LayerVariant& layer : GetLayers()) {
 		std::visit(
 			Visitor{
-				[&offset, &current_layer_outputs, this, device, layout, matrix_type, vector_type](Linear& layer) -> vk::Result {
+				[&offset, &current_layer_outputs, device, layout, matrix_type, vector_type](Linear& layer) -> vk::Result {
 					auto [result, size] = CoopVecUtils::CalculateByteSize(device, layer.GetOutputsCount(), layer.GetInputsCount(), layout, matrix_type);
 					if (result != vk::Result::eSuccess) return result;
 					offset = AlignUpPowerOfTwo(offset, CoopVecUtils::GetMatrixAlignment());
@@ -32,7 +32,7 @@ auto VulkanCoopVecNetwork::UpdateOffsetsAndSize(vk::Device                      
 					current_layer_outputs = layer.GetOutputsCount();
 					return vk::Result::eSuccess;
 				},
-				[&current_layer_outputs, this](auto& layer) -> vk::Result {
+				[&current_layer_outputs](auto& layer) -> vk::Result {
 					layer.SetInputsCount(current_layer_outputs);
 					return vk::Result::eSuccess;
 				}},
@@ -62,7 +62,7 @@ auto VulkanCoopVecNetwork::Print() -> void {
 								layer.GetWeightsOffset(), layer.GetBiasesOffset(), layer.GetParametersSize());
 					++counter;
 				},
-				[counter](auto const&) {}},
+				[](auto const&) {}},
 			layer);
 	}
 	std::printf("+--------+----------+----------+----------+----------+----------+----------+----------+----------+\n");
@@ -100,7 +100,7 @@ auto VulkanCoopVecNetwork::PrintLayerBiases(int layer_index, vk::ComponentTypeKH
 auto VulkanCoopVecNetwork::PrintParameters(std::byte const* parameters) -> void {
 	if (!parameters) return;
 	if (matrix_type != vk::ComponentTypeKHR::eFloat32 || vector_type != vk::ComponentTypeKHR::eFloat32) return;
-	for (int layer_index = 0; layer_index < GetLayers().size(); ++layer_index) {
+	for (auto layer_index = 0u; layer_index < GetLayers().size(); ++layer_index) {
 		if (GetLayer(layer_index).Is<Linear>()) {
 			auto const& layer    = GetLayer<Linear>(layer_index);
 			auto const* p_weight = reinterpret_cast<float const*>(parameters + layer.GetWeightsOffset());

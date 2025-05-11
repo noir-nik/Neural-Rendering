@@ -58,7 +58,7 @@ public:
 
 	void Init();
 	void Run();
-	void RunTest() {};
+	void RunTest();
 	void Destroy();
 	void CreateInstance();
 	void SelectPhysicalDevice();
@@ -236,7 +236,7 @@ std::size_t WeightsLoader::Init(std::string_view filename) {
 	file_size = static_cast<std::size_t>(file.tellg());
 
 	// Check header
-	auto header_size = std::size(kHeader);
+	constexpr auto header_size = std::size(kHeader);
 	if (file_size < header_size) return 0;
 	file.seekg(0);
 	char buf[header_size];
@@ -369,7 +369,7 @@ void BRDFSample::ProcessViewportInput() {
 
 		int x, y, width, height;
 		window.GetRect(x, y, width, height);
-		camera.moveFromMouse(width, height, delta_pos.x, delta_pos.y);
+		camera.moveWithCursor(width, height, delta_pos.x, delta_pos.y);
 	}
 
 	if (button_pressed(MouseButton::eLeft)) {
@@ -1217,11 +1217,11 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline, VulkanCoopVecNetwork cons
 	window.GetRect(x, y, width, height);
 
 	auto depth_extent = depth_image.GetExtent();
-	if (width > depth_extent.width || height > depth_extent.height) {
+	if (static_cast<u32>(width) > depth_extent.width || static_cast<u32>(height) > depth_extent.height) {
 		depth_image.Recreate({static_cast<u32>(width), static_cast<u32>(height), 1});
 	}
 
-	vk::Rect2D               render_rect{0, 0, static_cast<u32>(width), static_cast<u32>(height)};
+	vk::Rect2D               render_rect{{0, 0}, {static_cast<u32>(width), static_cast<u32>(height)}};
 	VulkanRHI::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
 	CHECK_VULKAN_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
 	cmd.resetQueryPool(timestamp_query_pool, GetCurrentTimestampIndex(), kTimestampsPerFrame);
@@ -1341,9 +1341,53 @@ void BRDFSample::Run() {
 		int x, y, width, height;
 		window.GetRect(x, y, width, height);
 		if (width <= 0 || height <= 0) continue;
-		u64 elapsed_ns = DrawWindow();
-		std::printf("%f ms\n", elapsed_ns / 1000000.0);
+		u64       elapsed_ns = DrawWindow();
+		verbose&& std::printf("%f ms\n", elapsed_ns / 1000000.0);
 	} while (true);
+}
+
+void BRDFSample::RunTest() {
+	struct TestData {
+		vk::Pipeline                pipeline;
+		VulkanCoopVecNetwork const* network;
+	};
+	// WindowManager::WaitEvents();
+	// if (window.GetShouldClose()) return;
+
+	window.SetWindowMode(WindowMode::eFullscreen);
+	int x, y, width, height;
+	window.GetRect(x, y, width, height);
+	RecreateSwapchain(width, height);
+	constexpr u32 kNumTestRuns  = 1000;
+	constexpr u32 kNumTestKinds = std::to_underlying(BrdfFunctionType::eCount);
+
+	TestData test_data[kNumTestKinds] = {
+		{pipelines[std::to_underlying(BrdfFunctionType::eClassic)], &linear_network},
+		{pipelines[std::to_underlying(BrdfFunctionType::eCoopVec)], &optimal_network},
+		{pipelines[std::to_underlying(BrdfFunctionType::eScalarBuffer)], &linear_network},
+	};
+
+	std::vector<std::array<u64, kNumTestKinds>> test_times(kNumTestRuns);
+
+	for (u32 test_kind_index = 0; test_kind_index < kNumTestKinds; ++test_kind_index) {
+		TestData& data = test_data[test_kind_index];
+		for (u32 iter = 0; iter < kNumTestRuns; ++iter) {
+			// WindowManager::PollEvents();
+			u64   time_nanoseconds            = DrawWindow(data.pipeline, *data.network);
+			float ns_per_tick                 = physical_device.GetNsPerTick();
+			float elapsed_ms                  = (time_nanoseconds * ns_per_tick) / 1e6f;
+			test_times[iter][test_kind_index] = time_nanoseconds;
+		}
+	}
+
+	// Print csv
+	std::printf("Classic, CoopVec, ScalarBuffer\n");
+	for (u32 iter = 0; iter < kNumTestRuns; ++iter) {
+		for (u32 test_kind_index = 0; test_kind_index < kNumTestKinds - 1; ++test_kind_index) {
+			std::printf("%llu, ", test_times[iter][test_kind_index]);
+		}
+		std::printf("%llu \n", test_times[iter][kNumTestKinds - 1]);
+	}
 }
 
 auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
@@ -1352,11 +1396,10 @@ auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 	if (std::ranges::contains(args_range, std::string_view("--help")))
 		return "--help";
 
-	char const* function_type_string = nullptr;
 	for (auto it = args_range.begin(); it != args_range.end(); ++it) {
 		auto arg = std::string_view(*it);
 		if (arg == "--test" || arg == "-t") is_test_mode = true;
-		else if (arg == "--verbose") verbose = true;
+		else if (arg == "--verbose" || arg == "-v") verbose = true;
 		else if (arg == "--validation") use_validation = true;
 		else if (arg == "--kind") {
 			if ((it + 1) == args_range.end()) return "expected <kind>";
@@ -1373,7 +1416,7 @@ auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 	return nullptr;
 }
 
-auto PrintUsage(int argc, char const* argv[]) -> void {
+auto PrintUsage([[maybe_unused]] int argc, char const* argv[]) -> void {
 	std::printf("Usage: %s [--help] [--test] [--verbose] [--validation] [--kind <kind>]\n",
 				std::filesystem::path(argv[0]).filename().string().c_str());
 	std::printf("  --kind <kind>\n");

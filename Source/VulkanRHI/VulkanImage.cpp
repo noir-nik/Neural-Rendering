@@ -18,8 +18,8 @@ Image::Image(vk::Image image, vk::ImageView view, vk::Extent3D const& extent)
 Image::Image(Image&& other) noexcept
 	: vk::Image(std::exchange(static_cast<vk::Image&>(other), {})),
 	  //   ResourceBase<vk::Device>(std::move(other)), view(std::exchange(other.view, {})),
-	  allocation(std::exchange(other.allocation, {})),
 	  device(std::move(other.device)),
+	  allocation(std::exchange(other.allocation, {})),
 	  info(std::move(other.info)),
 	  from_swapchain(std::move(other.from_swapchain)) {}
 

@@ -23,7 +23,7 @@ void Camera::updateProjectionViewInverse() {
 	// gpuCamera.projection_view_inv = proj * (view | inverse);
 }
 
-void Camera::moveFromMouse(float width, float height, float delta_x, float delta_y) {
+void Camera::moveWithCursor(float width, float height, float delta_x, float delta_y) {
 	float3 camera_pos     = getPosition();
 	float3 camera_forward = getForward();
 	float3 camera_right   = getRight();
