@@ -524,7 +524,7 @@ void SDFSample::CreatePipelines() {
 		ReadBinaryFile("Shaders/SdfMain.slang.spv"),
 	};
 
-	for (auto const code : shader_codes) {
+	for (auto const& code : shader_codes) {
 		if (!code.has_value()) {
 			std::printf("Failed to read shader file!\n");
 			std::exit(1);
@@ -869,7 +869,7 @@ void SDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offs
 	int x, y, width, height;
 	window.GetRect(x, y, width, height);
 
-	vk::Rect2D               render_rect{0, 0, static_cast<u32>(width), static_cast<u32>(height)};
+	vk::Rect2D               render_rect{{0, 0}, {static_cast<u32>(width), static_cast<u32>(height)}};
 	VulkanRHI::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
 	CHECK_VULKAN_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
 	cmd.resetQueryPool(timestamp_query_pool, GetCurrentTimestampIndex(), kTimestampsPerFrame);
@@ -904,7 +904,7 @@ void SDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offs
 		.resolution = {static_cast<float>(width), static_cast<float>(height)},
 		.mouse      = {mouse.x, static_cast<float>(height) - mouse.y},
 	};
-	for (int i = 0; i < kNetworkLayers; ++i) {
+	for (auto i = 0u; i < kNetworkLayers; ++i) {
 		constants.weights_offsets[i] = offsets.weights_offsets[i];
 		constants.bias_offsets[i]    = offsets.biases_offsets[i];
 	}

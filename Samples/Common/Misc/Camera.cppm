@@ -53,7 +53,7 @@ export struct Camera {
 
 	void setProj(float fov, int width, int height, float z_near, float z_far);
 
-	void moveFromMouse(float width, float height, float delta_x, float delta_y);
+	void moveWithCursor(float width, float height, float delta_x, float delta_y);
 
 	inline void updateProjection(int width, int height) {
 		setProj(fov, width, height, z_near, z_far);

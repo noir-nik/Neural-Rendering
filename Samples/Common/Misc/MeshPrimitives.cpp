@@ -45,23 +45,18 @@ static constexpr CubeVertex cube_vertices[] = {
 // clang-format on
 
 auto GetCubeVertices() -> std::span<CubeVertex const> { return {cube_vertices}; }
-
-auto GenerateUVSphereVerticesAndIndices(
-	float radius, u32 segments, u32 rings,
-	std::vector<UVSphere::Vertex>& vertices,
-	std::vector<u32>&              indices) -> void {
-}
+ 
 
 auto UVSphere::WriteVertices(Vertex* vertices) const -> void {
 	float const segment_angle = 2.0f * pi / segments;
 	float const ring_angle    = pi / rings;
 
-	for (int v = 0; v <= rings; ++v) {
+	for (auto v = 0u; v <= rings; ++v) {
 		float const phi = float(v) / rings * pi;
 		float const y = std::cos(phi);
 		float const r = std::sin(phi);
 
-		for (int u = 0; u <= segments; ++u) {
+		for (auto u = 0u; u <= segments; ++u) {
 			float const uvx = float(u) / segments;
 			float const x = std::cos(segment_angle * u) * r;
 			float const z = std::sin(segment_angle * u) * r;

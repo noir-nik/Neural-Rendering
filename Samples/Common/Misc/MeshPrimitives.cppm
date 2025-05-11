@@ -45,10 +45,6 @@ private:
 
 
 auto GetCubeVertices() -> std::span<CubeVertex const>;
-
-auto GenerateUVSphereVerticesAndIndices(
-	float radius, u32 segments, u32 rings,
-	std::vector<UVSphere::Vertex>& vertices,
-	std::vector<u32>&            indices) -> void;
+ 
 
 } // namespace mesh

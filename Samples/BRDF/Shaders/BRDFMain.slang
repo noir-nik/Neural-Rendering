@@ -1,9 +1,9 @@
 #include "BRDFConfig.h"
-#include "BRDFConstants.h"
 
 import Pbr;
 import BRDFScalarBuffer;
 import BRDFCoopVec;
+import BRDFClassic;
 
 // clang-format off
 [[vk::binding(0, 0)]] StructuredBuffer<float> gWeights;
@@ -25,7 +25,6 @@ struct VSOutput {
 };
 // clang-format on
 
-static const float PI = 3.14159265359;
 
 [[shader("vertex")]]
 VSOutput vs_main(VSInput in_vertex) {
@@ -34,53 +33,6 @@ VSOutput vs_main(VSInput in_vertex) {
 	output.world_pos = in_vertex.pos.xyz;
 	output.normal    = normalize(in_vertex.normal.xyz);
 	return output;
-}
-
-func ClassicLight(float3 world_pos, float3 view, float3 normal, float3 albedo, float metallic, float roughness)->float3 {
-	float3 F0 = float3(0.04, 0.04, 0.04);
-
-	F0 = lerp(F0, albedo, metallic);
-
-	// Initialize lighting components to zero
-	float3 Lo = float3(0.0, 0.0, 0.0);
-
-	{
-		float3 L           = normalize(ctx.light.position - world_pos);
-		float3 H           = normalize(view + L);
-		float  distance    = length(ctx.light.position - world_pos);
-		float  attenuation = 1.0 / (distance * distance);
-		float3 radiance    = ctx.light.color * ctx.light.intensity * attenuation;
-
-		float NdotL = max(dot(normal, L), 0.0);
-		float NdotV = max(dot(normal, view), 0.0);
-		float NdotH = max(dot(normal, H), 0.0);
-		float HdotV = max(dot(H, view), 0.0);
-
-		// BRDF
-		float  NDF = DistributionGGX(NdotH, roughness);
-		float  G   = GeometrySmith(NdotL, NdotV, roughness);
-		float3 F   = fresnelSchlick(HdotV, F0);
-
-		// specular
-		float3 numerator   = NDF * G * F;
-		float  denominator = 4.0 * NdotV * NdotL;
-		float3 specular    = numerator / max(denominator, 0.001);
-
-		// Energy conservation
-		float3 kS = F;
-		float3 kD = float3(1.0, 1.0, 1.0) - kS;
-		kD *= 1.0 - metallic;
-
-		Lo += (kD * albedo / PI + specular) * radiance * NdotL;
-	}
-
-	// Ambient
-	float3 ambient = ctx.light.ambient_color * ctx.light.ambient_intensity * albedo;
-
-	// Final color
-	float3 color = ambient + Lo;
-
-	return color;
 }
 
 [[shader("fragment")]]
@@ -96,7 +48,6 @@ func ps_main(VSOutput input)->float4 {
 
 	float3x3 tbn = float3x3(tangent, bitangent, normal);
 
-	// float3x3 inv_tbn = transpose(tbn);
 	float3x3 inv_tbn = (tbn);
 
 	float3 view_tbn  = mul(inv_tbn, view);
@@ -116,16 +67,15 @@ func ps_main(VSOutput input)->float4 {
 	} else if (shader_type == BrdfFunctionType::eScalarBuffer) {
 		color = BRDFScalarBuffer(view_tbn, light_tbn, gWeights, ctx.weights_offsets, ctx.bias_offsets);
 	} else {
-		color = ClassicLight(input.world_pos, view, normal, albedo, metallic, roughness);
+		color = BRDFClassic(input.world_pos, view, ctx.light, normal, albedo, metallic, roughness);
 	}
 
-	// Simple Reinhard tone mapping
+	// Reinhard tone mapping
 	color = color / (color + float3(1.0, 1.0, 1.0));
 
 	// Gamma correction
 	color = pow(color, 1.0 / 2.2);
 
-	// color   = f.xyz;
 	return float4(color, 1.0);
 }
 
