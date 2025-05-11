@@ -31,3 +31,19 @@ add_custom_target(${SAMPLE_NAME}_shaders_spv ALL DEPENDS
 )
 
 add_dependencies(${SAMPLE_NAME} ${SAMPLE_NAME}_shaders_spv)
+
+
+set(WEIGHTS_FILE Assets/simple_brdf_weights.bin)
+
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Assets/simple_brdf_weights.bin
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/${WEIGHTS_FILE} ${CMAKE_CURRENT_BINARY_DIR}/${WEIGHTS_FILE}
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${WEIGHTS_FILE}
+    VERBATIM
+)
+
+add_custom_target(${SAMPLE_NAME}_copy_assets ALL DEPENDS
+    ${CMAKE_CURRENT_BINARY_DIR}/${WEIGHTS_FILE}
+)
+
+add_dependencies(${SAMPLE_NAME} ${SAMPLE_NAME}_copy_assets)

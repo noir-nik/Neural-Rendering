@@ -43,23 +43,24 @@ auto VulkanCoopVecNetwork::UpdateOffsetsAndSize(vk::Device                      
 }
 
 auto VulkanCoopVecNetwork::Print() -> void {
-	std::printf("+--------+----------+----------+----------+----------+----------+----------+\n");
-	std::printf("| Layer  | Params   | Weights  | Weights  | Biases   | Biases   | Params   |\n");
-	std::printf("|        | Count    | Count    | Offset   | Count    | Offset   | Size     |\n");
-	std::printf("+--------+----------+----------+----------+----------+----------+----------+\n");
+	std::printf("+--------+----------+----------+----------+----------+----------+----------+----------+----------+\n");
+	std::printf("| Layer  | Inputs   | Outputs  | Weights  | Biases   | Params   | Weights  | Biases   | Params   |\n");
+	std::printf("|        | Count    | Count    | Count    | Count    | Count    | Offset   | Offset   | Size     |\n");
+	std::printf("+--------+----------+----------+----------+----------+----------+----------+----------+----------+\n");
 
 	u32 counter = 0;
 	for (auto& layer : GetLayers()) {
 		std::visit(
 			Visitor{
-				[counter](Linear const& layer) {
-					std::printf("| %6u | %8u | %8u | %8zu | %8u | %8zu | %8zu |\n", counter,
-								layer.GetParametersCount(), layer.GetWeightsCount(),
-								layer.GetWeightsOffset(), layer.GetBiasesCount(),
-								layer.GetBiasesOffset(), layer.GetParametersSize());
+				[&counter](Linear const& layer) {
+					std::printf("| %6u | %8u | %8u | %8u | %8u | %8u | %8zu | %8zu | %8zu |\n",
+								counter, layer.GetInputsCount(), layer.GetOutputsCount(),
+								layer.GetWeightsCount(), layer.GetBiasesCount(), layer.GetParametersCount(),
+								layer.GetWeightsOffset(), layer.GetBiasesOffset(), layer.GetParametersSize());
+					++counter;
 				},
 				[counter](auto const&) {}},
 			layer);
 	}
-	std::printf("+--------+----------+----------+----------+----------+----------+----------+\n");
+	std::printf("+--------+----------+----------+----------+----------+----------+----------+----------+----------+\n");
 }

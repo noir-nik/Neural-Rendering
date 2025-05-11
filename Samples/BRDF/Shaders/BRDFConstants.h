@@ -26,7 +26,7 @@ struct BRDFConstants {
 	Material material;
 	Light    light;
 	float3   camera_pos;
-	int      pad[1];
+	int      pad;
 
 	uint32_t weights_offsets[5];
 	uint32_t bias_offsets[5];

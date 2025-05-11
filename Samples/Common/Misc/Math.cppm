@@ -345,15 +345,9 @@ inline float3 cross(float3 const a, float3 const b) {
 
 inline float4x4 lookAt(float3 eye, float3 center, float3 up) {
 	float3 x, y, z;
-	z.x = eye.x - center.x;
-	z.y = eye.y - center.y;
-	z.z = eye.z - center.z;
-	y.x = up.x;
-	y.y = up.y;
-	y.z = up.z;
 
-	z = normalize(z);
-	x = normalize(cross(y, z));
+	z = normalize(eye - center);
+	x = normalize(cross(up, z));
 	y = normalize(cross(z, x));
 
 	return float4x4{
