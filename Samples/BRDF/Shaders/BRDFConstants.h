@@ -37,6 +37,7 @@ struct BRDFConstants {
 enum class BrdfFunctionType : int {
 	eDefault = 0,
 	eCoopVec = 1,
+	eScalarBuffer = 2,
 	eCount
 };
 #endif

@@ -1,7 +1,4 @@
-
-func relu<T : __BuiltinFloatingPointType>(T x)->T {
-	return max(x, T(0.));
-}
+import CoopVec;
 
 func BRDFScalarBuffer<T : __BuiltinFloatingPointType>(
 	vector<T, 3>        view,
@@ -30,6 +27,7 @@ func BRDFScalarBuffer<T : __BuiltinFloatingPointType>(
 	for (int i = 0; i < 3; ++i) {
 		output4[i] = weights[bias_offsets[4] / sizeof(T) + i];
 	}
+	// printf("output4 = %f, %f, %f\n", output4[0], output4[1], output4[2]);
 
 	// Forward pass
 	for (int i = 0; i < 64; ++i) {
