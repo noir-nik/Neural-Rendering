@@ -63,7 +63,7 @@ auto Image::Recreate(vk::Extent3D const& extent) -> vk::Result {
 	vk::Result result;
 	do {
 		result =
-			vk::Result(vmaCreateImage(vma_allocator, reinterpret_cast<VkImageCreateInfo const*>(&info),
+			vk::Result(vmaCreateImage(vma_allocator, reinterpret_cast<VkImageCreateInfo const*>(&info.image_info),
 									  &allocInfo,
 									  reinterpret_cast<VkImage*>(static_cast<vk::Image*>(this)),
 									  &allocation, nullptr));

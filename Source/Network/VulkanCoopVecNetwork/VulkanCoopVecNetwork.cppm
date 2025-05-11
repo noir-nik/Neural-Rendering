@@ -49,10 +49,11 @@ public:
 	auto GetParametersSize() const -> std::size_t { return parameters_size; }
 	void Print();
 
-	[[nodiscard]] auto UpdateOffsetsAndSize(vk::Device                          device,
-											vk::CooperativeVectorMatrixLayoutNV layout,
-											vk::ComponentTypeKHR const          matrix_type,
-											vk::ComponentTypeKHR const          vector_type) -> vk::Result;
+	[[nodiscard]] auto UpdateOffsetsAndSize(
+		vk::Device                          device,
+		vk::CooperativeVectorMatrixLayoutNV layout,
+		vk::ComponentTypeKHR const          matrix_type,
+		vk::ComponentTypeKHR const          vector_type) -> vk::Result;
 
 private:
 	vk::CooperativeVectorMatrixLayoutNV layout = vk::CooperativeVectorMatrixLayoutNV::eRowMajor;

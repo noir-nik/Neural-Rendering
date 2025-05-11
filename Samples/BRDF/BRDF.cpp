@@ -44,9 +44,9 @@ public:
 		vk::EXTShaderReplicatedCompositesExtensionName,
 	};
 
-	vk::ComponentTypeKHR kSrcComponentType = vk::ComponentTypeKHR::eFloat16;
-	vk::ComponentTypeKHR kDstMatrixType    = vk::ComponentTypeKHR::eFloat16;
-	vk::ComponentTypeKHR kDstVectorType    = vk::ComponentTypeKHR::eFloat16;
+	// vk::ComponentTypeKHR kSrcComponentType = vk::ComponentTypeKHR::eFloat32;
+	// vk::ComponentTypeKHR kDstMatrixType    = vk::ComponentTypeKHR::eFloat32;
+	// vk::ComponentTypeKHR kDstVectorType    = vk::ComponentTypeKHR::eFloat32;
 
 	static constexpr u32 kFramesInFlight = 3;
 
@@ -80,10 +80,6 @@ public:
 
 	// void BuildNetwork();
 	void CreateAndUploadBuffers();
-	void WriteNetworkWeights(VulkanCoopVecNetwork const&         network,
-							 VulkanRHI::Buffer const&            staging_buffer,
-							 std::size_t                         staging_offset,
-							 vk::CooperativeVectorMatrixLayoutNV dst_layout);
 
 	// Return time in nanoseconds
 	auto GetQueryResult() -> u64;
@@ -97,7 +93,7 @@ public:
 	auto ParseArgs(int argc, char const* argv[]) -> char const*;
 
 	bool bIsTestMode    = false;
-	bool bVerbose       = false;
+	bool verbose        = false;
 	bool bUseValidation = true;
 
 	GLFWWindow window{};
@@ -149,6 +145,7 @@ public:
 	Buffer         device_buffer;
 	vk::DeviceSize vertices_offset = 0;
 	vk::DeviceSize indices_offset  = 0;
+	vk::DeviceSize weights_offset  = 0;
 	// Buffer x_buffer;
 	Buffer staging_buffer;
 	// Buffer brdf_weights_buffer;
@@ -161,7 +158,15 @@ public:
 	Image depth_image;
 	bool  use_depth = true;
 
-	VulkanCoopVecNetwork brdf_network = {
+	VulkanCoopVecNetwork optimal_network = {
+		Linear(6, 64),
+		Linear(64, 64),
+		Linear(64, 64),
+		Linear(64, 6),
+		Linear(6, 3),
+	};
+
+	VulkanCoopVecNetwork linear_network = {
 		Linear(6, 64),
 		Linear(64, 64),
 		Linear(64, 64),
@@ -177,8 +182,12 @@ public:
 	};
 
 	NetworkOffsets optimal_offsets;
-	void           RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offsets);
-	auto           DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets) -> u64;
+	NetworkOffsets row_major_offsets;
+
+	NetworkOffsets* default_offsets = nullptr;
+
+	void RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offsets);
+	auto DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets) -> u64;
 
 	static constexpr u32 kTimestampsPerFrame = 2;
 
@@ -221,7 +230,7 @@ static void WindowRefreshCallback(GLFWWindow* window) {
 	int x, y, width, height;
 	window->GetRect(x, y, width, height);
 	if (width <= 0 || height <= 0) return;
-	sample->DrawWindow(sample->pipelines[u32(BrdfFunctionType::eDefault)], sample->optimal_offsets);
+	sample->DrawWindow(sample->pipelines[u32(BrdfFunctionType::eDefault)], *sample->default_offsets);
 }
 
 void PrintMat4(float4x4 const& mat) {
@@ -410,7 +419,7 @@ void BRDFSample::Init() {
 	auto [result, cooperative_vector_properties] = physical_device.getCooperativeVectorPropertiesNV();
 	CHECK_VULKAN_RESULT(result);
 
-	if (bVerbose) {
+	if (verbose) {
 		std::printf("=== VkCooperativeVectorPropertiesNV ===\n");
 		for (auto& property : cooperative_vector_properties) {
 			std::printf("inputType: %-8s ", vk::to_string(property.inputType).c_str());
@@ -523,7 +532,7 @@ void BRDFSample::SelectPhysicalDevice() {
 		physical_device.Assign(device);
 		CHECK_VULKAN_RESULT(physical_device.GetDetails());
 		if (physical_device.IsSuitable(surface, kEnabledDeviceExtensions)) {
-			if (bVerbose) {
+			if (verbose) {
 				auto const& properties = physical_device.cooperative_vector_properties;
 				std::printf("=== VkPhysicalDeviceCooperativeVectorPropertiesNV ===\n");
 				std::printf("cooperativeVectorSupportedStages: %s\n", vk::to_string(properties.cooperativeVectorSupportedStages).c_str());
@@ -610,7 +619,7 @@ void BRDFSample::CreateVmaAllocator() {
 	CHECK_VULKAN_RESULT(vk::Result(vmaCreateAllocator(&info, &vma_allocator)));
 }
 
-constexpr u32 kStorageBuffersCount = 2;
+constexpr u32 kStorageBuffersCount = 1;
 
 void BRDFSample::CreateDescriptorSetLayout() {
 	vk::DescriptorSetLayoutBinding descriptor_set_layout_binding{
@@ -841,38 +850,36 @@ void DumpVertexData(std::span<const UVSphere::Vertex> vertices, std::span<const 
 }
 
 void BRDFSample::CreateAndUploadBuffers() {
-
-	// Create vertex buffer
-	// auto vertices = GetCubeVertices();
-
 	std::size_t vertices_size_bytes   = sphere.GetVertexCount() * sizeof(UVSphere::Vertex);
 	std::size_t indices_size_bytes    = sphere.GetIndexCount() * sizeof(UVSphere::IndexType);
 	std::size_t alignment             = sizeof(float) * 4;
 	std::size_t vertices_size_aligned = AlignUpPowerOfTwo(vertices_size_bytes, alignment);
 	std::size_t indices_size_aligned  = AlignUpPowerOfTwo(indices_size_bytes, alignment);
 
-	std::size_t brdf_size_bytes      = 0;
-	std::size_t row_major_size_bytes = 0;
+	auto brdf_weights_opt =
+		ReadBinaryFile("Assets/simple_brdf_weights.bin")
+			.or_else([] -> std::invoke_result_t<decltype(ReadBinaryFile), decltype("")> {
+				std::printf("Failed to read BRDF weights file!\n");
+				std::exit(1);
+				return std::nullopt;
+			});
 
-	// Optimal layout
-	CHECK_VULKAN_RESULT(brdf_network.UpdateOffsetsAndSize(
-		device, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal,
-		kDstMatrixType, kDstVectorType));
-	brdf_size_bytes = AlignUpPowerOfTwo(brdf_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
-	if (bVerbose) brdf_network.Print();
+	auto brdf_weights = std::span<std::byte>(*brdf_weights_opt);
 
-	// Write optimal offsets
-	for (u32 i = 0; i < kNetworkLinearLayers; ++i) {
-		u32 weights_offset = static_cast<u32>(brdf_network.GetLayer<Linear>(i).GetWeightsOffset());
-		u32 biases_offset  = static_cast<u32>(brdf_network.GetLayer<Linear>(i).GetBiasesOffset());
+	using Component = vk::ComponentTypeKHR;
+	using Layout    = vk::CooperativeVectorMatrixLayoutNV;
 
-		optimal_offsets.weights_offsets[i] = weights_offset;
-		optimal_offsets.biases_offsets[i]  = biases_offset;
-	}
+	CHECK_VULKAN_RESULT(linear_network.UpdateOffsetsAndSize(device, Layout::eRowMajor, Component::eFloat32, Component::eFloat32));
+	CHECK_VULKAN_RESULT(optimal_network.UpdateOffsetsAndSize(device, Layout::eInferencingOptimal, Component::eFloat16, Component::eFloat16));
+
+	default_offsets = &row_major_offsets;
 
 	vk::DeviceSize const kMinSize = 256 * 1024;
 
-	std::size_t total_size_bytes = std::max(brdf_size_bytes + vertices_size_aligned + indices_size_aligned, kMinSize);
+	std::size_t total_size_bytes = std::max(
+		kMinSize,
+		optimal_network.GetParametersSize() + linear_network.GetParametersSize()
+			+ vertices_size_aligned + indices_size_aligned);
 
 	// clang-format off
 	CHECK_VULKAN_RESULT(device_buffer.Create(device, vma_allocator, {
@@ -906,24 +913,115 @@ void BRDFSample::CreateAndUploadBuffers() {
 		.pBufferInfo     = buffer_infos,
 	}};
 
-	u32 descriptor_copy_count = 0;
-
-	vk::CopyDescriptorSet* copy_descriptor_sets = nullptr;
+	auto descriptor_copy_count = 0u;
+	auto copy_descriptor_sets  = nullptr;
 	device.updateDescriptorSets(std::size(writes), writes, descriptor_copy_count, copy_descriptor_sets);
 
-	// Upload weights
-	auto update_and_write = [this](u32 offset, vk::CooperativeVectorMatrixLayoutNV layout) {
-		CHECK_VULKAN_RESULT(brdf_network.UpdateOffsetsAndSize(device, layout, kDstMatrixType, kDstVectorType))
-		WriteNetworkWeights(brdf_network, staging_buffer, offset, layout);
-	};
 	// std::memcpy(staging_buffer.GetMappedData(), vertices.data(), vertices_size_bytes);
 	this->vertices_offset = 0;
-	this->indices_offset  = vertices_size_aligned;
-	auto p_staging        = static_cast<std::byte*>(staging_buffer.GetMappedData());
-	auto p_vertices       = reinterpret_cast<UVSphere::Vertex*>(p_staging + this->vertices_offset);
-	auto p_indices        = reinterpret_cast<UVSphere::IndexType*>(p_staging + this->indices_offset);
+	this->indices_offset  = this->vertices_offset + vertices_size_aligned;
+	this->weights_offset  = this->indices_offset + indices_size_aligned;
+
+	auto p_staging  = static_cast<std::byte*>(staging_buffer.GetMappedData());
+	auto p_vertices = reinterpret_cast<UVSphere::Vertex*>(p_staging + this->vertices_offset);
+	auto p_indices  = reinterpret_cast<UVSphere::IndexType*>(p_staging + this->indices_offset);
 	sphere.WriteVertices(p_vertices);
 	sphere.WriteIndices(p_indices);
+
+	linear_network.Print();
+
+	std::printf("Total parameters size = %zu\n", linear_network.GetParametersSize());
+	// std::size_t offset = weights_offset;
+	// update_and_write(offset, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal);
+	// offset += optimal_size_bytes;
+	// update_and_write(offset, vk::CooperativeVectorMatrixLayoutNV::eRowMajor);
+
+	std::printf("Weights offsets, %llu\n", this->weights_offset);
+	std::printf("PR %llu\n", 36768 + this->weights_offset - (3 * sizeof(float)));
+
+	std::printf("Biases offsets, last layer = %u\n", this->row_major_offsets.biases_offsets[kNetworkLinearLayers - 1]);
+
+	auto write_weights = [&](void const*                         src,
+							 std::size_t                         src_size,
+							 std::byte*                          dst,
+							 vk::CooperativeVectorMatrixLayoutNV dst_layout,
+							 vk::ComponentTypeKHR                src_component_type,
+							 vk::ComponentTypeKHR                dst_matrix_type,
+							 Linear const&                       linear) {
+		std::size_t expected_size = linear.GetWeightsSize();
+		std::size_t required_size = expected_size;
+
+		vk::ConvertCooperativeVectorMatrixInfoNV info{
+			.srcSize          = src_size,
+			.srcData          = {.hostAddress = src},
+			.pDstSize         = &required_size,
+			.dstData          = {.hostAddress = dst + linear.GetWeightsOffset()},
+			.srcComponentType = src_component_type,
+			.dstComponentType = dst_matrix_type,
+			.numRows          = linear.GetOutputsCount(),
+			.numColumns       = linear.GetInputsCount(),
+			.srcLayout        = vk::CooperativeVectorMatrixLayoutNV::eRowMajor,
+			.srcStride        = linear.GetInputsCount() * GetVulkanComponentSize(src_component_type),
+			.dstLayout        = dst_layout,
+			.dstStride        = linear.GetInputsCount() * GetVulkanComponentSize(dst_matrix_type),
+		};
+
+		info.dstData.hostAddress = nullptr;
+		CHECK_VULKAN_RESULT(device.convertCooperativeVectorMatrixNV(&info));
+		if (required_size != expected_size) {
+			std::printf("Expected size: %zu, actual size: %zu\n", expected_size, required_size);
+			std::exit(1);
+		}
+		info.dstData.hostAddress = dst + linear.GetWeightsOffset();
+		CHECK_VULKAN_RESULT(device.convertCooperativeVectorMatrixNV(&info));
+	};
+
+	// auto const* src = brdf_weights.data();
+	auto* dst_weights = p_staging + this->weights_offset;
+	// auto dst_weights = reinterpret_cast<float*>(p_staging + this->weights_offset);
+
+	// auto layer = linear_network.GetLayer<Linear>(0);
+	// write_weights(src, layer.GetWeightsSize(), dst, Layout::eRowMajor, Component::eFloat32, Component::eFloat32, layer);
+
+	/* 	for (u32 i = 1; i < kNetworkLinearLayers; ++i) {
+			auto        linear_layer = linear_network.GetLayer<Linear>(i);
+			auto const* src          = brdf_weights.data() + linear_layer.GetWeightsOffset();
+			auto const  src_size     = linear_layer.GetWeightsSize();
+			auto*       dst          = dst_weights;
+			write_weights(src, src_size, dst, Layout::eRowMajor, Component::eFloat32, Component::eFloat32, linear_layer);
+			// src += layer.GetWeightsSize();
+
+			auto bias_src = brdf_weights.data() + linear_layer.GetBiasesOffset();
+			memcpy(dst_weights + linear_layer.GetBiasesOffset(), bias_src, linear_layer.GetBiasesSize());
+		} */
+
+	memcpy(dst_weights, brdf_weights.data(), brdf_weights.size());
+
+	// print first layer weights
+	std::printf(" First layer weights:\n");
+	auto const layer0 = linear_network.GetLayer<Linear>(0);
+	for (u32 i = 0; i < layer0.GetOutputsCount(); ++i) {
+		for (u32 j = 0; j < layer0.GetInputsCount(); ++j) {
+			std::printf("%f ", *((float*)(dst_weights + layer0.GetWeightsOffset()) + i * layer0.GetInputsCount() + j));
+		}
+		std::printf("\n");
+	}
+
+	// print last layer weights
+	std::printf(" Last layer weights:\n");
+	auto const layer = linear_network.GetLayer<Linear>(kNetworkLinearLayers - 1);
+	for (u32 i = 0; i < layer.GetOutputsCount(); ++i) {
+		for (u32 j = 0; j < layer.GetInputsCount(); ++j) {
+			std::printf("%f ", *((float*)(dst_weights + layer.GetWeightsOffset()) + i * layer.GetInputsCount() + j));
+		}
+		std::printf("\n");
+	}
+
+	// print last layer biases
+	std::printf(" Last layer biases:\n");
+	for (u32 i = 0; i < 3; ++i) {
+		std::printf("%f \n", *((float*)(dst_weights + layer.GetBiasesOffset()) + i));
+	}
 
 	// update_and_write(offset, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal);
 
@@ -942,6 +1040,12 @@ void BRDFSample::CreateAndUploadBuffers() {
 			.dstOffset = indices_offset,
 			.size      = indices_size_bytes,
 		},
+		// Linear
+		{
+			.srcOffset = weights_offset,
+			.dstOffset = weights_offset,
+			.size      = brdf_weights.size_bytes(),
+		},
 	};
 
 	cmd.copyBuffer(staging_buffer, device_buffer, std::size(regions), regions);
@@ -949,53 +1053,6 @@ void BRDFSample::CreateAndUploadBuffers() {
 	CHECK_VULKAN_RESULT(cmd.end());
 	CHECK_VULKAN_RESULT(queue.submit({{.commandBufferCount = 1, .pCommandBuffers = &cmd}}));
 	CHECK_VULKAN_RESULT(queue.waitIdle());
-}
-
-void BRDFSample::WriteNetworkWeights(VulkanCoopVecNetwork const&         network,
-									 VulkanRHI::Buffer const&            staging_buffer,
-									 std::size_t                         staging_offset,
-									 vk::CooperativeVectorMatrixLayoutNV dst_layout) {
-	auto ConvertLayerWeights = [this, dst_layout](void const* src, std::size_t src_size,
-												  std::byte* dst, Linear const& linear) {
-		std::size_t expected_size = linear.GetWeightsSize();
-		std::size_t required_size = expected_size;
-
-		vk::ConvertCooperativeVectorMatrixInfoNV info{
-			.srcSize          = src_size,
-			.srcData          = {.hostAddress = src},
-			.pDstSize         = &required_size,
-			.dstData          = {.hostAddress = dst + linear.GetWeightsOffset()},
-			.srcComponentType = kSrcComponentType,
-			.dstComponentType = kDstMatrixType,
-			.numRows          = linear.GetOutputsCount(),
-			.numColumns       = linear.GetInputsCount(),
-			.srcLayout        = vk::CooperativeVectorMatrixLayoutNV::eRowMajor,
-			.srcStride        = linear.GetInputsCount() * GetVulkanComponentSize(kSrcComponentType),
-			.dstLayout        = dst_layout,
-			.dstStride        = linear.GetInputsCount() * GetVulkanComponentSize(kDstMatrixType),
-		};
-
-		info.dstData.hostAddress = nullptr;
-		CHECK_VULKAN_RESULT(device.convertCooperativeVectorMatrixNV(&info));
-		if (required_size != expected_size) {
-			std::printf("Expected size: %zu, actual size: %zu\n", expected_size, required_size);
-			std::exit(1);
-		}
-		info.dstData.hostAddress = dst + linear.GetWeightsOffset();
-		CHECK_VULKAN_RESULT(device.convertCooperativeVectorMatrixNV(&info));
-	};
-
-	std::byte* staging_ptr = staging_offset + reinterpret_cast<std::byte*>(staging_buffer.GetMappedData());
-
-	// ConvertLayerWeights(kSDFWeights0, sizeof(kSDFWeights0), staging_ptr, network.GetLayer<Linear>(0));
-	// ConvertLayerWeights(kSDFWeights1, sizeof(kSDFWeights1), staging_ptr, network.GetLayer<Linear>(1));
-	// ConvertLayerWeights(kSDFWeights2, sizeof(kSDFWeights2), staging_ptr, network.GetLayer<Linear>(2));
-	// ConvertLayerWeights(kSDFWeights3, sizeof(kSDFWeights3), staging_ptr, network.GetLayer<Linear>(3));
-
-	// std::memcpy(staging_ptr + network.GetLayer<Linear>(0).GetBiasesOffset(), kSDFBias0, sizeof(kSDFBias0));
-	// std::memcpy(staging_ptr + network.GetLayer<Linear>(1).GetBiasesOffset(), kSDFBias1, sizeof(kSDFBias1));
-	// std::memcpy(staging_ptr + network.GetLayer<Linear>(2).GetBiasesOffset(), kSDFBias2, sizeof(kSDFBias2));
-	// std::memcpy(staging_ptr + network.GetLayer<Linear>(3).GetBiasesOffset(), kSDFBias3, sizeof(kSDFBias3));
 }
 
 auto BRDFSample::GetQueryResult() -> u64 {
@@ -1100,16 +1157,6 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& off
 	cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
 	cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
 
-	// std::printf("View\n");
-	// PrintMat4(camera.view);
-	// std::printf("\n");
-	// PrintMat4(camera.proj);
-	// std::printf("\n");
-	// PrintMat4(camera.getProjViewInv());
-	// std::printf("\n");
-	// std::printf("\n");
-	// std::printf("\n");
-
 	camera.updateProjectionViewInverse();
 	BRDFConstants constants{
 		.view_proj = camera.getProjViewInv(),
@@ -1127,22 +1174,15 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& off
 			.ambient_intensity = 0.03,
 		},
 		.camera_pos = camera.getPosition(),
+		.pad        = static_cast<int>(weights_offset),
 	};
-	// std::memcpy(constants.view_proj.M, &camera.getProjViewInv(), sizeof(float4x4));
 
+	// Update weight offsets in push constants
 	for (int i = 0; i < kNetworkLinearLayers; ++i) {
 		constants.weights_offsets[i] = offsets.weights_offsets[i];
 		constants.bias_offsets[i]    = offsets.biases_offsets[i];
 	}
 
-	// cmd.pushConstants2({
-	// 	.layout     = pipeline_layout,
-	// 	.stageFlags = vk::ShaderStageFlagBits::eVertex
-	// 				  | vk::ShaderStageFlagBits::eFragment,
-	// 	.offset  = 0,
-	// 	.size    = sizeof(constants),
-	// 	.pValues = &constants,
-	// });
 	u32 const constants_offset = 0u;
 	cmd.pushConstants(
 		pipeline_layout,
@@ -1191,14 +1231,14 @@ void BRDFSample::Run() {
 		int x, y, width, height;
 		window.GetRect(x, y, width, height);
 		if (width <= 0 || height <= 0) continue;
-		DrawWindow(pipelines[u32(BrdfFunctionType::eDefault)], optimal_offsets);
+		DrawWindow(pipelines[u32(BrdfFunctionType::eDefault)], *default_offsets);
 	} while (true);
 }
 
 auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 	for (std::string_view const arg : std::span(argv + 1, argc - 1)) {
 		if (arg == "--test" || arg == "-t") bIsTestMode = true;
-		else if (arg == "--verbose") bVerbose = true;
+		else if (arg == "--verbose") verbose = true;
 		else if (arg == "--validation") bUseValidation = true;
 		else return arg.data();
 	}
