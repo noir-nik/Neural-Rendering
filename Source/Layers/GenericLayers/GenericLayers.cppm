@@ -8,6 +8,7 @@ using Utils::IsAnyV;
 
 export class ILayer {
 public:
+	ILayer() = default;
 	ILayer(u32 inputs_count, u32 output_count) : input_count(inputs_count), output_count(output_count) {}
 	virtual ~ILayer() {}
 	constexpr virtual auto GetInputsCount() const -> u32 { return input_count; }
@@ -15,13 +16,16 @@ public:
 	constexpr virtual void SetInputsCount(u32 size) { input_count = size; }
 	constexpr virtual void SetOutputsCount(u32 size) { output_count = size; }
 
+	bool IsValid() const { return input_count > 0 && output_count > 0; }
+
 private:
-	u32 input_count;
-	u32 output_count;
+	u32 input_count  = 0;
+	u32 output_count = 0;
 };
 
 export class Linear : public ILayer {
 public:
+	Linear() = default;
 	Linear(u32 input_size, u32 output_size) : ILayer(input_size, output_size) {}
 
 	auto GetWeightsCount() const -> u32 { return GetInputsCount() * GetOutputsCount(); }
@@ -43,9 +47,9 @@ public:
 
 private:
 	std::size_t weights_offset = 0;
-	std::size_t weights_size = 0; // size in bytes
-	std::size_t bias_offset = 0;
-	std::size_t bias_size = 0;
+	std::size_t weights_size   = 0; // size in bytes
+	std::size_t bias_offset    = 0;
+	std::size_t bias_size      = 0;
 };
 
 export class Relu : public ILayer {
@@ -69,7 +73,6 @@ export class Sin : public ILayer {
 public:
 	Sin(u32 size = 0) : ILayer(size, size) {}
 };
-
 
 template <typename T>
 concept GenericLayerType = IsAnyV<T, Linear, Relu, Sigmoid, Softmax, Sin>;
@@ -100,4 +103,3 @@ struct IsActivationLayer {
 
 export template <typename T>
 inline constexpr bool IsActivationLayerV = IsActivationLayer<T>::value;
-

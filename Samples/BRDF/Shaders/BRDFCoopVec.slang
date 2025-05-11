@@ -16,6 +16,9 @@ func BRDFCoopVec<T : __BuiltinFloatingPointType>(
 	CoopVec<T, 6>  output3;
 	CoopVec<T, 3>  output4;
 
+	// Test
+	// printf("output4 = %f, %f, %f\n", weights[bias_offsets[4] / sizeof(T) + 0], weights[bias_offsets[4] / sizeof(T) + 1], weights[bias_offsets[4] / sizeof(T) + 2]);
+
 	input   = { view.x, view.y, view.z, light.x, light.y, light.z };
 	output0 = LinearForward<T, 64, 6>(input, weights, weights_offsets[0], bias_offsets[0], CoopVecMatrixLayout::InferencingOptimal, COMPONENT_TYPE);
 	output0 = relu(output0);
@@ -28,7 +31,6 @@ func BRDFCoopVec<T : __BuiltinFloatingPointType>(
 	output4 = LinearForward<T, 3, 6>(output3, weights, weights_offsets[4], bias_offsets[4], CoopVecMatrixLayout::InferencingOptimal, COMPONENT_TYPE);
 
 	return { output4[0], output4[1], output4[2] };
-	;
 }
 
 
