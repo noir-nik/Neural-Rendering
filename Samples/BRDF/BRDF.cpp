@@ -58,7 +58,7 @@ public:
 
 	void Init();
 	void Run();
-	void RunTest();
+	void RunBenchmark();
 	void Destroy();
 	void CreateInstance();
 	void SelectPhysicalDevice();
@@ -153,12 +153,13 @@ public:
 	std::array<vk::Pipeline, u32(BrdfFunctionType::eCount)> pipelines;
 
 	Buffer         device_buffer;
-	vk::DeviceSize vertices_offset           = 0;
-	vk::DeviceSize indices_offset            = 0;
+	vk::DeviceSize vertices_offset = 0;
+	vk::DeviceSize indices_offset  = 0;
 
-	vk::DeviceSize linear_weights_offset     = 0;
-	vk::DeviceSize linear_weights_offset_f16 = 0;
-	vk::DeviceSize optimal_weights_offset    = 0;
+	// vk::DeviceSize linear_weights_offset     = 0;
+	// vk::DeviceSize linear_weights_offset_f16 = 0;
+	// vk::DeviceSize optimal_weights_offset    = 0;
+
 	std::array<vk::DeviceSize, u32(BrdfFunctionType::eCount)> weights_offsets;
 
 	Buffer staging_buffer;
@@ -817,9 +818,15 @@ auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, BrdfFunctionType
 		.maxDepthBounds   = 1.0f,
 	};
 
+	auto color_write_mask =
+		vk::ColorComponentFlagBits::eR
+		| vk::ColorComponentFlagBits::eG
+		| vk::ColorComponentFlagBits::eB
+		| vk::ColorComponentFlagBits::eA;
+
 	vk::PipelineColorBlendAttachmentState color_blend_attachment_state{
 		.blendEnable    = vk::False,
-		.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+		.colorWriteMask = color_write_mask,
 	};
 
 	vk::PipelineColorBlendStateCreateInfo color_blend_state{
@@ -986,11 +993,19 @@ void BRDFSample::CreateAndUploadBuffers() {
 	auto copy_descriptor_sets  = nullptr;
 	device.updateDescriptorSets(std::size(writes), writes, descriptor_copy_count, copy_descriptor_sets);
 
-	this->vertices_offset           = 0;
-	this->indices_offset            = this->vertices_offset + vertices_size_aligned;
-	this->linear_weights_offset     = this->indices_offset + AlignUpPowerOfTwo(indices_size_bytes, CoopVecUtils::GetMatrixAlignment());
-	this->linear_weights_offset_f16 = this->linear_weights_offset + AlignUpPowerOfTwo(networks[u32(BrdfFunctionType::eScalarBuffer)].GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
-	this->optimal_weights_offset    = this->linear_weights_offset_f16 + AlignUpPowerOfTwo(networks[u32(BrdfFunctionType::eScalarBufferF16)].GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
+	this->vertices_offset = 0;
+	this->indices_offset  = this->vertices_offset + vertices_size_aligned;
+
+	// this->linear_weights_offset     = this->indices_offset + AlignUpPowerOfTwo(indices_size_bytes, CoopVecUtils::GetMatrixAlignment());
+	// this->linear_weights_offset_f16 = this->linear_weights_offset + AlignUpPowerOfTwo(networks[u32(BrdfFunctionType::eScalarBuffer)].GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
+	// this->optimal_weights_offset    = this->linear_weights_offset_f16 + AlignUpPowerOfTwo(networks[u32(BrdfFunctionType::eScalarBufferF16)].GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
+
+	auto offset = this->indices_offset + indices_size_bytes;
+	for (auto i = 1u; i < std::size(networks); ++i) {
+		offset             = AlignUpPowerOfTwo(offset, CoopVecUtils::GetMatrixAlignment());
+		weights_offsets[i] = offset;
+		offset += AlignUpPowerOfTwo(networks[i].GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
+	}
 
 	auto p_staging  = static_cast<std::byte*>(staging_buffer.GetMappedData());
 	auto p_vertices = reinterpret_cast<UVSphere::Vertex*>(p_staging + this->vertices_offset);
@@ -1065,15 +1080,15 @@ void BRDFSample::CreateAndUploadBuffers() {
 		}
 	};
 
-	write_network.template operator()<float, float>(networks[u32(BrdfFunctionType::eScalarBuffer)], brdf_weights_src.data(), p_staging + linear_weights_offset, Layout::eRowMajor, Component::eFloat32, Component::eFloat32);
-	write_network.template operator()<float, numeric::float16_t>(networks[u32(BrdfFunctionType::eScalarBufferF16)], brdf_weights_src.data(), p_staging + linear_weights_offset_f16, Layout::eRowMajor, Component::eFloat32, Component::eFloat16);
-	write_network.template operator()<float, numeric::float16_t>(networks[u32(BrdfFunctionType::eCoopVec)], brdf_weights_src.data(), p_staging + optimal_weights_offset, Layout::eInferencingOptimal, Component::eFloat32, Component::eFloat16);
+	write_network.template operator()<float, float>(networks[u32(BrdfFunctionType::eScalarBuffer)], brdf_weights_src.data(), p_staging + weights_offsets[u32(BrdfFunctionType::eScalarBuffer)], Layout::eRowMajor, Component::eFloat32, Component::eFloat32);
+	write_network.template operator()<float, numeric::float16_t>(networks[u32(BrdfFunctionType::eScalarBufferF16)], brdf_weights_src.data(), p_staging + weights_offsets[u32(BrdfFunctionType::eScalarBufferF16)], Layout::eRowMajor, Component::eFloat32, Component::eFloat16);
+	write_network.template operator()<float, numeric::float16_t>(networks[u32(BrdfFunctionType::eCoopVec)], brdf_weights_src.data(), p_staging + weights_offsets[u32(BrdfFunctionType::eCoopVec)], Layout::eInferencingOptimal, Component::eFloat32, Component::eFloat16);
 
 	if (verbose) {
-		networks[u32(BrdfFunctionType::eScalarBuffer)].Print();
-		networks[u32(BrdfFunctionType::eCoopVec)].Print();
-		PrintLayerBiases<float16_t>(networks[u32(BrdfFunctionType::eCoopVec)].GetLayer<Linear>(networks[u32(BrdfFunctionType::eCoopVec)].GetLayers().size() - 1), p_staging + this->optimal_weights_offset);
-		networks[u32(BrdfFunctionType::eScalarBuffer)].PrintLayerBiases(networks[u32(BrdfFunctionType::eScalarBuffer)].GetLayers().size() - 1, Component::eFloat32, p_staging + this->linear_weights_offset);
+		// networks[u32(BrdfFunctionType::eScalarBuffer)].Print();
+		// networks[u32(BrdfFunctionType::eCoopVec)].Print();
+		// PrintLayerBiases<float16_t>(networks[u32(BrdfFunctionType::eCoopVec)].GetLayer<Linear>(networks[u32(BrdfFunctionType::eCoopVec)].GetLayers().size() - 1), p_staging + this->optimal_weights_offset);
+		// networks[u32(BrdfFunctionType::eScalarBuffer)].PrintLayerBiases(networks[u32(BrdfFunctionType::eScalarBuffer)].GetLayers().size() - 1, Component::eFloat32, p_staging + this->linear_weights_offset);
 	}
 
 	// DumpVertexData({p_vertices, sphere.GetVertexCount()}, {p_indices, sphere.GetIndexCount()});
@@ -1093,20 +1108,20 @@ void BRDFSample::CreateAndUploadBuffers() {
 		},
 		// Linear
 		{
-			.srcOffset = linear_weights_offset,
-			.dstOffset = linear_weights_offset,
+			.srcOffset = weights_offsets[u32(BrdfFunctionType::eScalarBuffer)],
+			.dstOffset = weights_offsets[u32(BrdfFunctionType::eScalarBuffer)],
 			.size      = networks[u32(BrdfFunctionType::eScalarBuffer)].GetParametersSize(),
 		},
 		// Linear f16
 		{
-			.srcOffset = linear_weights_offset_f16,
-			.dstOffset = linear_weights_offset_f16,
+			.srcOffset = weights_offsets[u32(BrdfFunctionType::eScalarBufferF16)],
+			.dstOffset = weights_offsets[u32(BrdfFunctionType::eScalarBufferF16)],
 			.size      = networks[u32(BrdfFunctionType::eScalarBufferF16)].GetParametersSize(),
 		},
 		// Optimal
 		{
-			.srcOffset = optimal_weights_offset,
-			.dstOffset = optimal_weights_offset,
+			.srcOffset = weights_offsets[u32(BrdfFunctionType::eCoopVec)],
+			.dstOffset = weights_offsets[u32(BrdfFunctionType::eCoopVec)],
 			.size      = networks[u32(BrdfFunctionType::eCoopVec)].GetParametersSize(),
 		},
 	};
@@ -1249,11 +1264,8 @@ void BRDFSample::RecordCommands(BrdfFunctionType function_type) {
 	// Update weight offsets in push constants
 	auto network = networks[u32(function_type)];
 	for (int i = 0; i < network.GetLayers().size(); ++i) {
-		auto layer = network.GetLayer<Linear>(i);
-		auto offset_base =
-			network.GetLayout() == vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal
-				? optimal_weights_offset
-				: linear_weights_offset;
+		auto layer                   = network.GetLayer<Linear>(i);
+		auto offset_base             = weights_offsets[u32(function_type)];
 		constants.weights_offsets[i] = offset_base + layer.GetWeightsOffset();
 		constants.bias_offsets[i]    = offset_base + layer.GetBiasesOffset();
 		// std::printf("Layer %d weights_offset %d bias_offset %d\n", i, constants.weights_offsets[i], constants.bias_offsets[i]);
@@ -1312,7 +1324,7 @@ void BRDFSample::Run() {
 	} while (true);
 }
 
-void BRDFSample::RunTest() {
+void BRDFSample::RunBenchmark() {
 	struct TestData {
 		vk::Pipeline                pipeline;
 		VulkanCoopVecNetwork const* network;
@@ -1340,7 +1352,7 @@ void BRDFSample::RunTest() {
 	}
 
 	// Print csv
-	std::printf("Classic, CoopVec, ScalarBuffer\n");
+	std::printf("Classic, CoopVec, ScalarBuffer, ScalarBuffer_float16\n");
 	for (u32 iter = 0; iter < kNumTestRuns; ++iter) {
 		for (u32 test_kind_index = 0; test_kind_index < kNumTestKinds - 1; ++test_kind_index) {
 			std::printf("%llu, ", test_times[iter][test_kind_index]);
@@ -1357,7 +1369,7 @@ auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 
 	for (auto it = args_range.begin(); it != args_range.end(); ++it) {
 		auto arg = std::string_view(*it);
-		if (arg == "--test" || arg == "-t") is_test_mode = true;
+		if (arg == "--benchmark" || arg == "-b") is_test_mode = true;
 		else if (arg == "--verbose" || arg == "-v") verbose = true;
 		else if (arg == "--validation") use_validation = true;
 		else if (arg == "--kind") {
@@ -1376,14 +1388,14 @@ auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 }
 
 auto PrintUsage([[maybe_unused]] int argc, char const* argv[]) -> void {
-	std::printf("Usage: %s [--help] [--test] [--verbose] [--validation] [--kind <kind>]\n",
+	std::printf("Usage: %s [--help] [--benchmark | -b] [--verbose | -v] [--validation] [--kind <kind>]\n",
 				std::filesystem::path(argv[0]).filename().string().c_str());
 	std::printf("  --kind <kind>\n");
 	std::printf("      Kind of BRDF function to run:\n");
 	std::printf("        0: Classic\n");
 	std::printf("        1: Coop Vec (Default)\n");
 	std::printf("        2: Scalar Buffer\n");
-	std::printf("        3: Scalar Buffer fload16\n");
+	std::printf("        3: Scalar Buffer float16\n");
 };
 
 auto main(int argc, char const* argv[]) -> int {
@@ -1399,7 +1411,7 @@ auto main(int argc, char const* argv[]) -> int {
 
 	sample.Init();
 	if (sample.IsTestMode()) {
-		sample.RunTest();
+		sample.RunBenchmark();
 	} else {
 		sample.Run();
 	}
