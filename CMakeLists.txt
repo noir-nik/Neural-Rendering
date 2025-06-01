@@ -6,7 +6,7 @@ else()
 set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "a9e1cf81-9932-4810-974b-6eccaf14e457")
 endif()
 
-project(NeuralRendering LANGUAGES CXX)
+project(NeuralRendering LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_MODULE_STD 1)
@@ -43,6 +43,7 @@ target_compile_definitions(${PROJECT_NAME} PUBLIC ${VULKAN_HPP_DEFINITIONS})
 # Includes
 set(INCLUDE_DIRS
 	External/Vma/include
+	External/stb
 	Source
 )
 
@@ -96,6 +97,7 @@ if (BUILD_SAMPLES)
 	add_subdirectory(Samples)
 endif()
 
+# Cmake preset - clang libc++
 # cmake . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS="-stdlib=libc++ -fno-rtti -fno-exceptions" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DBUILD_SAMPLES=ON
 # cmake . -B build/cl -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DNG_BUILD_SAMPLES=ON -DCMAKE_CXX_FLAGS="/D_HAS_EXCEPTIONS=0 /GR-"
 # cmake --build build
