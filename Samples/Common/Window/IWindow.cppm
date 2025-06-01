@@ -36,7 +36,7 @@ export class IWindow {
 	virtual bool IsMaximized() const = 0;
 	virtual bool IsMinimized() const = 0;
 	virtual bool GetRestoredRect(int& x, int& y, int& width, int& height) = 0;
-	virtual void GetRect(int& x, int& y, int& width, int& height) = 0;
+	virtual void GetRect(int& x, int& y, int& width, int& height) const = 0;
 	virtual void SetFocus() = 0;
 	virtual void SetOpacity(float const value) = 0;
 	virtual void Enable(bool bEnable) = 0;

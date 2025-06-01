@@ -343,18 +343,19 @@ inline float3 cross(float3 const a, float3 const b) {
 	return shuffle_yzx(a * b_yzx - a_yzx * b);
 }
 
+// RH
 inline float4x4 lookAt(float3 eye, float3 center, float3 up) {
-	float3 x, y, z;
+	float3 r, u, f;
 
-	z = normalize(eye - center);
-	x = normalize(cross(up, z));
-	y = normalize(cross(z, x));
+	f = normalize(center - eye);
+	r = normalize(cross(f, up));
+	u = normalize(cross(r, f));
 
 	return float4x4{
-		{x.x, y.x, z.x, 0.0f},
-		{x.y, y.y, z.y, 0.0f},
-		{x.z, y.z, z.z, 0.0f},
-		{-dot(x, eye), -dot(y, eye), -dot(z, eye), 1.0f},
+		{r.x, u.x, f.x, 0.0f},
+		{r.y, u.y, f.y, 0.0f},
+		{r.z, u.z, f.z, 0.0f},
+		{-dot(r, eye), -dot(u, eye), -dot(f, eye), 1.0f},
 	};
 }
 

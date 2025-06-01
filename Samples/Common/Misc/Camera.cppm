@@ -51,6 +51,10 @@ export struct Camera {
 	inline auto getProjViewInv() const -> mat4 const& { return gpuCamera.projection_view_inv; }
 	inline auto getFocus() const -> float3 const& { return focus; }
 
+	inline auto getFov() const -> float { return fov; }
+	inline auto getZNear() const -> float { return z_near; }
+	inline auto getZFar() const -> float { return z_far; }
+
 	void setProj(float fov, int width, int height, float z_near, float z_far);
 
 	void moveWithCursor(float width, float height, float delta_x, float delta_y);

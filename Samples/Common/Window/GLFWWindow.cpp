@@ -180,7 +180,7 @@ bool GLFWWindow::GetRestoredRect(int& x, int& y, int& width, int& height) {
 	return true;
 }
 
-void GLFWWindow::GetRect(int& x, int& y, int& width, int& height) {
+void GLFWWindow::GetRect(int& x, int& y, int& width, int& height) const {
 	glfwGetWindowPos(window, &x, &y);
 	glfwGetWindowSize(window, &width, &height);
 }
