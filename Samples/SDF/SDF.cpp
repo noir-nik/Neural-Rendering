@@ -91,6 +91,8 @@ public:
 	// Return time in nanoseconds
 	auto GetQueryResult() -> u64;
 	auto DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets) -> u64;
+	auto DrawWindow() -> u64 { return DrawWindow(pipelines[u32(SdfFunctionType::eCoopVec)], optimal_offsets); }
+	// auto DrawWindow() -> u64 { return DrawWindow(pipelines[u32(SdfFunctionType::eVec4)], row_major_offsets); }
 	void RecreateSwapchain(int width, int height);
 	void SaveSwapchainImageToFile(std::string_view filename);
 
@@ -201,7 +203,7 @@ static void WindowRefreshCallback(GLFWWindow* window) {
 	int x, y, width, height;
 	window->GetRect(x, y, width, height);
 	if (width <= 0 || height <= 0) return;
-	sample->DrawWindow(sample->pipelines[u32(SdfFunctionType::eCoopVec)], sample->optimal_offsets);
+	sample->DrawWindow();
 }
 
 static void CursorPosCallback(GLFWWindow* window, double xpos, double ypos) {
@@ -1102,7 +1104,7 @@ void SDFSample::Run() {
 		int x, y, width, height;
 		window.GetRect(x, y, width, height);
 		if (width <= 0 || height <= 0) continue;
-		DrawWindow(pipelines[u32(SdfFunctionType::eCoopVec)], optimal_offsets);
+		DrawWindow();
 	} while (true);
 }
 

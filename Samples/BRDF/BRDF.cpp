@@ -99,6 +99,21 @@ public:
 	bool use_validation = true;
 
 	BrdfFunctionType function_type = BrdfFunctionType::eCoopVec;
+	// VulkanCoopVecNetwork* network       = &networks[u32(BrdfFunctionType::eCoopVec)];
+
+	// auto SetFunctionType(BrdfFunctionType function_type) -> void {
+	// 	this->function_type = function_type;
+	// 	this->networks
+	// 	switch (function_type) {
+	// 	case BrdfFunctionType::eClassic:         this->network = &networks[u32(BrdfFunctionType::eCoopVec)]; break;
+	// 	case BrdfFunctionType::eCoopVec:         this->network = &networks[u32(BrdfFunctionType::eCoopVec)]; break;
+	// 	case BrdfFunctionType::eScalarBuffer:    this->network = &networks[u32(BrdfFunctionType::eScalarBuffer)]; break;
+	// 	case BrdfFunctionType::eScalarBufferF16: this->network = &networks[u32(BrdfFunctionType::eScalarBufferF16)]; break;
+	// 	default:
+	// 		std::printf("Unknown function type!\n");
+	// 		std::exit(1);
+	// 	}
+	// }
 
 	GLFWWindow window{};
 
@@ -138,10 +153,13 @@ public:
 	std::array<vk::Pipeline, u32(BrdfFunctionType::eCount)> pipelines;
 
 	Buffer         device_buffer;
-	vk::DeviceSize vertices_offset        = 0;
-	vk::DeviceSize indices_offset         = 0;
-	vk::DeviceSize linear_weights_offset  = 0;
-	vk::DeviceSize optimal_weights_offset = 0;
+	vk::DeviceSize vertices_offset           = 0;
+	vk::DeviceSize indices_offset            = 0;
+
+	vk::DeviceSize linear_weights_offset     = 0;
+	vk::DeviceSize linear_weights_offset_f16 = 0;
+	vk::DeviceSize optimal_weights_offset    = 0;
+	std::array<vk::DeviceSize, u32(BrdfFunctionType::eCount)> weights_offsets;
 
 	Buffer staging_buffer;
 
@@ -153,8 +171,10 @@ public:
 	Image depth_image;
 	bool  use_depth = true;
 
-	VulkanCoopVecNetwork optimal_network;
-	VulkanCoopVecNetwork linear_network;
+	VulkanCoopVecNetwork networks[u32(BrdfFunctionType::eCount)];
+	// VulkanCoopVecNetwork networks[u32(BrdfFunctionType::eCoopVec)];
+	// VulkanCoopVecNetwork networks[u32(BrdfFunctionType::eScalarBuffer)];
+	// VulkanCoopVecNetwork networks[u32(BrdfFunctionType::eScalarBufferF16)];
 
 	// static constexpr u32 kNetworkLinearLayers = 5;
 
@@ -168,8 +188,8 @@ public:
 
 	// NetworkOffsets* default_offsets = nullptr;
 
-	void RecordCommands(vk::Pipeline pipeline, VulkanCoopVecNetwork const& network);
-	auto DrawWindow(vk::Pipeline pipeline, VulkanCoopVecNetwork const& network) -> u64;
+	void RecordCommands(BrdfFunctionType function_type);
+	auto DrawWindow(BrdfFunctionType function_type) -> u64;
 	auto DrawWindow() -> u64;
 
 	static constexpr u32 kTimestampsPerFrame = 2;
@@ -354,7 +374,9 @@ static void MouseButtonCallback(GLFWWindow* in_window, int in_button, int in_act
 void BRDFSample::Init() {
 	WindowManager::SetErrorCallback(WindowErrorCallback);
 	WindowManager::Init();
-	window.Init({.x = 30, .y = 30, .width = 800, .height = 600, .title = "BRDF Sample"});
+	u32 const initial_width = 1600, initial_height = 1200;
+
+	window.Init({.x = 30, .y = 30, .width = initial_width, .height = initial_height, .title = "BRDF Sample"});
 	window.GetWindowCallbacks().framebufferSizeCallback = FramebufferSizeCallback;
 	if (!is_test_mode) {
 		window.GetWindowCallbacks().windowRefreshCallback = WindowRefreshCallback;
@@ -363,7 +385,7 @@ void BRDFSample::Init() {
 	int x, y, width, height;
 	window.GetFullScreenRect(x, y, width, height);
 
-	camera.updateProjection(800, 600);
+	camera.updateProjection(initial_width, initial_height);
 
 	window.GetInputCallbacks().cursorPosCallback   = CursorPosCallback;
 	window.GetInputCallbacks().keyCallback         = KeyCallback;
@@ -717,9 +739,9 @@ void BRDFSample::CreatePipelines() {
 		CHECK_VULKAN_RESULT(device.createShaderModule(&shader_module_infos[i], GetAllocator(), &shader_modules[i]));
 	}
 
-	pipelines[int(BrdfFunctionType::eClassic)]      = CreatePipeline(shader_modules[0], BrdfFunctionType::eClassic);
-	pipelines[int(BrdfFunctionType::eCoopVec)]      = CreatePipeline(shader_modules[0], BrdfFunctionType::eCoopVec);
-	pipelines[int(BrdfFunctionType::eScalarBuffer)] = CreatePipeline(shader_modules[0], BrdfFunctionType::eScalarBuffer);
+	for (auto i = 0u; i < std::size(pipelines); ++i) {
+		pipelines[i] = CreatePipeline(shader_modules[0], static_cast<BrdfFunctionType>(i));
+	}
 
 	for (auto& shader_module : shader_modules) {
 		device.destroyShaderModule(shader_module, GetAllocator());
@@ -911,18 +933,22 @@ void BRDFSample::CreateAndUploadBuffers() {
 		std::printf("Error loading weights : wrong number of layers\n");
 		std::exit(1);
 	}
-	linear_network.Init(layers);
-	optimal_network.Init(layers);
+	networks[u32(BrdfFunctionType::eScalarBuffer)].Init(layers);
+	networks[u32(BrdfFunctionType::eScalarBufferF16)].Init(layers);
+	networks[u32(BrdfFunctionType::eCoopVec)].Init(layers);
 
-	CHECK_VULKAN_RESULT(linear_network.UpdateOffsetsAndSize(device, Layout::eRowMajor, Component::eFloat32, Component::eFloat32));
-	CHECK_VULKAN_RESULT(optimal_network.UpdateOffsetsAndSize(device, Layout::eInferencingOptimal, Component::eFloat16, Component::eFloat16));
+	CHECK_VULKAN_RESULT(networks[u32(BrdfFunctionType::eScalarBuffer)].UpdateOffsetsAndSize(device, Layout::eRowMajor, Component::eFloat32, Component::eFloat32));
+	CHECK_VULKAN_RESULT(networks[u32(BrdfFunctionType::eScalarBufferF16)].UpdateOffsetsAndSize(device, Layout::eRowMajor, Component::eFloat16, Component::eFloat16));
+	CHECK_VULKAN_RESULT(networks[u32(BrdfFunctionType::eCoopVec)].UpdateOffsetsAndSize(device, Layout::eInferencingOptimal, Component::eFloat16, Component::eFloat16));
 
 	vk::DeviceSize const kMinSize = 256 * 1024;
 
 	std::size_t total_size_bytes = std::max(
 		kMinSize,
-		optimal_network.GetParametersSize() + linear_network.GetParametersSize()
-			+ vertices_size_aligned + indices_size_aligned);
+		vertices_size_aligned + indices_size_aligned
+			+ networks[u32(BrdfFunctionType::eCoopVec)].GetParametersSize()
+			+ networks[u32(BrdfFunctionType::eScalarBuffer)].GetParametersSize()
+			+ networks[u32(BrdfFunctionType::eScalarBufferF16)].GetParametersSize());
 
 	// clang-format off
 	CHECK_VULKAN_RESULT(device_buffer.Create(device, vma_allocator, {
@@ -960,10 +986,11 @@ void BRDFSample::CreateAndUploadBuffers() {
 	auto copy_descriptor_sets  = nullptr;
 	device.updateDescriptorSets(std::size(writes), writes, descriptor_copy_count, copy_descriptor_sets);
 
-	this->vertices_offset        = 0;
-	this->indices_offset         = this->vertices_offset + vertices_size_aligned;
-	this->linear_weights_offset  = this->indices_offset + AlignUpPowerOfTwo(indices_size_bytes, CoopVecUtils::GetMatrixAlignment());
-	this->optimal_weights_offset = this->linear_weights_offset + AlignUpPowerOfTwo(linear_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
+	this->vertices_offset           = 0;
+	this->indices_offset            = this->vertices_offset + vertices_size_aligned;
+	this->linear_weights_offset     = this->indices_offset + AlignUpPowerOfTwo(indices_size_bytes, CoopVecUtils::GetMatrixAlignment());
+	this->linear_weights_offset_f16 = this->linear_weights_offset + AlignUpPowerOfTwo(networks[u32(BrdfFunctionType::eScalarBuffer)].GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
+	this->optimal_weights_offset    = this->linear_weights_offset_f16 + AlignUpPowerOfTwo(networks[u32(BrdfFunctionType::eScalarBufferF16)].GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
 
 	auto p_staging  = static_cast<std::byte*>(staging_buffer.GetMappedData());
 	auto p_vertices = reinterpret_cast<UVSphere::Vertex*>(p_staging + this->vertices_offset);
@@ -971,7 +998,8 @@ void BRDFSample::CreateAndUploadBuffers() {
 	sphere.WriteVertices(p_vertices);
 	sphere.WriteIndices(p_indices);
 
-	auto write_weights = [&](void const*                         src,
+	auto write_weights = [&](
+							 void const*                         src,
 							 std::size_t                         src_size,
 							 std::byte*                          dst,
 							 vk::CooperativeVectorMatrixLayoutNV dst_layout,
@@ -1037,14 +1065,15 @@ void BRDFSample::CreateAndUploadBuffers() {
 		}
 	};
 
-	write_network.template operator()<float, float>(linear_network, brdf_weights_src.data(), p_staging + linear_weights_offset, Layout::eRowMajor, Component::eFloat32, Component::eFloat32);
-	write_network.template operator()<float, numeric::float16_t>(optimal_network, brdf_weights_src.data(), p_staging + optimal_weights_offset, Layout::eInferencingOptimal, Component::eFloat32, Component::eFloat16);
+	write_network.template operator()<float, float>(networks[u32(BrdfFunctionType::eScalarBuffer)], brdf_weights_src.data(), p_staging + linear_weights_offset, Layout::eRowMajor, Component::eFloat32, Component::eFloat32);
+	write_network.template operator()<float, numeric::float16_t>(networks[u32(BrdfFunctionType::eScalarBufferF16)], brdf_weights_src.data(), p_staging + linear_weights_offset_f16, Layout::eRowMajor, Component::eFloat32, Component::eFloat16);
+	write_network.template operator()<float, numeric::float16_t>(networks[u32(BrdfFunctionType::eCoopVec)], brdf_weights_src.data(), p_staging + optimal_weights_offset, Layout::eInferencingOptimal, Component::eFloat32, Component::eFloat16);
 
 	if (verbose) {
-		linear_network.Print();
-		optimal_network.Print();
-		PrintLayerBiases<float16_t>(optimal_network.GetLayer<Linear>(optimal_network.GetLayers().size() - 1), p_staging + this->optimal_weights_offset);
-		linear_network.PrintLayerBiases(linear_network.GetLayers().size() - 1, Component::eFloat32, p_staging + this->linear_weights_offset);
+		networks[u32(BrdfFunctionType::eScalarBuffer)].Print();
+		networks[u32(BrdfFunctionType::eCoopVec)].Print();
+		PrintLayerBiases<float16_t>(networks[u32(BrdfFunctionType::eCoopVec)].GetLayer<Linear>(networks[u32(BrdfFunctionType::eCoopVec)].GetLayers().size() - 1), p_staging + this->optimal_weights_offset);
+		networks[u32(BrdfFunctionType::eScalarBuffer)].PrintLayerBiases(networks[u32(BrdfFunctionType::eScalarBuffer)].GetLayers().size() - 1, Component::eFloat32, p_staging + this->linear_weights_offset);
 	}
 
 	// DumpVertexData({p_vertices, sphere.GetVertexCount()}, {p_indices, sphere.GetIndexCount()});
@@ -1066,13 +1095,19 @@ void BRDFSample::CreateAndUploadBuffers() {
 		{
 			.srcOffset = linear_weights_offset,
 			.dstOffset = linear_weights_offset,
-			.size      = linear_network.GetParametersSize(),
+			.size      = networks[u32(BrdfFunctionType::eScalarBuffer)].GetParametersSize(),
+		},
+		// Linear f16
+		{
+			.srcOffset = linear_weights_offset_f16,
+			.dstOffset = linear_weights_offset_f16,
+			.size      = networks[u32(BrdfFunctionType::eScalarBufferF16)].GetParametersSize(),
 		},
 		// Optimal
 		{
 			.srcOffset = optimal_weights_offset,
 			.dstOffset = optimal_weights_offset,
-			.size      = optimal_network.GetParametersSize(),
+			.size      = networks[u32(BrdfFunctionType::eCoopVec)].GetParametersSize(),
 		},
 	};
 
@@ -1114,11 +1149,10 @@ auto BRDFSample::GetQueryResult() -> u64 {
 }
 
 auto BRDFSample::DrawWindow() -> u64 {
-	auto const& network = function_type == BrdfFunctionType::eCoopVec ? optimal_network : linear_network;
-	return DrawWindow(pipelines[std::to_underlying(function_type)], network);
+	return DrawWindow(this->function_type);
 };
 
-auto BRDFSample::DrawWindow(vk::Pipeline pipeline, VulkanCoopVecNetwork const& network) -> u64 {
+auto BRDFSample::DrawWindow(BrdfFunctionType function_type) -> u64 {
 	auto HandleSwapchainResult = [this](vk::Result result) -> bool {
 		switch (result) {
 		case vk::Result::eSuccess:           return true;
@@ -1133,7 +1167,7 @@ auto BRDFSample::DrawWindow(vk::Pipeline pipeline, VulkanCoopVecNetwork const& n
 	device.resetCommandPool(swapchain.GetCurrentCommandPool());
 	if (!HandleSwapchainResult(swapchain.AcquireNextImage())) return 0ull;
 	CHECK_VULKAN_RESULT(device.resetFences(1, &swapchain.GetCurrentFence()));
-	RecordCommands(pipeline, network);
+	RecordCommands(function_type);
 	if (!HandleSwapchainResult(swapchain.SubmitAndPresent(queue, queue))) return 0ull;
 
 	u64 elapsed = GetQueryResult();
@@ -1141,7 +1175,7 @@ auto BRDFSample::DrawWindow(vk::Pipeline pipeline, VulkanCoopVecNetwork const& n
 	return elapsed;
 }
 
-void BRDFSample::RecordCommands(vk::Pipeline pipeline, VulkanCoopVecNetwork const& network) {
+void BRDFSample::RecordCommands(BrdfFunctionType function_type) {
 	int x, y, width, height;
 	window.GetRect(x, y, width, height);
 
@@ -1187,6 +1221,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline, VulkanCoopVecNetwork cons
 			 .clearValue  = {{{{1.0f, 0}}}},
         },
 	});
+	auto pipeline = pipelines[u32(function_type)];
 	cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
 	cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
 
@@ -1209,10 +1244,10 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline, VulkanCoopVecNetwork cons
 			.ambient_intensity = 0.03,
 		},
 		.camera_pos = camera.getPosition(),
-		.pad        = static_cast<int>(linear_weights_offset),
 	};
 
 	// Update weight offsets in push constants
+	auto network = networks[u32(function_type)];
 	for (int i = 0; i < network.GetLayers().size(); ++i) {
 		auto layer = network.GetLayer<Linear>(i);
 		auto offset_base =
@@ -1292,19 +1327,12 @@ void BRDFSample::RunTest() {
 	constexpr u32 kNumTestRuns  = 1000;
 	constexpr u32 kNumTestKinds = std::to_underlying(BrdfFunctionType::eCount);
 
-	TestData test_data[kNumTestKinds] = {
-		{pipelines[std::to_underlying(BrdfFunctionType::eClassic)], &linear_network},
-		{pipelines[std::to_underlying(BrdfFunctionType::eCoopVec)], &optimal_network},
-		{pipelines[std::to_underlying(BrdfFunctionType::eScalarBuffer)], &linear_network},
-	};
-
 	std::vector<std::array<u64, kNumTestKinds>> test_times(kNumTestRuns);
 
 	for (u32 test_kind_index = 0; test_kind_index < kNumTestKinds; ++test_kind_index) {
-		TestData& data = test_data[test_kind_index];
 		for (u32 iter = 0; iter < kNumTestRuns; ++iter) {
 			// WindowManager::PollEvents();
-			u64   time_nanoseconds            = DrawWindow(data.pipeline, *data.network);
+			u64   time_nanoseconds            = DrawWindow(BrdfFunctionType(test_kind_index));
 			float ns_per_tick                 = physical_device.GetNsPerTick();
 			float elapsed_ms                  = (time_nanoseconds * ns_per_tick) / 1e6f;
 			test_times[iter][test_kind_index] = time_nanoseconds;
@@ -1355,6 +1383,7 @@ auto PrintUsage([[maybe_unused]] int argc, char const* argv[]) -> void {
 	std::printf("        0: Classic\n");
 	std::printf("        1: Coop Vec (Default)\n");
 	std::printf("        2: Scalar Buffer\n");
+	std::printf("        3: Scalar Buffer fload16\n");
 };
 
 auto main(int argc, char const* argv[]) -> int {
