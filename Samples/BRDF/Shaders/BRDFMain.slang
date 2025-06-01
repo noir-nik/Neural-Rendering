@@ -25,7 +25,6 @@ struct VSOutput {
 };
 // clang-format on
 
-
 [[shader("vertex")]]
 VSOutput vs_main(VSInput in_vertex) {
 	VSOutput output;
@@ -62,10 +61,14 @@ func ps_main(VSOutput input)->float4 {
 	float  metallic  = ctx.material.metallic;
 	float  roughness = ctx.material.roughness;
 
+	vector<COOPVEC_TYPE, 3> view_typed  = { view_tbn.x, view_tbn.y, view_tbn.z };
+	vector<COOPVEC_TYPE, 3> light_typed = { light_tbn.x, light_tbn.y, light_tbn.z };
 	if (shader_type == BrdfFunctionType::eCoopVec) {
-		color = BRDFCoopVec<COOPVEC_TYPE>( { view_tbn.x, view_tbn.y, view_tbn.z }, { light_tbn.x, light_tbn.y, light_tbn.z }, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
+		color = BRDFCoopVec<COOPVEC_TYPE>(view_typed, light_typed, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
 	} else if (shader_type == BrdfFunctionType::eScalarBuffer) {
-		color = BRDFScalarBuffer(view_tbn, light_tbn, gWeights, ctx.weights_offsets, ctx.bias_offsets);
+		color = BRDFScalarBuffer<float>(view_tbn, light_tbn, gWeights, ctx.weights_offsets, ctx.bias_offsets);
+	} else if (shader_type == BrdfFunctionType::eScalarBufferF16) {
+		color = BRDFScalarBuffer<half>(view_typed, light_typed, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
 	} else {
 		color = BRDFClassic(input.world_pos, view, ctx.light, normal, albedo, metallic, roughness);
 	}
