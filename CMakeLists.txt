@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.30)
 
+if(CMAKE_VERSION VERSION_LESS "4.0.0") 
 set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "0e5b6991-d74f-4b3d-a41c-cf096e0b2508")
+else()
+set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "a9e1cf81-9932-4810-974b-6eccaf14e457")
+endif()
 
 project(NeuralRendering LANGUAGES CXX)
 

@@ -101,18 +101,9 @@ public:
 	BrdfFunctionType function_type = BrdfFunctionType::eCoopVec;
 
 	GLFWWindow window{};
-	struct {
-		float x = 300.0f;
-		float y = 300.0f;
 
-		float        delta_x                                                                               = 0.0f;
-		float        delta_y                                                                               = 0.0f;
-		Glfw::Action button_state[std::underlying_type_t<Glfw::MouseButton>(Glfw::MouseButton::eLast) + 1] = {};
+	Mouse mouse;
 
-		bool is_dragging = false;
-		void StartDragging() { is_dragging = true; }
-		void StopDragging() { is_dragging = false; }
-	} mouse;
 	void ProcessViewportInput();
 
 	vk::Instance                    instance;
@@ -315,77 +306,15 @@ void PrintMat4(float4x4 const& mat) {
 	}
 }
 
-void BRDFSample::ProcessViewportInput() {
-	using namespace Glfw;
-
-	auto&       camera_pos     = camera.getPosition();
-	auto const& camera_right   = camera.getRight();
-	auto const& camera_up      = camera.getUp();
-	auto const& camera_forward = camera.getForward();
-
-	vec2 delta_pos = {-mouse.delta_x, mouse.delta_y};
-	// vec2 delta_pos = {mouse.delta_x, mouse.delta_y};
-
-	GLFWwindow* glfw_window = static_cast<GLFWwindow*>(window.GetHandle());
-
-	u32 const pressed_buttons_count =
-		std::ranges::fold_left(
-			std::span(mouse.button_state) | std::views::take(3 /* left, middle, right */),
-			0, [](u32 state, Action action) {
-				return state + (action == Action::ePress);
-			});
-
-	if (pressed_buttons_count > 1) [[unlikely]]
-		return;
-	auto button_pressed = [this](MouseButton button) { return mouse.button_state[std::to_underlying(button)] == Action::ePress; };
-
-	if (button_pressed(MouseButton::eRight)) {
-		// if (glfwGetKey(glfw_window, std::to_underlying(Glfw::Key::eLeftAlt)) == std::to_underlying(Glfw::Action::ePress)) {
-		if (mouse.is_dragging) {
-			auto zoom_factor = camera.zoom_factor * length(camera_pos - camera.focus);
-			auto movement    = (zoom_factor * delta_pos.x) * camera_forward;
-			camera.view      = camera.view | translate(movement);
-			// camera.focus += movement;
-		} else {
-			camera_pos -= camera.focus;
-			// camera.view = rotate4x4(camera_up, -delta_pos.x * camera.rotation_factor)
-			// 	 * rotate4x4(camera_right, delta_pos.y * camera.rotation_factor)
-			// 	 * camera.view; // trackball
-
-			// Correct upside down
-			float rotation_sign = std::copysignf(1.0f, camera.getUp().y);
-
-			camera.view = camera.view
-						  | rotate(camera_right, delta_pos.y * camera.rotation_factor)
-						  | rotateY(rotation_sign * delta_pos.x * camera.rotation_factor);
-			camera_pos += camera.focus;
-		}
-		// window->AddFramesToDraw(1);
-		// camera.updateProjView();
-		return;
-	}
-
-	if (button_pressed(MouseButton::eMiddle)) {
-
-		int x, y, width, height;
-		window.GetRect(x, y, width, height);
-		camera.moveWithCursor(width, height, delta_pos.x, delta_pos.y);
-	}
-
-	if (button_pressed(MouseButton::eLeft)) {
-		// window->AddFramesToDraw(1);
-		return;
-	}
-}
 static void CursorPosCallback(GLFWWindow* window, double xpos, double ypos) {
 	BRDFSample* sample = static_cast<BRDFSample*>(window->GetUserPointer());
 
 	sample->mouse.delta_x = static_cast<float>(xpos - sample->mouse.x);
-	sample->mouse.delta_y = static_cast<float>(ypos - sample->mouse.y);
+	sample->mouse.delta_y = -static_cast<float>(ypos - sample->mouse.y);
 	sample->mouse.x       = static_cast<float>(xpos);
 	sample->mouse.y       = static_cast<float>(ypos);
 
-	sample->ProcessViewportInput();
+	ProcessViewportInput(sample->window, sample->camera, sample->mouse, sample->mouse.delta_x, sample->mouse.delta_y);
 
 	// std::printf("mouse position: (%f, %f), delta: (%f, %f)\n", sample->mouse.x, sample->mouse.y,
 	// 			sample->mouse.delta_x, sample->mouse.delta_y);
@@ -1261,7 +1190,9 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline, VulkanCoopVecNetwork cons
 	cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
 	cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
 
+	camera.getForward() *= -1.0;
 	camera.updateProjectionViewInverse();
+	camera.getForward() *= -1.0;
 	BRDFConstants constants{
 		.view_proj = camera.getProjViewInv(),
 		.material  = {

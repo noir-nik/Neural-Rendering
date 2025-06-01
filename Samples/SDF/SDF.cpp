@@ -1,6 +1,5 @@
 #include "CheckResult.h"
 #include "Shaders/SDFConfig.h"
-#include "Shaders/SDFConstants.h"
 
 import NeuralGraphics;
 import vulkan_hpp;
@@ -11,6 +10,13 @@ import Window;
 import vk_mem_alloc;
 import SamplesCommon;
 import std;
+import Math;
+
+using namespace math;
+using namespace mesh;
+extern "C++" {
+#include "Shaders/SDFConstants.h"
+}
 
 #ifdef COOPVEC_TYPE
 #undef COOPVEC_TYPE
@@ -91,17 +97,14 @@ public:
 	auto GetPipelineCache() const -> vk::PipelineCache { return pipeline_cache; }
 	bool IsTestMode() const { return bIsTestMode; }
 
-auto ParseArgs(int argc, char const* argv[]) -> char const* ;
+	auto ParseArgs(int argc, char const* argv[]) -> char const*;
 
 	bool bIsTestMode    = false;
 	bool bVerbose       = false;
 	bool bUseValidation = false;
 
 	GLFWWindow window{};
-	struct {
-		float x = 300.0f;
-		float y = 300.0f;
-	} mouse;
+	Mouse      mouse;
 
 	vk::Instance                    instance{};
 	vk::AllocationCallbacks const*  allocator{nullptr};
@@ -165,6 +168,19 @@ auto ParseArgs(int argc, char const* argv[]) -> char const* ;
 	auto GetCurrentTimestampIndex() -> u32 { return swapchain.GetCurrentFrameIndex() * kTimestampsPerFrame; }
 
 	vk::QueryPool timestamp_query_pool{};
+
+	Camera camera{{
+		// .position = {1.0f, 3.0f, 5.0f},
+		// .position = {1.0f, 0.0f, 0.0f},
+		.position = {-3.0f, 0.0f, 0.0f},
+		// .position = {0.0f, 0.0f, -3.0f},
+		.focus = {0.0f, 0.0f, 0.0f},
+		// .up     = {0.0f, 1.0f, 0.0f},
+		.up     = {0.0f, 0.0f, 1.0f},
+		.fov    = 50.0f,
+		.z_near = 0.01f,
+		.z_far  = 1000.0f,
+	}};
 };
 
 static void FramebufferSizeCallback(GLFWWindow* window, int width, int height) {
@@ -173,6 +189,7 @@ static void FramebufferSizeCallback(GLFWWindow* window, int width, int height) {
 	sample->swapchain_dirty = true;
 	if (width <= 0 || height <= 0) return;
 	sample->RecreateSwapchain(width, height);
+	sample->camera.updateProjection(width, height);
 }
 
 static void WindowRefreshCallback(GLFWWindow* window) {
@@ -187,8 +204,12 @@ static void WindowRefreshCallback(GLFWWindow* window) {
 static void CursorPosCallback(GLFWWindow* window, double xpos, double ypos) {
 	SDFSample* sample = static_cast<SDFSample*>(window->GetUserPointer());
 
-	sample->mouse.x = static_cast<float>(xpos);
-	sample->mouse.y = static_cast<float>(ypos);
+	sample->mouse.delta_x = static_cast<float>(xpos - sample->mouse.x);
+	sample->mouse.delta_y = -static_cast<float>(ypos - sample->mouse.y);
+	sample->mouse.x       = static_cast<float>(xpos);
+	sample->mouse.y       = static_cast<float>(ypos);
+
+	ProcessViewportInput(sample->window, sample->camera, sample->mouse, sample->mouse.delta_x, sample->mouse.delta_y); 
 }
 
 static void KeyCallback(GLFWWindow* window, int key, int scancode, int action, int mods) {
@@ -201,6 +222,27 @@ static void KeyCallback(GLFWWindow* window, int key, int scancode, int action, i
 	}
 }
 
+static void MouseButtonCallback(GLFWWindow* in_window, int in_button, int in_action, int in_mods) {
+	SDFSample* sample = static_cast<SDFSample*>(in_window->GetUserPointer());
+	using namespace Glfw;
+
+	MouseButton button = static_cast<MouseButton>(in_button);
+	Action      action = static_cast<Action>(in_action);
+	Mod         mods   = static_cast<Mod>(in_mods);
+
+	sample->mouse.button_state[in_button] = action;
+
+	if (button == MouseButton::eRight) {
+		if (action == Action::ePress) {
+			if (mods == Mod::eAlt) {
+				sample->mouse.StartDragging();
+			}
+		} else if (action == Action::eRelease) {
+			sample->mouse.StopDragging();
+		}
+	}
+}
+
 void SDFSample::Init() {
 	WindowManager::SetErrorCallback(WindowErrorCallback);
 	WindowManager::Init();
@@ -209,9 +251,17 @@ void SDFSample::Init() {
 	if (!bIsTestMode) {
 		window.GetWindowCallbacks().windowRefreshCallback = WindowRefreshCallback;
 	}
-	window.GetInputCallbacks().cursorPosCallback = CursorPosCallback;
-	window.GetInputCallbacks().keyCallback       = KeyCallback;
+
+	int x, y, width, height;
+	window.GetFullScreenRect(x, y, width, height);
+
+	camera.updateProjection(800, 600);
+
+	window.GetInputCallbacks().cursorPosCallback   = CursorPosCallback;
+	window.GetInputCallbacks().keyCallback         = KeyCallback;
+	window.GetInputCallbacks().mouseButtonCallback = MouseButtonCallback;
 	window.SetUserPointer(this);
+
 	CreateInstance();
 
 	CHECK_VULKAN_RESULT(WindowManager::CreateWindowSurface(
@@ -325,8 +375,7 @@ void SDFSample::CreateInstance() {
 						   //    vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose |
 						   //    vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo |
 						   vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
-		.messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
-					   vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
+		.messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
 					   //    vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding |
 					   vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
 		.pfnUserCallback = DebugUtilsCallback,
@@ -435,9 +484,7 @@ void SDFSample::CreateVmaAllocator() {
 
 	using ::VmaAllocatorCreateFlagBits;
 	VmaAllocatorCreateInfo info = {
-		.flags = VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT |
-				 VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT |
-				 VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
+		.flags            = VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT | VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT | VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
 		.physicalDevice   = physical_device,
 		.device           = device,
 		.pVulkanFunctions = &vulkan_functions,
@@ -614,10 +661,7 @@ auto SDFSample::CreatePipeline(vk::ShaderModule vertex_shader_module,
 
 	vk::PipelineColorBlendAttachmentState color_blend_attachment_state{
 		.blendEnable    = vk::False,
-		.colorWriteMask = vk::ColorComponentFlagBits::eR |
-						  vk::ColorComponentFlagBits::eG |
-						  vk::ColorComponentFlagBits::eB |
-						  vk::ColorComponentFlagBits::eA,
+		.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
 	};
 
 	vk::PipelineColorBlendStateCreateInfo color_blend_state{
@@ -894,20 +938,48 @@ void SDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offs
 		.colorAttachments = {{{
 			.imageView   = swapchain.GetCurrentImageView(),
 			.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
+			.loadOp      = vk::AttachmentLoadOp::eClear,
+			.storeOp     = vk::AttachmentStoreOp::eStore,
+			.clearValue  = {{{{0.1f, 0.1f, 0.1f, 1.0f}}}},
 		}}},
 	});
 	cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
 	cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
-	// std::printf("W offsets: %u %u %u %u\n", offsets.weights_offsets[0], offsets.weights_offsets[1], offsets.weights_offsets[2], offsets.weights_offsets[3]);
-	// std::printf("B offsets: %u %u %u %u\n", offsets.biases_offsets[0], offsets.biases_offsets[1], offsets.biases_offsets[2], offsets.biases_offsets[3]);
-	SDFConstants constants{
-		.resolution = {static_cast<float>(width), static_cast<float>(height)},
-		.mouse      = {mouse.x, static_cast<float>(height) - mouse.y},
+
+	// SDFConstants constants{
+	// 	.resolution = {static_cast<float>(width), static_cast<float>(height)},
+	// 	.mouse      = {mouse.x, static_cast<float>(height) - mouse.y},
+	// };
+
+	auto PrintMat4 = [](float4x4 const& mat) {
+		for (int i = 0; i < 4; ++i) {
+			std::printf("%f %f %f %f\n", mat[i][0], mat[i][1], mat[i][2], mat[i][3]);
+		}
 	};
+
+	camera.updateProjectionViewInverse();
+	SDFConstants constants{
+		.camera_pos     = camera.getPosition(),
+		.resolution_x   = static_cast<float>(width),
+		.camera_forward = camera.getForward(),
+		.resolution_y   = static_cast<float>(height),
+		.camera_up      = camera.getUp(),
+		.fov            = camera.getFov(),
+		.camera_right   = camera.getRight(),
+	};
+	// PrintMat4(constants.view_proj);
+	// std::printf("Camera pos:     %f %f %f\n", constants.camera_pos.x, constants.camera_pos.y, constants.camera_pos.z);
+	// std::printf("Camera right:   %f %f %f\n", constants.camera_right.x, constants.camera_right.y, constants.camera_right.z);
+	// std::printf("Camera up:      %f %f %f\n", constants.camera_up.x, constants.camera_up.y, constants.camera_up.z);
+	// std::printf("Camera forward: %f %f %f\n", constants.camera_forward.x, constants.camera_forward.y, constants.camera_forward.z);
+	// std::printf(" \n");
+
 	for (auto i = 0u; i < kNetworkLayers; ++i) {
 		constants.weights_offsets[i] = offsets.weights_offsets[i];
 		constants.bias_offsets[i]    = offsets.biases_offsets[i];
 	}
+	// std::printf("W offsets: %u %u %u %u\n", offsets.weights_offsets[0], offsets.weights_offsets[1], offsets.weights_offsets[2], offsets.weights_offsets[3]);
+	// std::printf("B offsets: %u %u %u %u\n", offsets.biases_offsets[0], offsets.biases_offsets[1], offsets.biases_offsets[2], offsets.biases_offsets[3]);
 
 	cmd.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(constants), &constants);
 	u32 vertex_count = 6u;
@@ -1004,7 +1076,7 @@ auto SDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 		else return arg.data();
 	}
 	return nullptr;
-} 
+}
 
 auto main(int argc, char const* argv[]) -> int {
 	std::filesystem::current_path(std::filesystem::absolute(argv[0]).parent_path());
