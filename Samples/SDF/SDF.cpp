@@ -92,6 +92,7 @@ public:
 	auto GetQueryResult() -> u64;
 	auto DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets) -> u64;
 	void RecreateSwapchain(int width, int height);
+	void SaveSwapchainImageToFile(std::string_view filename);
 
 	auto GetAllocator() const -> vk::AllocationCallbacks const* { return allocator; }
 	auto GetPipelineCache() const -> vk::PipelineCache { return pipeline_cache; }
@@ -152,6 +153,7 @@ public:
 
 	// std::vector<std::byte> network_parameters;
 
+	bool                 pending_image_save  = false;
 	static constexpr u32 kTimestampsPerFrame = 2;
 
 	std::array<u64, kFramesInFlight * kTimestampsPerFrame>  timestamp_results = {};
@@ -171,13 +173,14 @@ public:
 
 	Camera camera{{
 		// .position = {1.0f, 3.0f, 5.0f},
-		// .position = {1.0f, 0.0f, 0.0f},
-		.position = {-3.0f, 0.0f, 0.0f},
+		.position = {-4.180247, -0.427392, 0.877357},
+		// .position = {-3.0f, 0.0f, 0.0f},
 		// .position = {0.0f, 0.0f, -3.0f},
 		.focus = {0.0f, 0.0f, 0.0f},
 		// .up     = {0.0f, 1.0f, 0.0f},
-		.up     = {0.0f, 0.0f, 1.0f},
-		.fov    = 50.0f,
+		// .up     = {0.0f, 0.0f, 1.0f},
+		.up     = {0.213641, -0.093215, 0.972476},
+		.fov    = 30.0f,
 		.z_near = 0.01f,
 		.z_far  = 1000.0f,
 	}};
@@ -209,16 +212,25 @@ static void CursorPosCallback(GLFWWindow* window, double xpos, double ypos) {
 	sample->mouse.x       = static_cast<float>(xpos);
 	sample->mouse.y       = static_cast<float>(ypos);
 
-	ProcessViewportInput(sample->window, sample->camera, sample->mouse, sample->mouse.delta_x, sample->mouse.delta_y); 
+	ProcessViewportInput(sample->window, sample->camera, sample->mouse, sample->mouse.delta_x, sample->mouse.delta_y);
 }
 
 static void KeyCallback(GLFWWindow* window, int key, int scancode, int action, int mods) {
 	SDFSample* sample = static_cast<SDFSample*>(window->GetUserPointer());
-
-	switch (key) {
-	case 256:
-		window->SetShouldClose(true);
-		break;
+	using namespace Glfw;
+	if (Action(action) == Action::ePress) {
+		switch (Key(key)) {
+		case Key::eEscape:
+			window->SetShouldClose(true);
+			break;
+		case Key::eF8:
+			sample->pending_image_save = true;
+			sample->SaveSwapchainImageToFile("sdf.bmp");
+			// sample->SaveSwapchainImageToFile("sdf.png");
+			break;
+		default:
+			break;
+		}
 	}
 }
 
@@ -246,7 +258,9 @@ static void MouseButtonCallback(GLFWWindow* in_window, int in_button, int in_act
 void SDFSample::Init() {
 	WindowManager::SetErrorCallback(WindowErrorCallback);
 	WindowManager::Init();
-	window.Init({.x = 30, .y = 30, .width = 800, .height = 600, .title = "SDF"});
+
+	u32 const initial_width = 1600, initial_height = 1200;
+	window.Init({.x = 30, .y = 30, .width = initial_width, .height = initial_height, .title = "SDF"});
 	window.GetWindowCallbacks().framebufferSizeCallback = FramebufferSizeCallback;
 	if (!bIsTestMode) {
 		window.GetWindowCallbacks().windowRefreshCallback = WindowRefreshCallback;
@@ -255,7 +269,7 @@ void SDFSample::Init() {
 	int x, y, width, height;
 	window.GetFullScreenRect(x, y, width, height);
 
-	camera.updateProjection(800, 600);
+	camera.updateProjection(initial_width, initial_height);
 
 	window.GetInputCallbacks().cursorPosCallback   = CursorPosCallback;
 	window.GetInputCallbacks().keyCallback         = KeyCallback;
@@ -985,6 +999,7 @@ void SDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offs
 	u32 vertex_count = 6u;
 	cmd.draw(vertex_count, 1, 0, 0);
 	cmd.endRendering();
+
 	cmd.Barrier({
 		.image         = swapchain_image,
 		.aspectMask    = vk::ImageAspectFlagBits::eColor,
@@ -1008,7 +1023,77 @@ void SDFSample::RecreateSwapchain(int width, int height) {
 	CHECK_VULKAN_RESULT(swapchain.Recreate(width, height));
 	swapchain_dirty = false;
 }
-static auto last_frame_time = std::chrono::steady_clock::now();
+
+void SDFSample::SaveSwapchainImageToFile(std::string_view filename) {
+	CHECK_VULKAN_RESULT(device.waitForFences(1, &swapchain.GetCurrentFence(), vk::True, std::numeric_limits<u32>::max()));
+
+	int x, y, width, height;
+	window.GetRect(x, y, width, height);
+	auto const image             = swapchain.GetCurrentImage();
+	auto const image_view        = swapchain.GetCurrentImageView();
+	auto const new_layout        = vk::ImageLayout::eTransferSrcOptimal;
+	auto const image_aspect      = vk::ImageAspectFlagBits::eColor;
+	auto const image_subresource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1);
+
+	auto extent            = swapchain.GetExtent();
+	auto format_block_size = vk::blockSize(swapchain.GetFormat());
+
+	vk::DeviceSize const image_size = extent.width * extent.height * format_block_size;
+
+	if (image_size >= staging_buffer.GetSize()) {
+		staging_buffer.Destroy();
+		// clang-format off
+		CHECK_VULKAN_RESULT(staging_buffer.Create(device, vma_allocator, {
+			.size   = image_size,
+			.usage  = vk::BufferUsageFlagBits::eTransferSrc,
+			.memory = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
+		}));
+		// clang-format on
+	}
+
+	VulkanRHI::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
+	CHECK_VULKAN_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
+
+	if (new_layout != vk::ImageLayout::eTransferSrcOptimal) {
+		cmd.Barrier({
+			.image         = image,
+			.oldLayout     = vk::ImageLayout::ePresentSrcKHR,
+			.newLayout     = new_layout,
+			.srcStageMask  = vk::PipelineStageFlagBits2::eBottomOfPipe,
+			.srcAccessMask = vk::AccessFlagBits2::eShaderWrite,
+			.dstStageMask  = vk::PipelineStageFlagBits2::eTransfer,
+			.dstAccessMask = vk::AccessFlagBits2::eTransferRead,
+		});
+	}
+
+	auto region = vk::BufferImageCopy{
+		.bufferOffset      = 0,
+		.bufferRowLength   = 0,
+		.bufferImageHeight = 0,
+		.imageSubresource  = image_subresource,
+		.imageOffset       = vk::Offset3D{0, 0, 0},
+		.imageExtent       = vk::Extent3D{extent.width, extent.height, 1},
+	};
+
+	cmd.copyImageToBuffer(image, new_layout, staging_buffer, 1, &region);
+
+	auto cmd_info = vk::CommandBufferSubmitInfo{.commandBuffer = cmd};
+	CHECK_VULKAN_RESULT(cmd.end());
+	CHECK_VULKAN_RESULT(queue.submit2(vk::SubmitInfo2{
+		.commandBufferInfoCount = 1,
+		.pCommandBufferInfos    = &cmd_info,
+	}))
+	CHECK_VULKAN_RESULT(queue.waitIdle());
+
+	auto data   = staging_buffer.GetMappedData();
+	auto stride = extent.width * format_block_size;
+	if (stbi_write_bmp(filename.data(), extent.width, extent.height, format_block_size, data)) {
+		std::printf("Saved %s\n", filename.data());
+	} else {
+		std::printf("Failed to write %s\n", filename.data());
+	}
+	pending_image_save = false;
+}
 
 void SDFSample::Run() {
 	do {
