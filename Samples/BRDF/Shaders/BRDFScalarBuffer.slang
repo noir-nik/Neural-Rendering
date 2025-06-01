@@ -31,7 +31,7 @@ func BRDFScalarBuffer<T : __BuiltinFloatingPointType>(
 	// Forward pass
 	for (int i = 0; i < 64; ++i) {
 		for (int j = 0; j < 6; ++j) {
-			output0[i] += weights[weights_offsets[0] / sizeof(T) + i * 3 + j] * input0[j];
+			output0[i] += weights[weights_offsets[0] / sizeof(T) + i * 6 + j] * input0[j];
 		}
 		output0[i] = relu(output0[i]);
 	}
