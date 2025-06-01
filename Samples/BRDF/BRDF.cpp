@@ -1336,13 +1336,21 @@ void BRDFSample::RunBenchmark() {
 	int x, y, width, height;
 	window.GetRect(x, y, width, height);
 	RecreateSwapchain(width, height);
-	constexpr u32 kNumTestRuns  = 1000;
-	constexpr u32 kNumTestKinds = std::to_underlying(BrdfFunctionType::eCount);
+	constexpr u32 kTestRunsCount  = 1000;
+	constexpr u32 kTestKindsCount = std::to_underlying(BrdfFunctionType::eCount);
 
-	std::vector<std::array<u64, kNumTestKinds>> test_times(kNumTestRuns);
+	std::vector<std::array<u64, kTestKindsCount>> test_times(kTestRunsCount);
 
-	for (u32 test_kind_index = 0; test_kind_index < kNumTestKinds; ++test_kind_index) {
-		for (u32 iter = 0; iter < kNumTestRuns; ++iter) {
+	// Warm up gpu clocks
+	constexpr u32 kWarmupCount = 2 * kFramesInFlight;
+	for (u32 test_kind_index = 0; test_kind_index < kTestKindsCount; ++test_kind_index) {
+		for (u32 iter = 0; iter < kWarmupCount; ++iter) {
+			(void)DrawWindow(BrdfFunctionType(test_kind_index));
+		}
+	}
+
+	for (u32 test_kind_index = 0; test_kind_index < kTestKindsCount; ++test_kind_index) {
+		for (u32 iter = 0; iter < kTestRunsCount; ++iter) {
 			// WindowManager::PollEvents();
 			u64   time_nanoseconds            = DrawWindow(BrdfFunctionType(test_kind_index));
 			float ns_per_tick                 = physical_device.GetNsPerTick();
@@ -1353,11 +1361,14 @@ void BRDFSample::RunBenchmark() {
 
 	// Print csv
 	std::printf("Classic, CoopVec, ScalarBuffer, ScalarBuffer_float16\n");
-	for (u32 iter = 0; iter < kNumTestRuns; ++iter) {
-		for (u32 test_kind_index = 0; test_kind_index < kNumTestKinds - 1; ++test_kind_index) {
-			std::printf("%llu, ", test_times[iter][test_kind_index]);
+	for (u32 iter = 0; iter < kTestRunsCount; ++iter) {
+		auto const& tests_row = test_times[iter];
+		// print with ,
+		for (u32 test_kind_index = 0; test_kind_index < kTestKindsCount - 1; ++test_kind_index) {
+			std::printf("%llu, ", tests_row[test_kind_index]);
 		}
-		std::printf("%llu \n", test_times[iter][kNumTestKinds - 1]);
+		// print last
+		std::printf("%llu \n", tests_row[kTestKindsCount - 1]);
 	}
 }
 
