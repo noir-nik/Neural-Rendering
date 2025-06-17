@@ -13,13 +13,13 @@ func SDFCoopVec<T : __BuiltinFloatingPointType>(vector<T, 3> p, StructuredBuffer
 	CoopVec<T, 1>  output3;
 
 	input   = { p.x, p.y, p.z };
-	output0 = LinearForward<T, 16, 3>(input, sdf_weights, weights_offsets[0], bias_offsets[0], CoopVecMatrixLayout::InferencingOptimal, COMPONENT_TYPE);
+	output0 = LinearForward<T, 16, 3>(input, sdf_weights, weights_offsets[0], bias_offsets[0], CoopVecMatrixLayout::InferencingOptimal, CoopVecComponentType::COMPONENT_TYPE);
 	output0 = sin(output0);
-	output1 = LinearForward<T, 16, 16>(output0, sdf_weights, weights_offsets[1], bias_offsets[1], CoopVecMatrixLayout::InferencingOptimal, COMPONENT_TYPE);
+	output1 = LinearForward<T, 16, 16>(output0, sdf_weights, weights_offsets[1], bias_offsets[1], CoopVecMatrixLayout::InferencingOptimal, CoopVecComponentType::COMPONENT_TYPE);
 	output1 = sin(output1) + output0;
-	output2 = LinearForward<T, 16, 16>(output1, sdf_weights, weights_offsets[2], bias_offsets[2], CoopVecMatrixLayout::InferencingOptimal, COMPONENT_TYPE);
+	output2 = LinearForward<T, 16, 16>(output1, sdf_weights, weights_offsets[2], bias_offsets[2], CoopVecMatrixLayout::InferencingOptimal, CoopVecComponentType::COMPONENT_TYPE);
 	output2 = sin(output2) / CoopVec<T, 16>(T(1.4)) + output1;
-	output3 = LinearForward<T, 1, 16>(output2, sdf_weights, weights_offsets[3], bias_offsets[3], CoopVecMatrixLayout::InferencingOptimal, COMPONENT_TYPE);
+	output3 = LinearForward<T, 1, 16>(output2, sdf_weights, weights_offsets[3], bias_offsets[3], CoopVecMatrixLayout::InferencingOptimal, CoopVecComponentType::COMPONENT_TYPE);
 
 	return output3[0];
 }

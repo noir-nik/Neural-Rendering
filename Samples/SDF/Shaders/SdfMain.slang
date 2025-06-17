@@ -38,7 +38,8 @@ func Scene(float3 p)->float {
 }
 
 func GetNormal(float3 p)->float3 {
-	return normalize(Scene(p) - float3(Scene(p - float3(0.1, 0, 0)), Scene(p - float3(0, 0.1, 0)), Scene(p - float3(0, 0, 0.1))));
+	const COOPVEC_TYPE kDiffEpsilon = COOPVEC_TYPE(0.1);
+	return normalize(Scene(p) - float3(Scene(p - float3(kDiffEpsilon, 0, 0)), Scene(p - float3(0, kDiffEpsilon, 0)), Scene(p - float3(0, 0, kDiffEpsilon))));
 }
 
 [shader("fragment")]
