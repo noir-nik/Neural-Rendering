@@ -12,19 +12,18 @@ import SamplesCommon;
 import std;
 import Math;
 
+using numeric::float16_t;
+using float32_t = float;
 using namespace math;
-using namespace mesh;
+
 extern "C++" {
 #include "Shaders/SDFConstants.h"
 }
 
-#ifdef COOPVEC_TYPE
-#undef COOPVEC_TYPE
-#endif
-#define COOPVEC_TYPE numeric::float16_t
 #include "Shaders/SDFWeights.h"
 
 using namespace Utils;
+using namespace mesh;
 
 class SDFSample {
 public:
@@ -40,9 +39,9 @@ public:
 		vk::EXTShaderReplicatedCompositesExtensionName,
 	};
 
-	vk::ComponentTypeKHR kSrcComponentType = vk::ComponentTypeKHR::eFloat16;
-	vk::ComponentTypeKHR kDstMatrixType    = vk::ComponentTypeKHR::eFloat16;
-	vk::ComponentTypeKHR kDstVectorType    = vk::ComponentTypeKHR::eFloat16;
+	static constexpr vk::ComponentTypeKHR kSrcComponentType = COMPONENT_TYPE;
+	static constexpr vk::ComponentTypeKHR kDstMatrixType    = COMPONENT_TYPE;
+	static constexpr vk::ComponentTypeKHR kDstVectorType    = COMPONENT_TYPE;
 
 	static constexpr u32 kFramesInFlight = 3;
 
@@ -82,17 +81,22 @@ public:
 
 	// void BuildNetwork();
 	void CreateAndUploadBuffers();
-	void WriteNetworkWeights(VulkanCoopVecNetwork const&         network,
-							 VulkanRHI::Buffer const&            staging_buffer,
-							 std::size_t                         staging_offset,
-							 vk::CooperativeVectorMatrixLayoutNV dst_layout);
+	void WriteNetworkWeights(
+		VulkanCoopVecNetwork const&         network,
+		VulkanRHI::Buffer const&            staging_buffer,
+		std::size_t                         staging_offset,
+		vk::CooperativeVectorMatrixLayoutNV dst_layout);
 
 	void RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offsets);
 	// Return time in nanoseconds
 	auto GetQueryResult() -> u64;
 	auto DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets) -> u64;
-	auto DrawWindow() -> u64 { return DrawWindow(pipelines[u32(SdfFunctionType::eCoopVec)], optimal_offsets); }
-	// auto DrawWindow() -> u64 { return DrawWindow(pipelines[u32(SdfFunctionType::eVec4)], row_major_offsets); }
+	auto DrawWindow() -> u64 {
+		return kDstMatrixType == vk::ComponentTypeKHR::eFloat32
+				   ? DrawWindow(pipelines[u32(SdfFunctionType::eVec4)], row_major_offsets)
+				   : DrawWindow(pipelines[u32(SdfFunctionType::eCoopVec)], optimal_offsets);
+	}
+	// auto DrawWindow() -> u64 { return DrawWindow(pipelines[u32(SdfFunctionType::eScalarBuffer)], row_major_offsets); }
 	void RecreateSwapchain(int width, int height);
 	void SaveSwapchainImageToFile(std::string_view filename);
 
@@ -174,17 +178,12 @@ public:
 	vk::QueryPool timestamp_query_pool{};
 
 	Camera camera{{
-		// .position = {1.0f, 3.0f, 5.0f},
 		.position = {-4.180247, -0.427392, 0.877357},
-		// .position = {-3.0f, 0.0f, 0.0f},
-		// .position = {0.0f, 0.0f, -3.0f},
-		.focus = {0.0f, 0.0f, 0.0f},
-		// .up     = {0.0f, 1.0f, 0.0f},
-		// .up     = {0.0f, 0.0f, 1.0f},
-		.up     = {0.213641, -0.093215, 0.972476},
-		.fov    = 30.0f,
-		.z_near = 0.01f,
-		.z_far  = 1000.0f,
+		.focus    = {0.0f, 0.0f, 0.0f},
+		.up       = {0.213641, -0.093215, 0.972476},
+		.fov      = 35.0f,
+		.z_near   = 0.01f,
+		.z_far    = 1000.0f,
 	}};
 };
 
@@ -824,12 +823,13 @@ void SDFSample::CreateAndUploadBuffers() {
 	}
 }
 
-void SDFSample::WriteNetworkWeights(VulkanCoopVecNetwork const&         network,
-									VulkanRHI::Buffer const&            staging_buffer,
-									std::size_t                         staging_offset,
-									vk::CooperativeVectorMatrixLayoutNV dst_layout) {
-	auto ConvertLayerWeights = [this, dst_layout](void const* src, std::size_t src_size,
-												  std::byte* dst, Linear const& linear) {
+void SDFSample::WriteNetworkWeights(
+	VulkanCoopVecNetwork const&         network,
+	VulkanRHI::Buffer const&            staging_buffer,
+	std::size_t                         staging_offset,
+	vk::CooperativeVectorMatrixLayoutNV dst_layout) {
+
+	auto ConvertLayerWeights = [this, dst_layout](void const* src, std::size_t src_size, std::byte* dst, Linear const& linear) {
 		std::size_t expected_size = linear.GetWeightsSize();
 		std::size_t required_size = expected_size;
 
@@ -1122,7 +1122,7 @@ void SDFSample::RunTest() {
 	// std::printf("Resizing to %dx%d\n", width, height);
 	RecreateSwapchain(width, height);
 	// DrawWindow();
-	constexpr u32 kNumTestRuns  = 1000;
+	constexpr u32 kNumTestRuns  = 100;
 	constexpr u32 kNumTestKinds = u32(SdfFunctionType::eCount);
 
 	TestData test_data[kNumTestKinds] = {
@@ -1132,9 +1132,15 @@ void SDFSample::RunTest() {
 		{pipelines[u32(SdfFunctionType::eVec4)], row_major_offsets},
 	};
 
+	// Coopvec usually works in float16
+	u32 first_test_index = 0;
+	if constexpr (kDstMatrixType == vk::ComponentTypeKHR::eFloat32) {
+		first_test_index = 1;
+	}
+
 	std::vector<std::array<u64, kNumTestKinds>> test_times(kNumTestRuns);
 
-	for (u32 test_kind_index = 0; test_kind_index < kNumTestKinds; ++test_kind_index) {
+	for (u32 test_kind_index = first_test_index; test_kind_index < kNumTestKinds; ++test_kind_index) {
 		TestData& data = test_data[test_kind_index];
 		for (u32 iter = 0; iter < kNumTestRuns; ++iter) {
 			// WindowManager::PollEvents();
@@ -1146,9 +1152,14 @@ void SDFSample::RunTest() {
 	}
 
 	// Print csv
-	std::printf("CoopVec, ScalarInline, ScalarBuffer, Vec4 \n");
+	if constexpr (kDstMatrixType == vk::ComponentTypeKHR::eFloat16) {
+		std::printf("CoopVec_Float16, ScalarInline_Float16, ScalarBuffer_Float16, Vec4_Float16 \n");
+	} else {
+		std::printf("ScalarInline_Float32, ScalarBuffer_Float32, Vec4_Float32 \n");
+	}
+
 	for (u32 iter = 0; iter < kNumTestRuns; ++iter) {
-		for (u32 test_kind_index = 0; test_kind_index < kNumTestKinds - 1; ++test_kind_index) {
+		for (u32 test_kind_index = first_test_index; test_kind_index < kNumTestKinds - 1; ++test_kind_index) {
 			std::printf("%llu, ", test_times[iter][test_kind_index]);
 		}
 		std::printf("%llu \n", test_times[iter][kNumTestKinds - 1]);
