@@ -78,6 +78,35 @@ target_link_libraries( VulkanHppModule PUBLIC Vulkan::Vulkan )
 target_link_libraries( ${PROJECT_NAME} PUBLIC VulkanHppModule )
 target_compile_definitions(VulkanHppModule PUBLIC ${VULKAN_HPP_DEFINITIONS})
 
+# CUDA
+# message(STATUS "CMAKE_CXX_COMPILER_FRONTEND_VARIANT:" ${CMAKE_CXX_COMPILER_FRONTEND_VARIANT})
+
+if (WIN32 AND NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+else()
+	find_package(CUDAToolkit)
+	if (CUDAToolkit_FOUND)
+		set(WITH_CUDA 1)
+		enable_language(CUDA)
+
+		if (NOT CUDA_LIBRARY_DIR)
+			message(FATAL_ERROR "CUDA_LIBRARY_DIR is not specified")
+		endif()
+
+		add_library(${PROJECT_NAME}-cuda INTERFACE)
+
+		target_link_directories(${PROJECT_NAME}-cuda INTERFACE ${CUDA_LIBRARY_DIR})
+		# message(STATUS "CUDA_TOOLKIT_INCLUDE_DIRECTORIES: ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+		target_include_directories(${PROJECT_NAME}-cuda INTERFACE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+		target_link_libraries(${PROJECT_NAME}-cuda INTERFACE
+			cudnn
+			cudart
+			cuda
+		)
+
+	endif() 
+endif()
+
+
 # Sanitize
 option(NG_USE_SANITIZER "Use sanitizer" OFF)
 if (NG_USE_SANITIZER)
@@ -96,6 +125,7 @@ set(${PROJECT_NAME}_SHADERS_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/Source/Shader
 if (BUILD_SAMPLES)
 	add_subdirectory(Samples)
 endif()
+
 
 # Cmake preset - clang libc++
 # cmake . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS="-stdlib=libc++ -fno-rtti -fno-exceptions" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DBUILD_SAMPLES=ON

@@ -2,7 +2,25 @@ set(SAMPLE_NAME SDF)
 
 file(GLOB_RECURSE SAMPLE_SOURCE_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "*.cpp")
 
-add_executable(${SAMPLE_NAME} ${SAMPLE_SOURCE_FILES})
+
+link_libraries(
+	${PROJECT_NAME}::${PROJECT_NAME}
+	SamplesCommon
+)
+
+# CUDNN sample
+if(WITH_CUDA)
+	set(CUDA_SAMPLE_NAME cu${SAMPLE_NAME})
+	# CUDA_COMPILE(cuda "SDF.cu")
+	# add_executable(${CUDA_SAMPLE_NAME} ${cuda} "cuSDF.cpp")
+
+	add_executable(${CUDA_SAMPLE_NAME} SDF.cu cuSDF.cpp)
+
+	target_link_libraries(${CUDA_SAMPLE_NAME} PRIVATE ${PROJECT_NAME}-cuda)
+endif()
+
+# Vulkan sample
+add_executable(${SAMPLE_NAME} "SDF.cpp") # ${SAMPLE_SOURCE_FILES}
 
 file(GLOB_RECURSE MODULE_SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "*.cppm")
 
@@ -12,15 +30,7 @@ target_sources(${SAMPLE_NAME} PUBLIC
 	FILES ${MODULE_SOURCES}
 )
 
-target_link_libraries(${SAMPLE_NAME} PRIVATE ${PROJECT_NAME}::${PROJECT_NAME})
-
-set(INCLUDE_DIRS
-)
-
-target_include_directories(${SAMPLE_NAME} PUBLIC ${INCLUDE_DIRS})
-
-target_link_libraries(${SAMPLE_NAME} PRIVATE SamplesCommon)
-
+# Compile shaders
 set(${SAMPLE_NAME}_SHADERS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Shaders CACHE PATH "${SAMPLE_NAME} shaders")
 set(${SAMPLE_NAME}_SHADERS_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/Shaders CACHE PATH "${SAMPLE_NAME} shaders output")
 
