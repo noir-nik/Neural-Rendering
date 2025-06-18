@@ -93,7 +93,7 @@ struct float4 {
 	constexpr inline explicit float4(float const a[4]) : x(a[0]), y(a[1]), z(a[2]), w(a[3]) {}
 
 	constexpr inline explicit float4(float2 a, float z = 0.0f, float w = 0.0f) : x(a.x), y(a.y), z(z), w(w) {}
-	constexpr inline explicit float4(float2 const& a, float2 const& b) : x(a.x), y(a.y), z(b.x), w(b.y) {}
+	constexpr inline explicit float4(float2 const& a, float2 const& b = float2{0.0f, 0.0f}) : x(a.x), y(a.y), z(b.x), w(b.y) {}
 	constexpr inline explicit float4(float3 const& a, float w = 0.0f) : x(a.x), y(a.y), z(a.z), w(w) {}
 
 	// constexpr inline auto operator[](this auto&& self, int i) -> auto&& { return std::forward<decltype(self)>(self).x + i; }
