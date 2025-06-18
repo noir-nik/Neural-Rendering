@@ -36,15 +36,15 @@ export struct Camera {
 
 	Camera(CameraCreationInfo const& info);
 
-	inline auto getRight() -> float3& { return view.col(0).xyz; }
-	inline auto getUp() -> float3& { return view.col(1).xyz; }
-	inline auto getForward() -> float3& { return view.col(2).xyz; }
-	inline auto getPosition() -> float3& { return view.col(3).xyz; }
+	inline auto getRight() -> float3& { return view.col(0).xyz(); }
+	inline auto getUp() -> float3& { return view.col(1).xyz(); }
+	inline auto getForward() -> float3& { return view.col(2).xyz(); }
+	inline auto getPosition() -> float3& { return view.col(3).xyz(); }
 
-	inline auto getRight() const -> float3 const& { return view.col(0).xyz; }
-	inline auto getUp() const -> float3 const& { return view.col(1).xyz; }
-	inline auto getForward() const -> float3 const& { return view.col(2).xyz; }
-	inline auto getPosition() const -> float3 const& { return view.col(3).xyz; }
+	inline auto getRight() const -> float3 const& { return view.col(0).xyz(); }
+	inline auto getUp() const -> float3 const& { return view.col(1).xyz(); }
+	inline auto getForward() const -> float3 const& { return view.col(2).xyz(); }
+	inline auto getPosition() const -> float3 const& { return view.col(3).xyz(); }
 
 	inline auto getProj() const -> mat4 const& { return proj; }
 	inline auto getView() const -> mat4 const& { return view; }
