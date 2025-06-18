@@ -57,22 +57,15 @@ typedef struct float3x3 mat3;
 typedef struct float4x4 mat4;
 
 struct float2 {
-	inline float2() : x(0.0f), y(0.0f) {}
-	inline float2(float x, float y) : x(x), y(y) {}
-	inline explicit float2(float val) : x(val), y(val) {}
-	inline explicit float2(float const a[2]) : x(a[0]), y(a[1]) {}
+	constexpr inline float2() : x(0.0f), y(0.0f) {}
+	constexpr inline float2(float x, float y) : x(x), y(y) {}
+	constexpr inline explicit float2(float val) : x(val), y(val) {}
+	constexpr inline explicit float2(float const a[2]) : x(a[0]), y(a[1]) {}
 
-	inline auto operator[](this auto&& self, int i) -> auto&& { return std::forward<decltype(self)>(self).M[i]; }
+	constexpr inline auto operator[](int i) -> float& { return *(&x + i); }
+	constexpr inline auto operator[](int i) const -> float const& { return *(&x + i); }
 
-	union {
-		struct {
-			float x, y;
-		};
-		struct {
-			float r, g;
-		};
-		float M[2];
-	};
+	float x, y;
 };
 
 struct float3 {
@@ -82,21 +75,15 @@ struct float3 {
 	constexpr inline explicit float3(float val) : x(val), y(val), z(val) {}
 	constexpr inline explicit float3(float const a[3]) : x(a[0]), y(a[1]), z(a[2]) {}
 
-	constexpr inline auto operator[](int i) -> float& { return M[i]; }
-	constexpr inline auto operator[](int i) const -> float const& { return M[i]; }
+	constexpr inline auto operator[](int i) -> float& { return *(&x + i); }
+	constexpr inline auto operator[](int i) const -> float const& { return *(&x + i); }
 
 	constexpr inline auto begin() -> float* { return &x; }
 	constexpr inline auto begin() const -> float const* { return &x; }
 	constexpr inline auto end() -> float* { return &z + 1; }
 	constexpr inline auto end() const -> float const* { return &z + 1; }
 
-	// clang-format off
-	union {
-		struct { float x, y, z; };
-		struct { float r, g, b; };
-		float M[3];
-	};
-	// clang-format on
+	float x, y, z;
 };
 
 struct float4 {
@@ -105,23 +92,25 @@ struct float4 {
 	constexpr inline explicit float4(float val) : x(val), y(val), z(val), w(val) {}
 	constexpr inline explicit float4(float const a[4]) : x(a[0]), y(a[1]), z(a[2]), w(a[3]) {}
 
-	inline explicit float4(float2 a, float z = 0.0f, float w = 0.0f) : x(a.x), y(a.y), z(z), w(w) {}
-	inline explicit float4(float2 a, float2 b) : x(a.x), y(a.y), z(b.x), w(b.y) {}
-	inline explicit float4(float3 a, float w = 0.0f) : x(a.x), y(a.y), z(a.z), w(w) {}
+	constexpr inline explicit float4(float2 a, float z = 0.0f, float w = 0.0f) : x(a.x), y(a.y), z(z), w(w) {}
+	constexpr inline explicit float4(float2 const& a, float2 const& b) : x(a.x), y(a.y), z(b.x), w(b.y) {}
+	constexpr inline explicit float4(float3 const& a, float w = 0.0f) : x(a.x), y(a.y), z(a.z), w(w) {}
 
-	constexpr inline auto operator[](this auto&& self, int i) -> auto&& { return std::forward<decltype(self)>(self).M[i]; }
+	// constexpr inline auto operator[](this auto&& self, int i) -> auto&& { return std::forward<decltype(self)>(self).x + i; }
 
-	// clang-format off
-	union {
-		struct { float x, y, z, w; };
-		struct { float r, g, b, a; };
-		struct { float2 xy, zw; };
-		struct { float2 rg, ba; };
-		struct { float3 xyz; };
-		struct { float3 rgb; };
-		float M[4];
-	};
-	// clang-format on
+	constexpr inline auto operator[](int i) -> float& { return *(&x + i); }
+	constexpr inline auto operator[](int i) const -> float const& { return *(&x + i); }
+
+	auto begin() -> float* { return &x; }
+	auto begin() const -> float const* { return &x; }
+	auto end() -> float* { return &w + 1; }
+	auto end() const -> float const* { return &w + 1; }
+
+	// -fno-strict-aliasing
+	/* constexpr */ inline auto xyz() -> float3& { return reinterpret_cast<float3&>(*this); }
+	/* constexpr */ inline auto xyz() const -> float3 const& { return reinterpret_cast<float3 const&>(*this); }
+
+	float x, y, z, w;
 };
 
 struct float3x3 {
@@ -143,10 +132,19 @@ struct float3x3 {
 
 	inline float3x3(float4x4 const& from4x4);
 
-	constexpr inline auto col(this auto&& self, int i) -> auto&& { return std::forward_like<decltype(self)>(self.operator[](i)); }
-	constexpr inline auto operator[](this auto&& self, int col) -> auto&& { return std::forward<decltype(self)>(self).m_col[col]; }
-	constexpr inline auto operator[](this auto&& self, int row, int col) -> auto&& { return std::forward<decltype(self)>(self).m_col[col][row]; }
-	constexpr inline auto operator()(this auto&& self, int row, int col) -> auto&& { return std::forward<decltype(self)>(self).m_col[col][row]; }
+	// constexpr inline auto col(this auto&& self, int i) -> auto&& { return std::forward_like<decltype(self)>(self.operator[](i)); }
+	// constexpr inline auto operator[](this auto&& self, int col) -> auto&& { return std::forward<decltype(self)>(self).m_col[col]; }
+	// constexpr inline auto operator[](this auto&& self, int row, int col) -> auto&& { return std::forward<decltype(self)>(self).m_col[col][row]; }
+	// constexpr inline auto operator()(this auto&& self, int row, int col) -> auto&& { return std::forward<decltype(self)>(self).m_col[col][row]; }
+
+	constexpr inline auto col(int i) -> float3& { return m_col[i]; }
+	constexpr inline auto col(int i) const -> float3 const& { return m_col[i]; }
+
+	constexpr inline auto operator[](int i) -> float3& { return m_col[i]; }
+	constexpr inline auto operator[](int i) const -> float3 const& { return m_col[i]; }
+
+	constexpr inline auto operator()(int row, int col) -> float& { return m_col[col][row]; }
+	constexpr inline auto operator()(int row, int col) const -> float const& { return m_col[col][row]; }
 
 	float3 m_col[3];
 };
@@ -193,9 +191,12 @@ struct float4x4 {
 		m_col[3] = float4{0.0f, 0.0f, 0.0f, 1.0f};
 	}
 
-	constexpr inline auto col(this auto&& self, int i) -> decltype(std::forward<decltype(self)>(self).m_col[i]) {
-		return std::forward_like<decltype(self)>(self.operator[](i));
-	}
+	// constexpr inline auto col(this auto&& self, int i) -> decltype(std::forward<decltype(self)>(self).m_col[i]) {
+	// 	return std::forward_like<decltype(self)>(self.operator[](i));
+	// }
+
+	constexpr inline auto col(int i) -> float4& { return m_col[i]; }
+	constexpr inline auto col(int i) const -> float4 const& { return m_col[i]; }
 
 	constexpr inline void set_col(int i, float4 const& a_col) { m_col[i] = a_col; }
 	constexpr inline void set_row(int i, float4 const& value) {
@@ -205,9 +206,15 @@ struct float4x4 {
 		m_col[3][i] = value[3];
 	}
 
-	constexpr inline auto operator[](this auto&& self, int col) -> auto&& { return std::forward<decltype(self)>(self).m_col[col]; }
-	constexpr inline auto operator[](this auto&& self, int row, int col) -> auto&& { return std::forward<decltype(self)>(self).m_col[col][row]; }
-	constexpr inline auto operator()(this auto&& self, int row, int col) -> auto&& { return std::forward<decltype(self)>(self).m_col[col][row]; }
+	// constexpr inline auto operator[](this auto&& self, int col) -> auto&& { return std::forward<decltype(self)>(self).m_col[col]; }
+	// constexpr inline auto operator[](this auto&& self, int row, int col) -> auto&& { return std::forward<decltype(self)>(self).m_col[col][row]; }
+	// constexpr inline auto operator()(this auto&& self, int row, int col) -> auto&& { return std::forward<decltype(self)>(self).m_col[col][row]; }
+
+	constexpr inline auto operator[](int i) -> float4& { return m_col[i]; }
+	constexpr inline auto operator[](int i) const -> float4 const& { return m_col[i]; }
+
+	constexpr inline auto operator()(int row, int col) -> float& { return m_col[col][row]; }
+	constexpr inline auto operator()(int row, int col) const -> float const& { return m_col[col][row]; }
 
 	union {
 		float4 m_col[4];
@@ -319,15 +326,15 @@ constexpr inline auto operator/(float const value, float4 const& vec) -> float4 
 // clang-format on
 
 inline float3x3::float3x3(float4x4 const& from4x4) {
-	m_col[0] = from4x4.m_col[0].xyz;
-	m_col[1] = from4x4.m_col[1].xyz;
-	m_col[2] = from4x4.m_col[2].xyz;
+	m_col[0] = from4x4.m_col[0].xyz();
+	m_col[1] = from4x4.m_col[1].xyz();
+	m_col[2] = from4x4.m_col[2].xyz();
 }
 
 constexpr inline float  dot(float3 const& a, float3 const& b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
 constexpr inline float3 abs(float3 const& a) { return float3{std::abs(a.x), std::abs(a.y), std::abs(a.z)}; }
-constexpr inline float  length(float3 const& a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z); }
-constexpr inline float3 normalize(float3 const& a) { return a / length(a); }
+inline float            length(float3 const& a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z); }
+inline float3           normalize(float3 const& a) { return a / length(a); }
 constexpr inline float3 clamp(float3 const& a, float3 const& min, float3 const& max) { return float3{std::clamp(a.x, min.x, max.x), std::clamp(a.y, min.y, max.y), std::clamp(a.z, min.z, max.z)}; }
 constexpr inline float3 lerp(float3 const& a, float3 const& b, float const t) { return float3{std::lerp(a.x, b.x, t), std::lerp(a.y, b.y, t), std::lerp(a.z, b.z, t)}; }
 
@@ -375,12 +382,12 @@ inline float4x4 perspectiveX(float fov_x, float aspect, float z_near, float z_fa
 	float tan_half_fov_inverse = 1.0f / std::tanf(fov_x * DEG_TO_RAD / 2.0f);
 
 	float4x4 result;
-	result[0, 0] = tan_half_fov_inverse;
-	result[1, 1] = aspect * tan_half_fov_inverse;
-	result[2, 2] = -(z_far + z_near) / (z_far - z_near);
-	result[3, 2] = -1.0f;
-	result[2, 3] = -(2.0f * z_far * z_near) / (z_far - z_near);
-	result[3, 3] = 0.0f;
+	result(0, 0) = tan_half_fov_inverse;
+	result(1, 1) = aspect * tan_half_fov_inverse;
+	result(2, 2) = -(z_far + z_near) / (z_far - z_near);
+	result(3, 2) = -1.0f;
+	result(2, 3) = -(2.0f * z_far * z_near) / (z_far - z_near);
+	result(3, 3) = 0.0f;
 	return result;
 }
 
@@ -388,19 +395,19 @@ inline float4x4 perspectiveY(float fov_y, float aspect, float z_near, float z_fa
 	float tan_half_fov_inverse = 1.0f / std::tanf(fov_y * DEG_TO_RAD / 2.0f);
 
 	float4x4 result;
-	result[0, 0] = aspect * tan_half_fov_inverse;
-	result[1, 1] = tan_half_fov_inverse;
-	result[2, 2] = -(z_far + z_near) / (z_far - z_near);
-	result[3, 2] = -1.0f;
-	result[2, 3] = -(2.0f * z_far * z_near) / (z_far - z_near);
-	result[3, 3] = 0.0f;
+	result(0, 0) = aspect * tan_half_fov_inverse;
+	result(1, 1) = tan_half_fov_inverse;
+	result(2, 2) = -(z_far + z_near) / (z_far - z_near);
+	result(3, 2) = -1.0f;
+	result(2, 3) = -(2.0f * z_far * z_near) / (z_far - z_near);
+	result(3, 3) = 0.0f;
 	return result;
 }
 inline float3x3 transpose(float3x3 const& m1) {
 	float3x3 res;
-	res[0] = float3{m1[0, 0], m1[1, 0], m1[2, 0]};
-	res[1] = float3{m1[0, 1], m1[1, 1], m1[2, 1]};
-	res[2] = float3{m1[0, 2], m1[1, 2], m1[2, 2]};
+	res[0] = float3{m1(0, 0), m1(1, 0), m1(2, 0)};
+	res[1] = float3{m1(0, 1), m1(1, 1), m1(2, 1)};
+	res[2] = float3{m1(0, 2), m1(1, 2), m1(2, 2)};
 	return res;
 }
 
@@ -553,7 +560,7 @@ inline float4x4 transpose(float4x4 const& m1) {
 
 inline float4x4 affineInverse(float4x4 const& m) {
 	auto inv = inverse(float3x3(m));
-	auto l   = -(inv * m.m_col[3].xyz);
+	auto l   = -(inv * m.m_col[3].xyz());
 
 	return float4x4{
 		float4{inv.m_col[0], 0.0f},

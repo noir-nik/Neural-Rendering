@@ -10,6 +10,7 @@ export module VulkanModule;
 #endif
 
 export extern "C" {
+#define static extern "C"
 #include "vulkan/vulkan.h"
 }
 
