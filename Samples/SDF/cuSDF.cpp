@@ -23,9 +23,25 @@ extern "C++" {
 #include "Shaders/SDFWeights.h"
 
 using namespace Utils;
-using namespace mesh;
 
-class SDFSample {
+struct PhysDevice : public VulkanRHI::PhysicalDevice {
+	PhysDevice() {
+	}
+	bool IsSuitable(vk::SurfaceKHR const& surface, std::span<char const* const> extensions) {
+		bool const supports_extensions =
+			SupportsExtensions(extensions);
+		bool const supports_queues =
+			SupportsQueue({.flags = vk::QueueFlagBits::eGraphics, .surface = surface});
+		if (supports_extensions && supports_queues) {
+			return true;
+		}
+		return false;
+	}
+
+	inline float GetNsPerTick() const { return static_cast<float>(GetProperties10().limits.timestampPeriod); }
+};
+
+class CuSDFSample {
 public:
 	static constexpr u32 kApiVersion = vk::ApiVersion13;
 
@@ -34,9 +50,6 @@ public:
 	};
 	static constexpr char const* kEnabledDeviceExtensions[] = {
 		vk::KHRSwapchainExtensionName,
-		vk::NVCooperativeVectorExtensionName,
-		vk::NVCooperativeVectorExtensionName,
-		vk::EXTShaderReplicatedCompositesExtensionName,
 	};
 
 	static constexpr vk::ComponentTypeKHR kSrcComponentType = COMPONENT_TYPE;
@@ -52,7 +65,7 @@ public:
 		u32 biases_offsets[kNetworkLayers];
 	};
 
-	~SDFSample();
+	~CuSDFSample();
 
 	void Init();
 	void Run();
@@ -62,26 +75,21 @@ public:
 	void SelectPhysicalDevice();
 	void GetPhysicalDeviceInfo();
 	void CreateDevice();
-	void CreateSwapchain();
 
 	void RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offsets);
-	// Return time in nanoseconds
-	auto GetQueryResult() -> u64;
-	// auto DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets) -> u64;
 	auto DrawWindow() -> u64;
-	// auto DrawWindow() -> u64 { return DrawWindow(pipelines[u32(SdfFunctionType::eScalarBuffer)], row_major_offsets); }
 	void RecreateSwapchain(int width, int height);
 	void SaveSwapchainImageToFile(std::string_view filename);
 
 	auto GetAllocator() const -> vk::AllocationCallbacks const* { return allocator; }
 	auto GetPipelineCache() const -> vk::PipelineCache { return pipeline_cache; }
-	bool IsTestMode() const { return bIsTestMode; }
+	bool IsTestMode() const { return is_test_mode; }
 
 	auto ParseArgs(int argc, char const* argv[]) -> char const*;
 
-	bool bIsTestMode    = false;
-	bool bVerbose       = false;
-	bool bUseValidation = false;
+	bool is_test_mode   = false;
+	bool is_verbose     = false;
+	bool use_validation = false;
 
 	GLFWWindow window{};
 	Mouse      mouse;
@@ -93,7 +101,7 @@ public:
 	vk::DebugUtilsMessengerEXT      debug_messenger{};
 	std::span<char const* const>    enabled_layers{};
 	std::vector<vk::PhysicalDevice> vulkan_physical_devices{};
-	PhysicalDevice                  physical_device{};
+	PhysDevice                      physical_device{};
 	vk::Device                      device{};
 	VulkanRHI::Swapchain            swapchain{};
 	bool                            swapchain_dirty = false;
@@ -114,8 +122,9 @@ public:
 	}};
 };
 
-static void FramebufferSizeCallback(GLFWWindow* window, int width, int height) {
-	SDFSample* sample = static_cast<SDFSample*>(window->GetUserPointer());
+namespace {
+void FramebufferSizeCallback(GLFWWindow* window, int width, int height) {
+	CuSDFSample* sample = static_cast<CuSDFSample*>(window->GetUserPointer());
 
 	sample->swapchain_dirty = true;
 	if (width <= 0 || height <= 0) return;
@@ -123,8 +132,8 @@ static void FramebufferSizeCallback(GLFWWindow* window, int width, int height) {
 	sample->camera.updateProjection(width, height);
 }
 
-static void WindowRefreshCallback(GLFWWindow* window) {
-	SDFSample* sample = static_cast<SDFSample*>(window->GetUserPointer());
+void WindowRefreshCallback(GLFWWindow* window) {
+	CuSDFSample* sample = static_cast<CuSDFSample*>(window->GetUserPointer());
 
 	int x, y, width, height;
 	window->GetRect(x, y, width, height);
@@ -132,8 +141,8 @@ static void WindowRefreshCallback(GLFWWindow* window) {
 	sample->DrawWindow();
 }
 
-static void CursorPosCallback(GLFWWindow* window, double xpos, double ypos) {
-	SDFSample* sample = static_cast<SDFSample*>(window->GetUserPointer());
+void CursorPosCallback(GLFWWindow* window, double xpos, double ypos) {
+	CuSDFSample* sample = static_cast<CuSDFSample*>(window->GetUserPointer());
 
 	sample->mouse.delta_x = static_cast<float>(xpos - sample->mouse.x);
 	sample->mouse.delta_y = -static_cast<float>(ypos - sample->mouse.y);
@@ -143,8 +152,8 @@ static void CursorPosCallback(GLFWWindow* window, double xpos, double ypos) {
 	ProcessViewportInput(sample->window, sample->camera, sample->mouse, sample->mouse.delta_x, sample->mouse.delta_y);
 }
 
-static void KeyCallback(GLFWWindow* window, int key, int scancode, int action, int mods) {
-	SDFSample* sample = static_cast<SDFSample*>(window->GetUserPointer());
+void KeyCallback(GLFWWindow* window, int key, int scancode, int action, int mods) {
+	CuSDFSample* sample = static_cast<CuSDFSample*>(window->GetUserPointer());
 	using namespace Glfw;
 	if (Action(action) == Action::ePress) {
 		switch (Key(key)) {
@@ -161,8 +170,8 @@ static void KeyCallback(GLFWWindow* window, int key, int scancode, int action, i
 	}
 }
 
-static void MouseButtonCallback(GLFWWindow* in_window, int in_button, int in_action, int in_mods) {
-	SDFSample* sample = static_cast<SDFSample*>(in_window->GetUserPointer());
+void MouseButtonCallback(GLFWWindow* in_window, int in_button, int in_action, int in_mods) {
+	CuSDFSample* sample = static_cast<CuSDFSample*>(in_window->GetUserPointer());
 	using namespace Glfw;
 
 	MouseButton button = static_cast<MouseButton>(in_button);
@@ -181,15 +190,16 @@ static void MouseButtonCallback(GLFWWindow* in_window, int in_button, int in_act
 		}
 	}
 }
+} // namespace
 
-void SDFSample::Init() {
+void CuSDFSample::Init() {
 	WindowManager::SetErrorCallback(WindowErrorCallback);
 	WindowManager::Init();
 
 	u32 const initial_width = 1600, initial_height = 1200;
 	window.Init({.x = 30, .y = 30, .width = initial_width, .height = initial_height, .title = "SDF"});
 	window.GetWindowCallbacks().framebufferSizeCallback = FramebufferSizeCallback;
-	if (!bIsTestMode) {
+	if (!is_test_mode) {
 		window.GetWindowCallbacks().windowRefreshCallback = WindowRefreshCallback;
 	}
 
@@ -198,32 +208,38 @@ void SDFSample::Init() {
 
 	camera.updateProjection(initial_width, initial_height);
 
-	window.GetInputCallbacks().cursorPosCallback   = CursorPosCallback;
-	window.GetInputCallbacks().keyCallback         = KeyCallback;
-	window.GetInputCallbacks().mouseButtonCallback = MouseButtonCallback;
+	auto& input = window.GetInputCallbacks();
+
+	input.cursorPosCallback   = CursorPosCallback;
+	input.keyCallback         = KeyCallback;
+	input.mouseButtonCallback = MouseButtonCallback;
 	window.SetUserPointer(this);
 
 	CreateInstance();
 
 	CHECK_VULKAN_RESULT(WindowManager::CreateWindowSurface(
-		instance, reinterpret_cast<GLFWwindow*>(window.GetHandle()),
+		instance, static_cast<GLFWwindow*>(window.GetHandle()),
 		GetAllocator(), &surface));
 
 	SelectPhysicalDevice();
 	GetPhysicalDeviceInfo();
 
 	CreateDevice();
-	CreateSwapchain();
 
-	// network_parameters.resize(network.GetParametersSize());
-
-	auto [result, cooperative_vector_properties] = physical_device.getCooperativeVectorPropertiesNV();
-	CHECK_VULKAN_RESULT(result);
+	// Create Swapchain
+	window.GetRect(x, y, width, height);
+	VulkanRHI::SwapchainInfo info{
+		.surface            = surface,
+		.extent             = {.width = static_cast<u32>(width), .height = static_cast<u32>(height)},
+		.queue_family_index = queue_family_index,
+		.frames_in_flight   = kFramesInFlight,
+	};
+	CHECK_VULKAN_RESULT(swapchain.Create(device, physical_device, info, GetAllocator()));
 }
 
-SDFSample::~SDFSample() { Destroy(); }
+CuSDFSample::~CuSDFSample() { Destroy(); }
 
-void SDFSample::Destroy() {
+void CuSDFSample::Destroy() {
 
 	if (device) {
 		CHECK_VULKAN_RESULT(device.waitIdle());
@@ -249,7 +265,7 @@ void SDFSample::Destroy() {
 	WindowManager::Terminate();
 }
 
-void SDFSample::CreateInstance() {
+void CuSDFSample::CreateInstance() {
 	vk::ApplicationInfo applicationInfo{.apiVersion = kApiVersion};
 
 	u32 glfw_extensions_count;
@@ -257,7 +273,7 @@ void SDFSample::CreateInstance() {
 	char const** glfw_extensions = WindowManager::GetRequiredInstanceExtensions(&glfw_extensions_count);
 
 	std::vector<char const*> enabledExtensions(glfw_extensions, glfw_extensions + glfw_extensions_count);
-	if (bUseValidation) {
+	if (use_validation) {
 		enabled_layers = kEnabledLayers;
 		enabledExtensions.push_back(vk::EXTDebugUtilsExtensionName);
 	}
@@ -275,7 +291,7 @@ void SDFSample::CreateInstance() {
 	};
 
 	vk::InstanceCreateInfo info{
-		.pNext                   = bUseValidation ? &kDebugUtilsCreateInfo : nullptr,
+		.pNext                   = use_validation ? &kDebugUtilsCreateInfo : nullptr,
 		.pApplicationInfo        = &applicationInfo,
 		.enabledLayerCount       = static_cast<u32>(std::size(enabled_layers)),
 		.ppEnabledLayerNames     = enabled_layers.data(),
@@ -284,7 +300,7 @@ void SDFSample::CreateInstance() {
 	};
 	CHECK_VULKAN_RESULT(vk::createInstance(&info, GetAllocator(), &instance));
 
-	if (bUseValidation) {
+	if (use_validation) {
 		LoadInstanceDebugUtilsFunctionsEXT(instance);
 		CHECK_VULKAN_RESULT(instance.createDebugUtilsMessengerEXT(&kDebugUtilsCreateInfo, allocator, &debug_messenger));
 	}
@@ -294,12 +310,12 @@ void SDFSample::CreateInstance() {
 	CHECK_VULKAN_RESULT(result);
 }
 
-void SDFSample::SelectPhysicalDevice() {
+void CuSDFSample::SelectPhysicalDevice() {
 	for (vk::PhysicalDevice const& device : vulkan_physical_devices) {
 		physical_device.Assign(device);
 		CHECK_VULKAN_RESULT(physical_device.GetDetails());
 		if (physical_device.IsSuitable(surface, kEnabledDeviceExtensions)) {
-			if (bVerbose) {
+			if (is_verbose) {
 			}
 			return;
 		}
@@ -311,10 +327,10 @@ void SDFSample::SelectPhysicalDevice() {
 	std::exit(1);
 }
 
-void SDFSample::GetPhysicalDeviceInfo() {
+void CuSDFSample::GetPhysicalDeviceInfo() {
 }
 
-void SDFSample::CreateDevice() {
+void CuSDFSample::CreateDevice() {
 	float const queue_priorities[] = {1.0f};
 
 	auto [result, index] = physical_device.GetQueueFamilyIndex({.surface = surface});
@@ -355,26 +371,14 @@ void SDFSample::CreateDevice() {
 	queue = device.getQueue(queue_create_infos[0].queueFamilyIndex, 0);
 }
 
-void SDFSample::CreateSwapchain() {
-	int x, y, width, height;
-	window.GetRect(x, y, width, height);
-	VulkanRHI::SwapchainInfo info{
-		.surface            = surface,
-		.extent             = {.width = static_cast<u32>(width), .height = static_cast<u32>(height)},
-		.queue_family_index = queue_family_index,
-		.frames_in_flight   = kFramesInFlight,
-	};
-	CHECK_VULKAN_RESULT(swapchain.Create(device, physical_device, info, GetAllocator()));
-}
-
-auto SDFSample::DrawWindow() -> u64 {
+auto CuSDFSample::DrawWindow() -> u64 {
 	return {};
 }
 
-void SDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offsets) {
+void CuSDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offsets) {
 }
 
-void SDFSample::RecreateSwapchain(int width, int height) {
+void CuSDFSample::RecreateSwapchain(int width, int height) {
 	for (auto& frame : swapchain.GetFrameData()) {
 		CHECK_VULKAN_RESULT(device.waitForFences(1, &frame.GetFence(), vk::True, std::numeric_limits<u32>::max()));
 	}
@@ -382,10 +386,10 @@ void SDFSample::RecreateSwapchain(int width, int height) {
 	swapchain_dirty = false;
 }
 
-void SDFSample::SaveSwapchainImageToFile(std::string_view filename) {
+void CuSDFSample::SaveSwapchainImageToFile(std::string_view filename) {
 }
 
-void SDFSample::Run() {
+void CuSDFSample::Run() {
 	do {
 		WindowManager::WaitEvents();
 		if (window.GetShouldClose()) break;
@@ -396,14 +400,14 @@ void SDFSample::Run() {
 	} while (true);
 }
 
-void SDFSample::RunTest() {
+void CuSDFSample::RunTest() {
 }
 
-auto SDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
+auto CuSDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 	for (std::string_view const arg : std::span(argv + 1, argc - 1)) {
-		if (arg == "--test" || arg == "-t") bIsTestMode = true;
-		else if (arg == "--verbose") bVerbose = true;
-		else if (arg == "--validation") bUseValidation = true;
+		if (arg == "--test" || arg == "-t") is_test_mode = true;
+		else if (arg == "--verbose") is_verbose = true;
+		else if (arg == "--validation") use_validation = true;
 		else return arg.data();
 	}
 	return nullptr;
@@ -411,7 +415,7 @@ auto SDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 
 auto main(int argc, char const* argv[]) -> int {
 	std::filesystem::current_path(std::filesystem::absolute(argv[0]).parent_path());
-	SDFSample sample;
+	CuSDFSample sample;
 
 	if (char const* unknown_arg = sample.ParseArgs(argc, argv); unknown_arg) {
 		std::printf("Unknown argument: %s\n", unknown_arg);
