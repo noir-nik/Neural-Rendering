@@ -115,6 +115,9 @@ public:
 	auto GetPresentMode() -> vk::PresentModeKHR& { return info.present_mode; }
 	auto GetPresentMode() const -> vk::PresentModeKHR const& { return info.present_mode; }
 
+	auto GetImages() -> std::span<vk::Image> { return images; }
+	auto GetImages() const -> std::span<vk::Image const> { return images; }
+
 private:
 	bool SupportsFormat(vk::Format format, vk::ImageTiling tiling, vk::FormatFeatureFlags features);
 	auto ChooseSurfaceFormat(vk::SurfaceFormatKHR const& desired_surface_format) -> vk::SurfaceFormatKHR;

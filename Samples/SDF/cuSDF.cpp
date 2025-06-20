@@ -1,5 +1,18 @@
+
+#include <cstdio>
+// #include <cuda.h>
+#include <cuda_runtime.h>
+
 #include "CheckResult.h"
 #include "Shaders/SDFConfig.h"
+
+// #ifdef _WIN64
+// #define WIN32_LEAN_AND_MEAN
+// #include <windows.h>
+// #include <VersionHelpers.h>
+// #endif
+
+typedef void* HANDLE;
 
 import NeuralGraphics;
 import vulkan_hpp;
@@ -17,12 +30,77 @@ using float32_t = float;
 using namespace math;
 
 extern "C++" {
-#include "Shaders/SDFConstants.h"
+// #include "Shaders/SDFConstants.h"
 }
 
 #include "Shaders/SDFWeights.h"
 
+#define _CHECK_VULKAN_RESULT2(func, line) \
+	{ \
+		::vk::Result local_result_##line = ::vk::Result(func); \
+		if (local_result_##line != ::vk::Result::eSuccess) [[unlikely]] { \
+			::std::printf("Vulkan error: %s " #func " in " __FILE__ ":" #line, ::vk::to_string(local_result_##line).c_str()); \
+			::std::exit(1); \
+		} \
+	}
+
+#define _CHECK_VULKAN_RESULT(func, line) _CHECK_VULKAN_RESULT2(func, line)
+#define CHECK_VULKAN_RESULT(func) _CHECK_VULKAN_RESULT(func, __LINE__)
+
+#define STRINGIFY(x) #x
+
+#define MACRO_FWD(macro, ...) macro(__VA_ARGS__)
+
+#define _CHECK_CUDA_RT(expr, line) \
+	{ \
+		auto local_result_##line = (expr); \
+		if (cudaSuccess != local_result_##line) { \
+			char const* error_str_##line = cudaGetErrorString(local_result_##line); \
+			::std::fprintf(stderr, "CUDA error: %s " #expr " in " __FILE__ ":" #line, error_str_##line); \
+			::std::exit(1); \
+		} \
+	}
+
+#define CHECK_CUDA_RT(func) MACRO_FWD(_CHECK_CUDA_RT, func, __LINE__)
+
 using namespace Utils;
+
+#ifdef _WIN64
+HANDLE GetVkImageMemoryHandle(vk::Device device, vk::DeviceMemory memory, vk::ExternalMemoryHandleTypeFlagBitsKHR type) {
+	vk::MemoryGetWin32HandleInfoKHR info = {.memory = memory, .handleType = type};
+
+	HANDLE handle;
+	CHECK_VULKAN_RESULT(device.getMemoryWin32HandleKHR(&info, &handle));
+	return handle;
+}
+
+HANDLE GetVkSemaphoreHandle(vk::Device device, vk::Semaphore semaphore, vk::ExternalSemaphoreHandleTypeFlagBitsKHR type) {
+	vk::SemaphoreGetWin32HandleInfoKHR info = {.semaphore = semaphore, .handleType = type};
+
+	HANDLE handle;
+	CHECK_VULKAN_RESULT(device.getSemaphoreWin32HandleKHR(&info, &handle));
+	// auto [result, handle] = device.getSemaphoreWin32HandleKHR({.semaphore = semaphore, .handleType = type});
+	// CHECK_VULKAN_RESULT(result);
+	return handle;
+}
+#else
+
+#endif
+
+auto ImportVkSemaphore(vk::Device device, vk::Semaphore sem) -> cudaExternalSemaphore_t {
+	cudaExternalSemaphoreHandleDesc desc{
+#ifdef _WIN64
+		.type   = cudaExternalSemaphoreHandleTypeOpaqueWin32,
+		.handle = {.win32 = {.handle = GetVkSemaphoreHandle(device, sem, vk::ExternalSemaphoreHandleTypeFlagBitsKHR::eOpaqueWin32)}},
+#else
+		.type   = cudaExternalSemaphoreHandleTypeOpaqueFd,
+		.handle = {.fd = getVkSemaphoreHandle(device, sem, vk::ExternalSemaphoreHandleTypeFlagBitsKHR::eOpaqueFd)},
+#endif
+	};
+	cudaExternalSemaphore_t ret;
+	CHECK_CUDA_RT(cudaImportExternalSemaphore(&ret, &desc));
+	return ret;
+}
 
 struct PhysDevice : public VulkanRHI::PhysicalDevice {
 	PhysDevice() {
@@ -40,6 +118,25 @@ struct PhysDevice : public VulkanRHI::PhysicalDevice {
 
 	inline float GetNsPerTick() const { return static_cast<float>(GetProperties10().limits.timestampPeriod); }
 };
+class CuSDFSample;
+
+struct CudaContext {
+	// Cuda
+	cudaExternalMemory_t external_memory = nullptr;
+	cudaMipmappedArray_t mipmap_array    = nullptr;
+	cudaArray_t          array           = nullptr;
+	cudaSurfaceObject_t  surface         = 0;
+	cudaStream_t         stream          = nullptr;
+
+	std::vector<cudaExternalSemaphore_t> wait_semaphores;
+	std::vector<cudaExternalSemaphore_t> signal_semaphores;
+
+	void Init(CuSDFSample const& sample);
+
+	void ImportImages(CuSDFSample const& sample);
+
+	void Render(vk::CommandBuffer cmd);
+};
 
 class CuSDFSample {
 public:
@@ -49,6 +146,13 @@ public:
 		"VK_LAYER_KHRONOS_validation",
 	};
 	static constexpr char const* kEnabledDeviceExtensions[] = {
+#ifdef _WIN64
+		vk::KHRExternalMemoryWin32ExtensionName,
+		vk::KHRExternalSemaphoreWin32ExtensionName,
+#else
+		vk::KHRExternalMemoryFdExtensionName,
+		vk::KHRExternalSemaphoreFdExtensionName,
+#endif
 		vk::KHRSwapchainExtensionName,
 	};
 
@@ -60,14 +164,16 @@ public:
 
 	static constexpr u32 kNetworkLayers = 4;
 
-	struct NetworkOffsets {
-		u32 weights_offsets[kNetworkLayers];
-		u32 biases_offsets[kNetworkLayers];
-	};
+	// struct NetworkOffsets {
+	// 	u32 weights_offsets[kNetworkLayers];
+	// 	u32 biases_offsets[kNetworkLayers];
+	// };
 
 	~CuSDFSample();
 
 	void Init();
+	// void InitCuda();
+	// void DestroyCuda();
 	void Run();
 	void RunTest();
 	void Destroy();
@@ -76,7 +182,7 @@ public:
 	void GetPhysicalDeviceInfo();
 	void CreateDevice();
 
-	void RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offsets);
+	void RecordCommands();
 	auto DrawWindow() -> u64;
 	void RecreateSwapchain(int width, int height);
 	void SaveSwapchainImageToFile(std::string_view filename);
@@ -111,6 +217,8 @@ public:
 	u32       queue_family_index = ~0u;
 
 	bool timestamps_supported = false;
+
+	CudaContext cuda;
 
 	Camera camera{{
 		.position = {-4.180247, -0.427392, 0.877357},
@@ -237,6 +345,56 @@ void CuSDFSample::Init() {
 	CHECK_VULKAN_RESULT(swapchain.Create(device, physical_device, info, GetAllocator()));
 }
 
+struct CudaImage {
+	cudaExternalMemory_t external_memory = nullptr;
+	cudaMipmappedArray_t mipmap_array    = nullptr;
+	cudaArray_t          array           = nullptr;
+	cudaSurfaceObject_t  surface         = 0;
+};
+
+void CudaContext::Init(CuSDFSample const& sample) {
+	CHECK_CUDA_RT(cudaSetDevice(0));
+	CHECK_CUDA_RT(cudaStreamCreate(&stream));
+
+	// int x, y, width, height;
+	// sample.window.GetRect(x, y, width, height);
+
+	// Import semaphores
+	auto swapchain_images = sample.swapchain.GetImages();
+	auto frames           = sample.swapchain.GetFrameData();
+
+	wait_semaphores.resize(swapchain_images.size());
+	signal_semaphores.resize(swapchain_images.size());
+	for (size_t i = 0; i < swapchain_images.size(); ++i) {
+		wait_semaphores[i]   = ImportVkSemaphore(sample.device, frames[i].GetImageAvailableSemaphore());
+		signal_semaphores[i] = ImportVkSemaphore(sample.device, frames[i].GetRenderFinishedSemaphore());
+	}
+
+	// Import images
+	auto images = sample.swapchain.GetImages();
+
+	auto extent = sample.swapchain.GetExtent();
+
+	// Create cudaExternalMemory_t
+
+	for (size_t i = 0; i < images.size(); ++i) {
+		CudaImage                            cuda_image;
+		cudaExternalMemoryMipmappedArrayDesc desc{
+			.offset     = 0,
+			.formatDesc = cudaChannelFormatDesc{.x = 8, .y = 8, .z = 8, .w = 8, .f = cudaChannelFormatKind::cudaChannelFormatKindUnsigned},
+			.extent     = {.width = extent.width, .height = extent.height, .depth = 1},
+			.numLevels  = 1,
+		};
+		CHECK_CUDA_RT(cudaExternalMemoryGetMappedMipmappedArray(&cuda_image.mipmap_array, cuda_image.external_memory, &desc));
+		CHECK_CUDA_RT(cudaGetMipmappedArrayLevel(&cuda_image.array, cuda_image.mipmap_array, 0));
+		cudaResourceDesc resource_desc{
+			.resType = cudaResourceType::cudaResourceTypeArray,
+			.res     = {.array = {.array = cuda_image.array}},
+		};
+		CHECK_CUDA_RT(cudaCreateSurfaceObject(&cuda_image.surface, &resource_desc));
+	}
+};
+
 CuSDFSample::~CuSDFSample() { Destroy(); }
 
 void CuSDFSample::Destroy() {
@@ -264,6 +422,11 @@ void CuSDFSample::Destroy() {
 	window.Destroy();
 	WindowManager::Terminate();
 }
+
+// void CuSDFSample::InitCuda() {
+// };
+
+// void CuSDFSample::DestroyCuda() {};
 
 void CuSDFSample::CreateInstance() {
 	vk::ApplicationInfo applicationInfo{.apiVersion = kApiVersion};
@@ -371,11 +534,87 @@ void CuSDFSample::CreateDevice() {
 	queue = device.getQueue(queue_create_infos[0].queueFamilyIndex, 0);
 }
 
+// Draw to swapchain image
 auto CuSDFSample::DrawWindow() -> u64 {
+	auto HandleSwapchainResult = [this](vk::Result result) -> bool {
+		switch (result) {
+		case vk::Result::eSuccess:           return true;
+		case vk::Result::eErrorOutOfDateKHR: swapchain_dirty = true; return false;
+		case vk::Result::eSuboptimalKHR:     swapchain_dirty = true; return true;
+		default:
+			CHECK_VULKAN_RESULT(result);
+		}
+		return false;
+	};
+	CHECK_VULKAN_RESULT(device.waitForFences(1, &swapchain.GetCurrentFence(), vk::True, std::numeric_limits<u32>::max()));
+	CHECK_VULKAN_RESULT(device.resetFences(1, &swapchain.GetCurrentFence()));
+	device.resetCommandPool(swapchain.GetCurrentCommandPool());
+	if (!HandleSwapchainResult(swapchain.AcquireNextImage())) return 0ull;
+	RecordCommands();
+	if (!HandleSwapchainResult(swapchain.SubmitAndPresent(queue, queue))) return 0ull;
 	return {};
 }
 
-void CuSDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offsets) {
+void CuSDFSample::RecordCommands() {
+	int x, y, width, height;
+	window.GetRect(x, y, width, height);
+
+	vk::Rect2D               render_rect{{0, 0}, {static_cast<u32>(width), static_cast<u32>(height)}};
+	VulkanRHI::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
+	CHECK_VULKAN_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
+	// cmd.resetQueryPool(timestamp_query_pool, GetCurrentTimestampIndex(), kTimestampsPerFrame);
+	// cmd.writeTimestamp(vk::PipelineStageFlagBits::eTopOfPipe, timestamp_query_pool, GetCurrentTimestampIndex());
+
+	vk::Image swapchain_image = swapchain.GetCurrentImage();
+	// cmd.SetViewport({0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height), 0.0f, 1.0f});
+	cmd.SetViewport({0.0f, static_cast<float>(height), static_cast<float>(width), -static_cast<float>(height), 0.0f, 1.0f});
+	cmd.SetScissor(render_rect);
+	cmd.Barrier({
+		.image         = swapchain_image,
+		.aspectMask    = vk::ImageAspectFlagBits::eColor,
+		.oldLayout     = vk::ImageLayout::eUndefined,
+		.newLayout     = vk::ImageLayout::eColorAttachmentOptimal,
+		.srcStageMask  = vk::PipelineStageFlagBits2::eNone,
+		.srcAccessMask = vk::AccessFlagBits2::eNone,
+		.dstStageMask  = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+		.dstAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
+	});
+
+	camera.updateProjectionViewInverse();
+
+	// Render
+
+	cmd.Barrier({
+		.image         = swapchain_image,
+		.aspectMask    = vk::ImageAspectFlagBits::eColor,
+		.oldLayout     = vk::ImageLayout::eColorAttachmentOptimal,
+		.newLayout     = vk::ImageLayout::ePresentSrcKHR,
+		.srcStageMask  = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+		.srcAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
+		.dstStageMask  = vk::PipelineStageFlagBits2::eNone,
+		.dstAccessMask = vk::AccessFlagBits2::eNone,
+	});
+	CHECK_VULKAN_RESULT(cmd.end());
+}
+
+void CudaContext::Render(vk::CommandBuffer cmd, cudaExternalSemaphore_t wait, cudaExternalSemaphore_t signal) {
+	// Wait for Vulkan semaphore in CUDA
+	cudaExternalSemaphoreWaitParams wait_params = {};
+	CHECK_CUDA_RT(cudaWaitExternalSemaphoresAsync(&wait, &wait_params, 1, stream))
+
+	// Launch CUDA kernel
+	dim3 block_size(16, 16);
+	dim3 grid_size((width + block_size.x - 1) / block_size.x,
+				   (height + block_size.y - 1) / block_size.y);
+
+	// rayMarchKernel<<<grid_size, block_size, 0, stream>>>(
+	// 	surface, width, height,
+	// 	camera_pos, camera_forward, camera_right, camera_up, fov);
+	CHECK_CUDA_RT(cudaGetLastError());
+
+	// Signal semaphore when CUDA is done
+	cudaExternalSemaphoreSignalParams signal_params = {};
+	CHECK_CUDA_RT(cudaSignalExternalSemaphoresAsync(&signal, &signal_params, 1, stream))
 }
 
 void CuSDFSample::RecreateSwapchain(int width, int height) {

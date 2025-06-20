@@ -11,7 +11,7 @@ export module VulkanModule;
 
 export extern "C" {
 #define static extern "C"
-#include "vulkan/vulkan.h"
+#include "vulkan/vulkan_core.h"
 }
 
 #if defined(__clang__)
