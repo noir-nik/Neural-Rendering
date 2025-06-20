@@ -38,6 +38,10 @@ set(VULKAN_HPP_DEFINITIONS
 	VULKAN_HPP_NO_SPACESHIP_OPERATOR
 )
 
+if (WIN32)
+	set(VULKAN_HPP_DEFINITIONS ${VULKAN_HPP_DEFINITIONS} VK_USE_PLATFORM_WIN32_KHR)
+endif()
+
 target_compile_definitions(${PROJECT_NAME} PUBLIC ${VULKAN_HPP_DEFINITIONS})
 
 # Includes
@@ -80,13 +84,13 @@ target_compile_definitions(VulkanHppModule PUBLIC ${VULKAN_HPP_DEFINITIONS})
 
 # CUDA
 # message(STATUS "CMAKE_CXX_COMPILER_FRONTEND_VARIANT:" ${CMAKE_CXX_COMPILER_FRONTEND_VARIANT})
-
-if (WIN32 AND NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-else()
-	find_package(CUDAToolkit)
-	if (CUDAToolkit_FOUND)
-		set(WITH_CUDA 1)
+find_package(CUDAToolkit)
+if (CUDAToolkit_FOUND)
+	set(WITH_CUDA 1)
+	if (WIN32 AND NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+	else()
 		enable_language(CUDA)
+	endif()
 
 		if (NOT CUDA_LIBRARY_DIR)
 			message(FATAL_ERROR "CUDA_LIBRARY_DIR is not specified")
@@ -104,7 +108,6 @@ else()
 		)
 
 	endif() 
-endif()
 
 
 # Sanitize
