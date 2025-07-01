@@ -38,3 +38,4 @@ void LoadInstanceCooperativeVectorFunctionsNV(vk::Instance instance) {
 	pfn_vkCmdConvertCooperativeVectorMatrixNV = reinterpret_cast<PFN_vkCmdConvertCooperativeVectorMatrixNV>(
 		vkGetInstanceProcAddr(instance, "vkCmdConvertCooperativeVectorMatrixNV"));
 }
+

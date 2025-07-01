@@ -5,9 +5,9 @@
 import VulkanExtensions;
 
 // VK_EXT_debug_utils
-PFN_vkCreateDebugUtilsMessengerEXT  pfn_vkCreateDebugUtilsMessengerEXT = nullptr;
+PFN_vkCreateDebugUtilsMessengerEXT  pfn_vkCreateDebugUtilsMessengerEXT  = nullptr;
 PFN_vkDestroyDebugUtilsMessengerEXT pfn_vkDestroyDebugUtilsMessengerEXT = nullptr;
-PFN_vkSetDebugUtilsObjectNameEXT    pfn_vkSetDebugUtilsObjectNameEXT = nullptr;
+PFN_vkSetDebugUtilsObjectNameEXT    pfn_vkSetDebugUtilsObjectNameEXT    = nullptr;
 
 // VK_KHR_cooperative_matrix
 PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR pfn_vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR = nullptr;
@@ -17,8 +17,9 @@ PFN_vkGetPhysicalDeviceCooperativeMatrixFlexibleDimensionsPropertiesNV pfn_vkGet
 
 // Vulkan VK_NV_cooperative_vector
 PFN_vkGetPhysicalDeviceCooperativeVectorPropertiesNV pfn_vkGetPhysicalDeviceCooperativeVectorPropertiesNV = nullptr;
-PFN_vkConvertCooperativeVectorMatrixNV               pfn_vkConvertCooperativeVectorMatrixNV = nullptr;
-PFN_vkCmdConvertCooperativeVectorMatrixNV            pfn_vkCmdConvertCooperativeVectorMatrixNV = nullptr;
+PFN_vkConvertCooperativeVectorMatrixNV               pfn_vkConvertCooperativeVectorMatrixNV               = nullptr;
+PFN_vkCmdConvertCooperativeVectorMatrixNV            pfn_vkCmdConvertCooperativeVectorMatrixNV            = nullptr;
+ 
 
 // VK_EXT_debug_utils
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateDebugUtilsMessengerEXT(
@@ -54,9 +55,9 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceCooperativeMatrixFlexibleDimen
 }
 
 // Vulkan VK_NV_cooperative_vector
-VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceCooperativeVectorPropertiesNV(VkPhysicalDevice physicalDevice,
-																				  uint32_t* pPropertyCount,
-																				  VkCooperativeVectorPropertiesNV* pProperties) {
+VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceCooperativeVectorPropertiesNV(VkPhysicalDevice                 physicalDevice,
+																				uint32_t*                        pPropertyCount,
+																				VkCooperativeVectorPropertiesNV* pProperties) {
 	return pfn_vkGetPhysicalDeviceCooperativeVectorPropertiesNV(physicalDevice, pPropertyCount, pProperties);
 }
 
@@ -67,3 +68,20 @@ VKAPI_ATTR VkResult VKAPI_CALL vkConvertCooperativeVectorMatrixNV(VkDevice devic
 VKAPI_ATTR void VKAPI_CALL vkCmdConvertCooperativeVectorMatrixNV(VkCommandBuffer commandBuffer, uint32_t infoCount, const VkConvertCooperativeVectorMatrixInfoNV* pInfos) {
 	pfn_vkCmdConvertCooperativeVectorMatrixNV(commandBuffer, infoCount, pInfos);
 }
+
+#if 0
+VKAPI_ATTR VkResult VKAPI_CALL vkGetMemoryWin32HandleKHR(
+	VkDevice                             device,
+	const VkMemoryGetWin32HandleInfoKHR* pGetWin32HandleInfo,
+	HANDLE*                              pHandle) {
+	return pfn_vkGetMemoryWin32HandleKHR(device, pGetWin32HandleInfo, pHandle);
+};
+
+VKAPI_ATTR VkResult VKAPI_CALL vkGetMemoryWin32HandlePropertiesKHR(
+	VkDevice                           device,
+	VkExternalMemoryHandleTypeFlagBits handleType,
+	HANDLE                             handle,
+	VkMemoryWin32HandlePropertiesKHR*  pMemoryWin32HandleProperties) {
+	return pfn_vkGetMemoryWin32HandlePropertiesKHR(device, handleType, handle, pMemoryWin32HandleProperties);
+};
+#endif
