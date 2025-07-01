@@ -77,7 +77,8 @@ void main(float2 fragCoord, out float4 fragColor: SV_Target0) {
 	for (int i = 0; i < 75 && !hit; ++i) {
 		float dist = Scene(p);
 
-		hit = dist * dist < kEpsilon;
+		// hit = dist * dist < kEpsilon;
+		hit = dist < kEpsilon;
 		p += dist * ray_dir;
 		if (distance(p, init) > kMaxDist)
 			break;

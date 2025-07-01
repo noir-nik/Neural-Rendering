@@ -25,7 +25,7 @@ func BRDFCoopVec<T : __BuiltinFloatingPointType>(
 	output1 = LinearForward<T, 64, 64>(output0, weights, weights_offsets[1], bias_offsets[1], CoopVecMatrixLayout::InferencingOptimal, COMPONENT_TYPE);
 	output1 = relu(output1);
 	output2 = LinearForward<T, 64, 64>(output1, weights, weights_offsets[2], bias_offsets[2], CoopVecMatrixLayout::InferencingOptimal, COMPONENT_TYPE);
-	output2 = sin(output2);
+	output2 = relu(output2);
 	output3 = LinearForward<T, 6, 64>(output2, weights, weights_offsets[3], bias_offsets[3], CoopVecMatrixLayout::InferencingOptimal, COMPONENT_TYPE);
 	output3 = relu(output3);
 	output4 = LinearForward<T, 3, 6>(output3, weights, weights_offsets[4], bias_offsets[4], CoopVecMatrixLayout::InferencingOptimal, COMPONENT_TYPE);

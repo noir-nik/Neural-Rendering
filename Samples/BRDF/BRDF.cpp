@@ -1261,6 +1261,8 @@ void BRDFSample::RecordCommands(BrdfFunctionType function_type) {
 		.camera_pos = camera.getPosition(),
 	};
 
+	PrintMat4(camera.getView());
+
 	// Update weight offsets in push constants
 	auto network = networks[u32(function_type)];
 	for (int i = 0; i < network.GetLayers().size(); ++i) {

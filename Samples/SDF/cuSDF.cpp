@@ -70,7 +70,9 @@ HANDLE GetVkImageMemoryHandle(vk::Device device, vk::DeviceMemory memory, vk::Ex
 	vk::MemoryGetWin32HandleInfoKHR info = {.memory = memory, .handleType = type};
 
 	HANDLE handle;
+#if 0
 	CHECK_VULKAN_RESULT(device.getMemoryWin32HandleKHR(&info, &handle));
+#endif
 	return handle;
 }
 
@@ -78,7 +80,9 @@ HANDLE GetVkSemaphoreHandle(vk::Device device, vk::Semaphore semaphore, vk::Exte
 	vk::SemaphoreGetWin32HandleInfoKHR info = {.semaphore = semaphore, .handleType = type};
 
 	HANDLE handle;
+#if 0
 	CHECK_VULKAN_RESULT(device.getSemaphoreWin32HandleKHR(&info, &handle));
+#endif
 	// auto [result, handle] = device.getSemaphoreWin32HandleKHR({.semaphore = semaphore, .handleType = type});
 	// CHECK_VULKAN_RESULT(result);
 	return handle;
@@ -596,7 +600,7 @@ void CuSDFSample::RecordCommands() {
 	});
 	CHECK_VULKAN_RESULT(cmd.end());
 }
-
+/*
 void CudaContext::Render(vk::CommandBuffer cmd, cudaExternalSemaphore_t wait, cudaExternalSemaphore_t signal) {
 	// Wait for Vulkan semaphore in CUDA
 	cudaExternalSemaphoreWaitParams wait_params = {};
@@ -616,7 +620,7 @@ void CudaContext::Render(vk::CommandBuffer cmd, cudaExternalSemaphore_t wait, cu
 	cudaExternalSemaphoreSignalParams signal_params = {};
 	CHECK_CUDA_RT(cudaSignalExternalSemaphoresAsync(&signal, &signal_params, 1, stream))
 }
-
+ */
 void CuSDFSample::RecreateSwapchain(int width, int height) {
 	for (auto& frame : swapchain.GetFrameData()) {
 		CHECK_VULKAN_RESULT(device.waitForFences(1, &frame.GetFence(), vk::True, std::numeric_limits<u32>::max()));
