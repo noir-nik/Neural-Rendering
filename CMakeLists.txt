@@ -84,30 +84,31 @@ target_compile_definitions(VulkanHppModule PUBLIC ${VULKAN_HPP_DEFINITIONS})
 
 # CUDA
 # message(STATUS "CMAKE_CXX_COMPILER_FRONTEND_VARIANT:" ${CMAKE_CXX_COMPILER_FRONTEND_VARIANT})
-find_package(CUDAToolkit)
-if (CUDAToolkit_FOUND)
-	set(WITH_CUDA 1)
-	if (WIN32 AND NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-	else()
-		enable_language(CUDA)
-	endif()
-
-		if (NOT CUDA_LIBRARY_DIR)
-			message(FATAL_ERROR "CUDA_LIBRARY_DIR is not specified")
+option(WITH_CUDA OFF)
+if(WITH_CUDA)
+	find_package(CUDAToolkit)
+	if (CUDAToolkit_FOUND)
+		if (WIN32 AND NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+		else()
+			enable_language(CUDA)
 		endif()
 
-		add_library(${PROJECT_NAME}-cuda INTERFACE)
+			if (NOT CUDA_LIBRARY_DIR)
+				message(FATAL_ERROR "CUDA_LIBRARY_DIR is not specified")
+			endif()
 
-		target_link_directories(${PROJECT_NAME}-cuda INTERFACE ${CUDA_LIBRARY_DIR})
-		# message(STATUS "CUDA_TOOLKIT_INCLUDE_DIRECTORIES: ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
-		target_include_directories(${PROJECT_NAME}-cuda INTERFACE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
-		target_link_libraries(${PROJECT_NAME}-cuda INTERFACE
-			cudnn
-			cudart
-			cuda
-		)
+			add_library(${PROJECT_NAME}-cuda INTERFACE)
 
+			target_link_directories(${PROJECT_NAME}-cuda INTERFACE ${CUDA_LIBRARY_DIR})
+			# message(STATUS "CUDA_TOOLKIT_INCLUDE_DIRECTORIES: ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+			target_include_directories(${PROJECT_NAME}-cuda INTERFACE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+			target_link_libraries(${PROJECT_NAME}-cuda INTERFACE
+				cudnn
+				cudart
+				cuda
+			)
 	endif() 
+endif()
 
 
 # Sanitize

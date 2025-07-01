@@ -4,6 +4,7 @@ import Pbr;
 import BRDFScalarBuffer;
 import BRDFCoopVec;
 import BRDFClassic;
+import BRDFWeightsInHeader;
 
 // clang-format off
 [[vk::binding(0, 0)]] StructuredBuffer<float> gWeights;
@@ -65,10 +66,13 @@ func ps_main(VSOutput input)->float4 {
 	vector<COOPVEC_TYPE, 3> light_typed = { light_tbn.x, light_tbn.y, light_tbn.z };
 	if (shader_type == BrdfFunctionType::eCoopVec) {
 		color = BRDFCoopVec<COOPVEC_TYPE>(view_typed, light_typed, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
-	} else if (shader_type == BrdfFunctionType::eScalarBuffer) {
-		color = BRDFScalarBuffer<float>(view_tbn, light_tbn, gWeights, ctx.weights_offsets, ctx.bias_offsets);
-	} else if (shader_type == BrdfFunctionType::eScalarBufferF16) {
-		color = BRDFScalarBuffer<half>(view_typed, light_typed, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
+	} else if (shader_type == BrdfFunctionType::eWeightsInBuffer) {
+		color = BRDFWeightsInBuffer<float>(view_tbn, light_tbn, gWeights, ctx.weights_offsets, ctx.bias_offsets);
+	} else if (shader_type == BrdfFunctionType::eWeightsInBufferF16) {
+		color = BRDFWeightsInBuffer<half>(view_typed, light_typed, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
+	} else if (shader_type == BrdfFunctionType::eWeightsInHeader) {
+		color = BRDFWeightsInHeader<float>(view_tbn, light_tbn);
+		// color = BRDFWeightsInHeader<half>(view_tbn, light_tbn);
 	} else {
 		color = BRDFClassic(input.world_pos, view, ctx.light, normal, albedo, metallic, roughness);
 	}
