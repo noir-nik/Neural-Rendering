@@ -2,7 +2,7 @@
 #include <cudnn.h>
 #include <stdio.h>
 
-#include "SDF.cuh"
+#include "Kernels.cuh"
 
 #define N 128
 

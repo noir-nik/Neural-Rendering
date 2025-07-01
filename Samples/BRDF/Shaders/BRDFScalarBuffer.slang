@@ -1,6 +1,6 @@
 import CoopVec;
 
-func BRDFScalarBuffer<T : __BuiltinFloatingPointType>(
+func BRDFWeightsInBuffer<T : __BuiltinFloatingPointType>(
 	vector<T, 3>        view,
 	vector<T, 3>        light,
 	StructuredBuffer<T> weights,

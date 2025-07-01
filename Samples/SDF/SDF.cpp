@@ -25,6 +25,13 @@ extern "C++" {
 using namespace Utils;
 using namespace mesh;
 
+struct TestOptions {
+	int2 resolution = {640, 480};
+	// TestType    test_type    = TestType::eSDF;
+	// NetworkType network_type = NetworkType::eScalarInline;
+	int test_count = 1;
+};
+
 class SDFSample {
 public:
 	static constexpr u32 kApiVersion = vk::ApiVersion13;
@@ -56,7 +63,7 @@ public:
 
 	void Init();
 	void Run();
-	void RunTest();
+	void RunTest(TestOptions const& options);
 	void Destroy();
 	void CreateInstance();
 	void SelectPhysicalDevice();
@@ -983,12 +990,7 @@ void SDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offs
 		.fov            = camera.getFov(),
 		.camera_right   = camera.getRight(),
 	};
-	// PrintMat4(constants.view_proj);
-	// std::printf("Camera pos:     %f %f %f\n", constants.camera_pos.x, constants.camera_pos.y, constants.camera_pos.z);
-	// std::printf("Camera right:   %f %f %f\n", constants.camera_right.x, constants.camera_right.y, constants.camera_right.z);
-	// std::printf("Camera up:      %f %f %f\n", constants.camera_up.x, constants.camera_up.y, constants.camera_up.z);
-	// std::printf("Camera forward: %f %f %f\n", constants.camera_forward.x, constants.camera_forward.y, constants.camera_forward.z);
-	// std::printf(" \n");
+	// PrintMat4(camera.getView());
 
 	for (auto i = 0u; i < kNetworkLayers; ++i) {
 		constants.weights_offsets[i] = offsets.weights_offsets[i];
@@ -1108,7 +1110,7 @@ void SDFSample::Run() {
 	} while (true);
 }
 
-void SDFSample::RunTest() {
+void SDFSample::RunTest(TestOptions const& options) {
 	struct TestData {
 		vk::Pipeline   pipeline;
 		NetworkOffsets offsets;
@@ -1116,9 +1118,10 @@ void SDFSample::RunTest() {
 	// WindowManager::WaitEvents();
 	// if (window.GetShouldClose()) return;
 
-	window.SetWindowMode(WindowMode::eFullscreen);
-	int x, y, width, height;
-	window.GetRect(x, y, width, height);
+	// window.SetWindowMode(WindowMode::eFullscreen);
+	auto [width, height] = options.resolution;
+	window.SetSize(width, height);
+	// window.Hide();
 	// std::printf("Resizing to %dx%d\n", width, height);
 	RecreateSwapchain(width, height);
 	// DrawWindow();
@@ -1153,9 +1156,9 @@ void SDFSample::RunTest() {
 
 	// Print csv
 	if constexpr (kDstMatrixType == vk::ComponentTypeKHR::eFloat16) {
-		std::printf("CoopVec_Float16, ScalarInline_Float16, ScalarBuffer_Float16, Vec4_Float16 \n");
+		std::printf("CoopVec_Float16,ScalarInline_Float16,ScalarBuffer_Float16,Vec4_Float16\n");
 	} else {
-		std::printf("ScalarInline_Float32, ScalarBuffer_Float32, Vec4_Float32 \n");
+		std::printf("ScalarInline_Float32,ScalarBuffer_Float32,Vec4_Float32\n");
 	}
 
 	for (u32 iter = 0; iter < kNumTestRuns; ++iter) {
@@ -1187,9 +1190,34 @@ auto main(int argc, char const* argv[]) -> int {
 		return 0;
 	}
 
+	TestOptions options{
+		.resolution = {640, 480},
+		.test_count = 64,
+	};
+
+	int2 res_arr[] = {
+		// {1920, 1080},
+		// {3840, 2160},
+		// {512, 512},
+		{640, 480},
+		{1280, 720},
+		{1920, 1080},
+		{2560, 1440},
+		{3840, 2160},
+	};
+
+	auto res_count = //
+
+		std::size(res_arr);
+		// 1;
+
 	sample.Init();
 	if (sample.IsTestMode()) {
-		sample.RunTest();
+		for (int i = 0; i < res_count; ++i) {
+			options.resolution = res_arr[i];
+			std::printf("resolution: %d x %d\n", res_arr[i].x, res_arr[i].y);
+			sample.RunTest(options);
+		}
 	} else {
 		sample.Run();
 	}

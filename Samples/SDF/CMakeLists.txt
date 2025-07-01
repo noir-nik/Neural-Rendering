@@ -9,10 +9,10 @@ link_libraries(
 )
 
 # CUDNN sample
-set(CUDA_SAMPLE_NAME cu${SAMPLE_NAME})
-add_executable(${CUDA_SAMPLE_NAME} cuSDF.cpp)
-target_link_libraries(${CUDA_SAMPLE_NAME} PRIVATE ${PROJECT_NAME}-cuda)
 if(WITH_CUDA)
+	set(CUDA_SAMPLE_NAME cu${SAMPLE_NAME})
+	add_executable(${CUDA_SAMPLE_NAME} cuSDF.cpp)
+	target_link_libraries(${CUDA_SAMPLE_NAME} PRIVATE ${PROJECT_NAME}-cuda)
 	target_sources(${CUDA_SAMPLE_NAME} PRIVATE "SDF.cu")
 endif()
 
