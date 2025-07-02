@@ -109,13 +109,13 @@ public:
 
 	auto GetAllocator() const -> vk::AllocationCallbacks const* { return allocator; }
 	auto GetPipelineCache() const -> vk::PipelineCache { return pipeline_cache; }
-	bool IsTestMode() const { return bIsTestMode; }
+	bool IsTestMode() const { return is_test_mode; }
 
 	auto ParseArgs(int argc, char const* argv[]) -> char const*;
 
-	bool bIsTestMode    = false;
-	bool bVerbose       = false;
-	bool bUseValidation = false;
+	bool is_test_mode   = false;
+	bool is_verbose     = false;
+	bool use_validation = false;
 
 	GLFWWindow window{};
 	Mouse      mouse;
@@ -148,6 +148,8 @@ public:
 	// vk::Pipeline scalar_inline_pipeline;
 	// vk::Pipeline scalar_buffer_pipeline;
 	// vk::Pipeline vec4_pipeline;
+
+	SdfFunctionType function_type = SdfFunctionType::eCoopVec;
 
 	std::array<vk::Pipeline, u32(SdfFunctionType::eCount)> pipelines;
 
@@ -270,7 +272,7 @@ void SDFSample::Init() {
 	u32 const initial_width = 1600, initial_height = 1200;
 	window.Init({.x = 30, .y = 30, .width = initial_width, .height = initial_height, .title = "SDF"});
 	window.GetWindowCallbacks().framebufferSizeCallback = FramebufferSizeCallback;
-	if (!bIsTestMode) {
+	if (!is_test_mode) {
 		window.GetWindowCallbacks().windowRefreshCallback = WindowRefreshCallback;
 	}
 
@@ -320,7 +322,7 @@ void SDFSample::Init() {
 	auto [result, cooperative_vector_properties] = physical_device.getCooperativeVectorPropertiesNV();
 	CHECK_VULKAN_RESULT(result);
 
-	if (bVerbose) {
+	if (is_verbose) {
 		std::printf("=== VkCooperativeVectorPropertiesNV ===\n");
 		for (auto& property : cooperative_vector_properties) {
 			std::printf("inputType: %-8s ", vk::to_string(property.inputType).c_str());
@@ -387,7 +389,7 @@ void SDFSample::CreateInstance() {
 	char const** glfw_extensions = WindowManager::GetRequiredInstanceExtensions(&glfw_extensions_count);
 
 	std::vector<char const*> enabledExtensions(glfw_extensions, glfw_extensions + glfw_extensions_count);
-	if (bUseValidation) {
+	if (use_validation) {
 		enabled_layers = kEnabledLayers;
 		enabledExtensions.push_back(vk::EXTDebugUtilsExtensionName);
 	}
@@ -405,7 +407,7 @@ void SDFSample::CreateInstance() {
 	};
 
 	vk::InstanceCreateInfo info{
-		.pNext                   = bUseValidation ? &kDebugUtilsCreateInfo : nullptr,
+		.pNext                   = use_validation ? &kDebugUtilsCreateInfo : nullptr,
 		.pApplicationInfo        = &applicationInfo,
 		.enabledLayerCount       = static_cast<u32>(std::size(enabled_layers)),
 		.ppEnabledLayerNames     = enabled_layers.data(),
@@ -414,7 +416,7 @@ void SDFSample::CreateInstance() {
 	};
 	CHECK_VULKAN_RESULT(vk::createInstance(&info, GetAllocator(), &instance));
 
-	if (bUseValidation) {
+	if (use_validation) {
 		LoadInstanceDebugUtilsFunctionsEXT(instance);
 		CHECK_VULKAN_RESULT(instance.createDebugUtilsMessengerEXT(&kDebugUtilsCreateInfo, allocator, &debug_messenger));
 	}
@@ -429,7 +431,7 @@ void SDFSample::SelectPhysicalDevice() {
 		physical_device.Assign(device);
 		CHECK_VULKAN_RESULT(physical_device.GetDetails());
 		if (physical_device.IsSuitable(surface, kEnabledDeviceExtensions)) {
-			if (bVerbose) {
+			if (is_verbose) {
 				auto const& properties = physical_device.cooperative_vector_properties;
 				std::printf("=== VkPhysicalDeviceCooperativeVectorPropertiesNV ===\n");
 				std::printf("cooperativeVectorSupportedStages: %s\n", vk::to_string(properties.cooperativeVectorSupportedStages).c_str());
@@ -609,10 +611,10 @@ void SDFSample::CreatePipelines() {
 		CHECK_VULKAN_RESULT(device.createShaderModule(&shader_module_infos[i], GetAllocator(), &shader_modules[i]));
 	}
 
-	pipelines[int(SdfFunctionType::eCoopVec)]      = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eCoopVec);
-	pipelines[int(SdfFunctionType::eScalarInline)] = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eScalarInline);
-	pipelines[int(SdfFunctionType::eScalarBuffer)] = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eScalarBuffer);
-	pipelines[int(SdfFunctionType::eVec4)]         = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eVec4);
+	pipelines[int(SdfFunctionType::eCoopVec)]         = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eCoopVec);
+	pipelines[int(SdfFunctionType::eWeightsInHeader)] = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eWeightsInHeader);
+	pipelines[int(SdfFunctionType::eWeightsInBuffer)] = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eWeightsInBuffer);
+	pipelines[int(SdfFunctionType::eVec4)]            = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eVec4);
 
 	for (auto& shader_module : shader_modules) {
 		device.destroyShaderModule(shader_module, GetAllocator());
@@ -740,7 +742,7 @@ void SDFSample::CreateAndUploadBuffers() {
 		device, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal,
 		kDstMatrixType, kDstVectorType));
 	optimal_size_bytes = AlignUpPowerOfTwo(sdf_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
-	if (bVerbose) sdf_network.Print();
+	if (is_verbose) sdf_network.Print();
 
 	// Write optimal offsets
 	for (u32 i = 0; i < kNetworkLayers; ++i) {
@@ -757,7 +759,7 @@ void SDFSample::CreateAndUploadBuffers() {
 		kDstMatrixType, kDstVectorType));
 	row_major_size_bytes = AlignUpPowerOfTwo(sdf_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
 
-	if (bVerbose) sdf_network.Print();
+	if (is_verbose) sdf_network.Print();
 
 	// Write row-major offsets
 	for (u32 i = 0; i < kNetworkLayers; ++i) {
@@ -836,7 +838,15 @@ void SDFSample::WriteNetworkWeights(
 	std::size_t                         staging_offset,
 	vk::CooperativeVectorMatrixLayoutNV dst_layout) {
 
-	auto ConvertLayerWeights = [this, dst_layout](void const* src, std::size_t src_size, std::byte* dst, Linear const& linear) {
+	auto ConvertLayerWeights = [](
+								   vk::Device                          device,
+								   void const*                         src,
+								   std::size_t                         src_size,
+								   std::byte*                          dst,
+								   Linear const&                       linear,
+								   vk::ComponentTypeKHR                src_component,
+								   vk::ComponentTypeKHR                dst_matrix_type,
+								   vk::CooperativeVectorMatrixLayoutNV dst_layout) {
 		std::size_t expected_size = linear.GetWeightsSize();
 		std::size_t required_size = expected_size;
 
@@ -845,14 +855,14 @@ void SDFSample::WriteNetworkWeights(
 			.srcData          = {.hostAddress = src},
 			.pDstSize         = &required_size,
 			.dstData          = {.hostAddress = dst + linear.GetWeightsOffset()},
-			.srcComponentType = kSrcComponentType,
-			.dstComponentType = kDstMatrixType,
+			.srcComponentType = src_component,
+			.dstComponentType = dst_matrix_type,
 			.numRows          = linear.GetOutputsCount(),
 			.numColumns       = linear.GetInputsCount(),
 			.srcLayout        = vk::CooperativeVectorMatrixLayoutNV::eRowMajor,
-			.srcStride        = linear.GetInputsCount() * GetVulkanComponentSize(kSrcComponentType),
+			.srcStride        = linear.GetInputsCount() * GetVulkanComponentSize(src_component),
 			.dstLayout        = dst_layout,
-			.dstStride        = linear.GetInputsCount() * GetVulkanComponentSize(kDstMatrixType),
+			.dstStride        = linear.GetInputsCount() * GetVulkanComponentSize(dst_matrix_type),
 		};
 
 		info.dstData.hostAddress = nullptr;
@@ -867,10 +877,10 @@ void SDFSample::WriteNetworkWeights(
 
 	std::byte* staging_ptr = staging_offset + reinterpret_cast<std::byte*>(staging_buffer.GetMappedData());
 
-	ConvertLayerWeights(kSDFWeights0, sizeof(kSDFWeights0), staging_ptr, network.GetLayer<Linear>(0));
-	ConvertLayerWeights(kSDFWeights1, sizeof(kSDFWeights1), staging_ptr, network.GetLayer<Linear>(1));
-	ConvertLayerWeights(kSDFWeights2, sizeof(kSDFWeights2), staging_ptr, network.GetLayer<Linear>(2));
-	ConvertLayerWeights(kSDFWeights3, sizeof(kSDFWeights3), staging_ptr, network.GetLayer<Linear>(3));
+	ConvertLayerWeights(device, kSDFWeights0, sizeof(kSDFWeights0), staging_ptr, network.GetLayer<Linear>(0), kSrcComponentType, kDstMatrixType, dst_layout);
+	ConvertLayerWeights(device, kSDFWeights1, sizeof(kSDFWeights1), staging_ptr, network.GetLayer<Linear>(1), kSrcComponentType, kDstMatrixType, dst_layout);
+	ConvertLayerWeights(device, kSDFWeights2, sizeof(kSDFWeights2), staging_ptr, network.GetLayer<Linear>(2), kSrcComponentType, kDstMatrixType, dst_layout);
+	ConvertLayerWeights(device, kSDFWeights3, sizeof(kSDFWeights3), staging_ptr, network.GetLayer<Linear>(3), kSrcComponentType, kDstMatrixType, dst_layout);
 
 	std::memcpy(staging_ptr + network.GetLayer<Linear>(0).GetBiasesOffset(), kSDFBias0, sizeof(kSDFBias0));
 	std::memcpy(staging_ptr + network.GetLayer<Linear>(1).GetBiasesOffset(), kSDFBias1, sizeof(kSDFBias1));
@@ -1130,8 +1140,8 @@ void SDFSample::RunTest(TestOptions const& options) {
 
 	TestData test_data[kNumTestKinds] = {
 		{pipelines[u32(SdfFunctionType::eCoopVec)], optimal_offsets},
-		{pipelines[u32(SdfFunctionType::eScalarInline)], row_major_offsets},
-		{pipelines[u32(SdfFunctionType::eScalarBuffer)], row_major_offsets},
+		{pipelines[u32(SdfFunctionType::eWeightsInHeader)], row_major_offsets},
+		{pipelines[u32(SdfFunctionType::eWeightsInBuffer)], row_major_offsets},
 		{pipelines[u32(SdfFunctionType::eVec4)], row_major_offsets},
 	};
 
@@ -1170,11 +1180,26 @@ void SDFSample::RunTest(TestOptions const& options) {
 }
 
 auto SDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
-	for (std::string_view const arg : std::span(argv + 1, argc - 1)) {
-		if (arg == "--test" || arg == "-t") bIsTestMode = true;
-		else if (arg == "--verbose") bVerbose = true;
-		else if (arg == "--validation") bUseValidation = true;
-		else return arg.data();
+	auto args_range = std::span(argv + 1, argc - 1);
+
+	if (std::ranges::contains(args_range, std::string_view("--help")))
+		return "--help";
+
+	for (auto it = args_range.begin(); it != args_range.end(); ++it) {
+		auto arg = std::string_view(*it);
+		if (arg == "--benchmark" || arg == "-b") is_test_mode = true;
+		else if (arg == "--verbose" || arg == "-v") is_verbose = true;
+		else if (arg == "--validation") use_validation = true;
+		else if (arg == "--kind") {
+			if ((it + 1) == args_range.end()) return "expected <kind>";
+			auto kind = std::string_view(*(it + 1));
+			int  result;
+			auto res = std::from_chars(kind.data(), kind.data() + kind.size(), result);
+			if (res.ec != std::errc()) return *(it + 1);
+			if (result < 0 || result >= std::to_underlying(SdfFunctionType::eCount)) return *(it + 1);
+			function_type = static_cast<SdfFunctionType>(result);
+			++it;
+		} else return *it;
 	}
 	return nullptr;
 }
@@ -1209,7 +1234,7 @@ auto main(int argc, char const* argv[]) -> int {
 	auto res_count = //
 
 		std::size(res_arr);
-		// 1;
+	// 1;
 
 	sample.Init();
 	if (sample.IsTestMode()) {
