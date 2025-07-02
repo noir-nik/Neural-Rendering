@@ -1,6 +1,8 @@
-// #include "BRDFConfig.h"
+#include "BRDFConfig.h"
+
+// #define _TY half
 // #define _TY COOPVEC_TYPE
-#define WEIGHTS_SIZE_TY size_t
+// #define WEIGHTS_SIZE_TY size_t
 #include "BRDFWeights.h"
 
 import CoopVec; //relu

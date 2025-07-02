@@ -1,4 +1,4 @@
-func SDFScalarBuffer<T : __BuiltinFloatingPointType>(vector<T, 3> p, StructuredBuffer<T> sdf_weights, uint32_t weights_offsets[4], uint32_t bias_offsets[4])->T {
+func SDFWeightsInBuffer<T : __BuiltinFloatingPointType>(vector<T, 3> p, StructuredBuffer<T> sdf_weights, uint32_t weights_offsets[4], uint32_t bias_offsets[4])->T {
 	if (length(p) > T(1.)) {
 		return length(p) - T(.8);
 	}

@@ -3,8 +3,8 @@
 
 import SDFVec4;
 import SDFCoopVec;
-import SDFScalarInline;
-import SDFScalarBuffer;
+import SDFWeightsInBuffer;
+import SDFWeightsInHeader;
 
 // clang-format off1
 
@@ -26,9 +26,9 @@ func Scene(float3 p)->float {
 	if (shader_type == SdfFunctionType::eCoopVec) {
 		return SDFCoopVec<COOPVEC_TYPE>(pos, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
 	} else if (shader_type == SdfFunctionType::eScalarBuffer) {
-		return SDFScalarBuffer<COOPVEC_TYPE>(pos, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
+		return SDFWeightsInBuffer<COOPVEC_TYPE>(pos, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
 	} else if (shader_type == SdfFunctionType::eScalarInline) {
-		return SDFScalarInline<COOPVEC_TYPE>(pos);
+		return SDFWeightsInHeader<COOPVEC_TYPE>(pos);
 	} else if (shader_type == SdfFunctionType::eVec4) {
 		return SDFVec4<COOPVEC_TYPE>(pos);
 	} else {

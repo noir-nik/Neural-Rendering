@@ -1,9 +1,9 @@
 #include "BRDFConfig.h"
 
 import Pbr;
-import BRDFScalarBuffer;
 import BRDFCoopVec;
 import BRDFClassic;
+import BRDFWeightsInBuffer;
 import BRDFWeightsInHeader;
 
 // clang-format off
