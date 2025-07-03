@@ -74,13 +74,6 @@ void BRDFSample::CreateAndUploadBuffers() {
 
 	auto weights_path = "Assets/simple_brdf_weights.bin";
 
-	
-	
-	
-		
-		
-	
-
 	std::vector<float>        brdf_weights_vec;
 	std::vector<LayerVariant> layers;
 	CHECK(load_weights("Assets/simple_brdf_weights.bin", layers, brdf_weights_vec, "hydrann1"));
@@ -313,10 +306,13 @@ auto BRDFSample::GetQueryResult() -> u64 {
 }
 
 auto BRDFSample::DrawWindow() -> u64 {
-	return DrawWindow(this->function_type);
+	if (function_id)
+		return DrawWindow(pipelines_header[u32(*function_id)]);
+	else
+		return DrawWindow(pipelines[u32(function_type)]);
 };
 
-auto BRDFSample::DrawWindow(BrdfFunctionType function_type) -> u64 {
+auto BRDFSample::DrawWindow(vk::Pipeline pipeline) -> u64 {
 	auto HandleSwapchainResult = [this](vk::Result result) -> bool {
 		switch (result) {
 		case vk::Result::eSuccess:           return true;
@@ -331,7 +327,7 @@ auto BRDFSample::DrawWindow(BrdfFunctionType function_type) -> u64 {
 	device.resetCommandPool(swapchain.GetCurrentCommandPool());
 	if (!HandleSwapchainResult(swapchain.AcquireNextImage())) return 0ull;
 	CHECK_VULKAN_RESULT(device.resetFences(1, &swapchain.GetCurrentFence()));
-	RecordCommands(function_type);
+	RecordCommands(pipeline);
 	if (!HandleSwapchainResult(swapchain.SubmitAndPresent(queue, queue))) return 0ull;
 
 	u64 elapsed = GetQueryResult();
@@ -339,7 +335,7 @@ auto BRDFSample::DrawWindow(BrdfFunctionType function_type) -> u64 {
 	return elapsed;
 }
 
-void BRDFSample::RecordCommands(BrdfFunctionType function_type) {
+void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	int x, y, width, height;
 	window.GetRect(x, y, width, height);
 
@@ -385,7 +381,7 @@ void BRDFSample::RecordCommands(BrdfFunctionType function_type) {
 			 .clearValue  = {{{{1.0f, 0}}}},
         },
 	});
-	auto pipeline = pipelines[u32(function_type)];
+	// auto pipeline = pipelines[u32(function_type)];
 	cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
 	cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
 
@@ -498,56 +494,85 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 	// window.Hide();
 	// std::printf("Resizing to %dx%d\n", width, height);
 	RecreateSwapchain(width, height);
-	constexpr u32 kTestRunsCount  = 32;
-	constexpr u32 kTestKindsCount = std::to_underlying(BrdfFunctionType::eCount);
+	constexpr u32 kTestRunsCount = 32;
 
-	std::vector<std::array<u64, kTestKindsCount>> test_times(kTestRunsCount);
+	constexpr u32 kMaxTestKinds = std::to_underlying(BrdfFunctionType::eCount);
 
-	BrdfFunctionType skip[] = {BrdfFunctionType::eWeightsInHeader};
+	constexpr u32 kMaxTests = 32;
+	// std::vector<std::array<u64, kMaxTestKinds>> test_times(kTestRunsCount);
+	std::array<std::array<u64, kMaxTests>, kTestRunsCount> test_times;
+
+	int first_test{}, last_test = kMaxTestKinds;
+
+	if (benchmark_single) {
+		first_test = std::to_underlying(function_type);
+		last_test  = first_test + 1;
+	}
+
+	auto is_header = function_type == BrdfFunctionType::eWeightsInHeader;
+
+	if (is_header) {
+		first_test = 0;
+		last_test  = kTestFunctionsCount;
+	}
+
+	// BrdfFunctionType skip[] = {BrdfFunctionType::eWeightsInHeader};
+	BrdfFunctionType skip[] = {};
+
+	// std::mem_fn(&BRDFSample::DrawWindow);
+
+	auto draw = [&](u32 id) {
+		if (is_header) {
+			return DrawWindow(pipelines_header[id]);
+		} else {
+			return DrawWindow(pipelines[id]);
+		};
+	};
 
 	// Warm up gpu clocks
 	constexpr u32 kWarmupCount = 2;
-	for (u32 test_kind_index = 0; test_kind_index < kTestKindsCount; ++test_kind_index) {
-		if (contains(skip, BrdfFunctionType(test_kind_index))) continue;
+	for (u32 t_i = first_test; t_i < last_test; ++t_i) {
+		if (contains(skip, BrdfFunctionType(t_i))) continue;
 		for (u32 iter = 0; iter < kWarmupCount; ++iter) {
-			(void)DrawWindow(BrdfFunctionType(test_kind_index));
+			(void)draw(t_i);
 		}
 	}
 
 	bool with_in_header = false;
 
-	for (u32 test_kind_index = 0; test_kind_index < kTestKindsCount; ++test_kind_index) {
-		if (contains(skip, BrdfFunctionType(test_kind_index))) continue;
+	for (u32 t_i = first_test; t_i < last_test; ++t_i) {
+		if (contains(skip, BrdfFunctionType(t_i))) continue;
 		for (u32 iter = 0; iter < kTestRunsCount; ++iter) {
 			// WindowManager::PollEvents();
-			u64   time_nanoseconds            = DrawWindow(BrdfFunctionType(test_kind_index));
-			float ns_per_tick                 = physical_device.GetNsPerTick();
-			float elapsed_ms                  = (time_nanoseconds * ns_per_tick) / 1e6f;
-			test_times[iter][test_kind_index] = time_nanoseconds;
+			u64   time_nanoseconds = draw(t_i);
+			float ns_per_tick      = physical_device.GetNsPerTick();
+			float elapsed_ms       = (time_nanoseconds * ns_per_tick) / 1e6f;
+			test_times[iter][t_i]  = time_nanoseconds;
 		}
 	}
 
 	char const* names[] = {"Classic", "CoopVec", "WeightsInBuffer", "WeightsInBufferFloat16", "WeightsInHeader"};
+
 	// Print csv
 	// std::printf("Classic,CoopVec,WeightsInBuffer,WeightsInBufferFloat16,WeightsInHeader\n");
-	for (u32 test_kind_index = 0; test_kind_index < kTestKindsCount; ++test_kind_index) {
-		if (contains(skip, BrdfFunctionType(test_kind_index))) continue;
-		std::printf("%s", names[test_kind_index]);
-		if (test_kind_index < kTestKindsCount - 1 && !contains(skip, BrdfFunctionType(test_kind_index + 1))) std::printf(",");
+	for (u32 t_i = first_test; t_i < last_test; ++t_i) {
+		if (contains(skip, BrdfFunctionType(t_i))) continue;
+		if (is_header) {
+			std::printf("WeightsInHeader_%u", t_i);
+		} else {
+			std::printf("%s", names[t_i]);
+		}
+		if (t_i < last_test - 1 && !contains(skip, BrdfFunctionType(t_i + 1))) std::printf(",");
 	}
 	std::printf("\n");
 
 	for (u32 iter = 0; iter < kTestRunsCount; ++iter) {
 		auto const& tests_row = test_times[iter];
 		// print with ,
-		for (u32 test_kind_index = 0; test_kind_index < kTestKindsCount - 1; ++test_kind_index) {
-			if (contains(skip, BrdfFunctionType(test_kind_index))) continue;
-			std::printf("%llu", tests_row[test_kind_index]);
-			if (test_kind_index < kTestKindsCount - 1 && !contains(skip, BrdfFunctionType(test_kind_index + 1))) std::printf(",");
-		}
-		// print last
-		if (!contains(skip, BrdfFunctionType(kTestKindsCount - 1))) {
-			std::printf("%llu", tests_row[kTestKindsCount - 1]);
+		for (u32 t_i = first_test; t_i < last_test; ++t_i) {
+			if (contains(skip, BrdfFunctionType(t_i))) continue;
+			std::printf("%llu", tests_row[t_i]);
+			if (t_i < last_test - 1 && !contains(skip, BrdfFunctionType(t_i + 1))) std::printf(",");
 		}
 		std::printf("\n");
 	}
@@ -567,11 +592,21 @@ auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 		else if (arg == "--kind") {
 			if ((it + 1) == args_range.end()) return "expected <kind>";
 			auto kind = std::string_view(*(it + 1));
-			int  result;
-			auto res = std::from_chars(kind.data(), kind.data() + kind.size(), result);
-			if (res.ec != std::errc()) return *(it + 1);
-			if (result < 0 || result >= std::to_underlying(BrdfFunctionType::eCount)) return *(it + 1);
-			function_type = static_cast<BrdfFunctionType>(result);
+			int  value;
+			if (std::from_chars(kind.data(), kind.data() + kind.size(), value).ec != std::errc()) return *(it + 1);
+			if (value < 0 || value >= std::to_underlying(BrdfFunctionType::eCount)) return *(it + 1);
+			function_type    = static_cast<BrdfFunctionType>(value);
+			benchmark_single = true;
+			++it;
+		} else if (arg == "-f") {
+			if ((it + 1) == args_range.end()) return "expected <id>";
+			auto str = std::string_view(*(it + 1));
+			int  value;
+			if (std::from_chars(str.data(), str.data() + str.size(), value).ec != std::errc()) return *(it + 1);
+			if (value < 0 || value >= kTestFunctionsCount) return *(it + 1);
+			function_type    = BrdfFunctionType::eWeightsInHeader;
+			benchmark_single = true;
+			function_id      = value;
 			++it;
 		} else return *it;
 	}
@@ -609,20 +644,20 @@ auto main(int argc, char const* argv[]) -> int {
 	};
 
 	int2 res_arr[] = {
-		// {1920, 1080},
+		{1920, 1080},
 		// {3840, 2160},
 		// {512, 512},
 		{640, 480},
 		{1280, 720},
 		{1920, 1080},
 		{2560, 1440},
-		{3840, 2160},
+		// {3840, 2160},
 	};
 
 	auto res_count = //
 
-		std::size(res_arr);
-	// 1;
+		// std::size(res_arr);
+		1;
 
 	sample.Init();
 	if (sample.IsTestMode()) {

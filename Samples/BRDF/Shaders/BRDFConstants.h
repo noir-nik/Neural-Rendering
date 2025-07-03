@@ -35,11 +35,11 @@ struct BRDFConstants {
 
 #if defined(__cplusplus) || defined(__SLANG__)
 enum class BrdfFunctionType : int {
-	eClassic         = 0,
-	eCoopVec         = 1,
+	eClassic            = 0,
+	eCoopVec            = 1,
 	eWeightsInBuffer    = 2,
 	eWeightsInBufferF16 = 3,
-	eWeightsInHeader = 4,
+	eWeightsInHeader    = 4,
 	eCount
 };
 #endif
