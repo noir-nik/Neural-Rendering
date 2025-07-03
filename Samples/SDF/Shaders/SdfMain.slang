@@ -26,7 +26,7 @@ func Scene(float3 p)->float {
 	if (shader_type == SdfFunctionType::eCoopVec) {
 		return SDFCoopVec<COOPVEC_TYPE>(pos, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
 	} else if (shader_type == SdfFunctionType::eWeightsInHeader) {
-		return SDFWeightsInHeader<COOPVEC_TYPE>(pos);
+		return float(SDFWeightsInHeader<COOPVEC_TYPE>(pos));
 	} else if (shader_type == SdfFunctionType::eWeightsInBuffer) {
 		return SDFWeightsInBuffer<COOPVEC_TYPE>(pos, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
 	} else if (shader_type == SdfFunctionType::eVec4) {
