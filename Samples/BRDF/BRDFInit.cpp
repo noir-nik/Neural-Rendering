@@ -4,7 +4,6 @@ module;
 
 module BRDFSample;
 
-
 #include "CheckResult.h"
 #include "Shaders/BRDFConfig.h"
 
@@ -193,9 +192,17 @@ void BRDFSample::Destroy() {
 		// device_buffer.Destroy();
 		// brdf_weights_buffer.Destroy();
 
+		for (vk::Pipeline& pipeline : pipelines_header) {
+			if (pipeline) {
+				device.destroyPipeline(pipeline, GetAllocator());
+				pipeline = vk::Pipeline{};
+			}
+		}
 		for (vk::Pipeline& pipeline : pipelines) {
-			device.destroyPipeline(pipeline, GetAllocator());
-			pipeline = vk::Pipeline{};
+			if (pipeline) {
+				device.destroyPipeline(pipeline, GetAllocator());
+				pipeline = vk::Pipeline{};
+			}
 		}
 		device.destroyPipelineLayout(pipeline_layout, GetAllocator());
 
@@ -454,7 +461,11 @@ void BRDFSample::CreatePipelines() {
 	}
 
 	for (auto i = 0u; i < std::size(pipelines); ++i) {
-		pipelines[i] = CreatePipeline(shader_modules[0], static_cast<BrdfFunctionType>(i));
+		pipelines[i] = CreatePipeline(shader_modules[0], {.function_type = static_cast<BrdfFunctionType>(i)});
+	}
+
+	for (auto i = 0u; i < kTestFunctionsCount; ++i) {
+		pipelines_header[i] = CreatePipeline(shader_modules[0], {.function_type = BrdfFunctionType::eWeightsInHeader, .function_id = i});
 	}
 
 	for (auto& shader_module : shader_modules) {
@@ -462,21 +473,28 @@ void BRDFSample::CreatePipelines() {
 	}
 }
 
-auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, BrdfFunctionType function_type) -> vk::Pipeline {
+auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, SpecData const& info) -> vk::Pipeline {
 
 	// Specialization constant for type of inferencing function
-	BrdfFunctionType specialization_value = function_type;
+	// BrdfFunctionType specialization_value = info.function_type;
 
-	vk::SpecializationMapEntry specialization_entry{
-		.constantID = 0,
-		.offset     = 0,
-		.size       = sizeof(BrdfFunctionType),
+	vk::SpecializationMapEntry specialization_entries[] = {
+		{
+			.constantID = 0,
+			.offset     = offsetof(SpecData, function_type),
+			.size       = sizeof(info.function_type),
+		},
+		{
+			.constantID = 1,
+			.offset     = offsetof(SpecData, function_id),
+			.size       = sizeof(info.function_id),
+		},
 	};
 	vk::SpecializationInfo specialization_info{
-		.mapEntryCount = 1,
-		.pMapEntries   = &specialization_entry,
-		.dataSize      = sizeof(BrdfFunctionType),
-		.pData         = &specialization_value,
+		.mapEntryCount = std::size(specialization_entries),
+		.pMapEntries   = specialization_entries,
+		.dataSize      = sizeof(info),
+		.pData         = &info,
 	};
 
 	vk::PipelineShaderStageCreateInfo shader_stages[] = {
@@ -564,7 +582,7 @@ auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, BrdfFunctionType
 		.depthAttachmentFormat   = depth_image.GetFormat(),
 	};
 
-	vk::GraphicsPipelineCreateInfo info{
+	vk::GraphicsPipelineCreateInfo create_info{
 		.pNext               = &pipeline_rendering_info,
 		.stageCount          = static_cast<u32>(std::size(shader_stages)),
 		.pStages             = shader_stages,
@@ -580,7 +598,7 @@ auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, BrdfFunctionType
 	};
 
 	vk::Pipeline pipeline;
-	CHECK_VULKAN_RESULT(device.createGraphicsPipelines(GetPipelineCache(), 1, &info, GetAllocator(), &pipeline));
+	CHECK_VULKAN_RESULT(device.createGraphicsPipelines(GetPipelineCache(), 1, &create_info, GetAllocator(), &pipeline));
 
 	return pipeline;
 }

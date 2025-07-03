@@ -80,10 +80,13 @@ public:
 	void CreatePipelineLayout();
 
 	void CreatePipelines();
+
+	struct SpecData {
+		BrdfFunctionType function_type = BrdfFunctionType::eCoopVec;
+		u32              function_id   = 0; // inline
+	};
 	[[nodiscard]]
-	auto CreatePipeline(
-		vk::ShaderModule vertex_shader_module,
-		BrdfFunctionType function_type = BrdfFunctionType::eCoopVec) -> vk::Pipeline;
+	auto CreatePipeline(vk::ShaderModule vertex_shader_module, SpecData const& info) -> vk::Pipeline;
 
 	// void BuildNetwork();
 	void CreateAndUploadBuffers();
@@ -104,6 +107,12 @@ public:
 	bool use_validation = true;
 
 	BrdfFunctionType function_type = BrdfFunctionType::eCoopVec;
+	// std::optional<BrdfFunctionType> function_type = std::nullopt;
+
+	bool benchmark_single = false;
+
+	std::optional<u32> function_id = std::nullopt;
+	// u32 function_id = 0;
 
 	GLFWWindow window{};
 
@@ -142,6 +151,12 @@ public:
 
 	std::array<vk::Pipeline, u32(BrdfFunctionType::eCount)> pipelines;
 
+	static constexpr int kTestFunctionsCount = 6;
+
+	std::array<vk::Pipeline, kTestFunctionsCount> pipelines_header;
+
+	// vk::Pipeline getpipeline
+
 	Buffer         device_buffer;
 	vk::DeviceSize vertices_offset = 0;
 	vk::DeviceSize indices_offset  = 0;
@@ -161,8 +176,8 @@ public:
 
 	VulkanCoopVecNetwork networks[u32(BrdfFunctionType::eCount)];
 
-	void RecordCommands(BrdfFunctionType function_type);
-	auto DrawWindow(BrdfFunctionType function_type) -> u64;
+	void RecordCommands(vk::Pipeline pipeline);
+	auto DrawWindow(vk::Pipeline pipeline) -> u64;
 	auto DrawWindow() -> u64;
 
 	static constexpr u32 kTimestampsPerFrame = 2;
