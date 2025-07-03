@@ -74,12 +74,12 @@ void BRDFSample::CreateAndUploadBuffers() {
 
 	auto weights_path = "Assets/simple_brdf_weights.bin";
 
-	WeightsLoader loader{};
-
-	if (!loader.Init(weights_path, "hydrann1")) {
-		std::printf("Failed to load weights\n");
-		std::exit(1);
-	}
+	
+	
+	
+		
+		
+	
 
 	std::vector<float>        brdf_weights_vec;
 	std::vector<LayerVariant> layers;
