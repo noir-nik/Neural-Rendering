@@ -89,7 +89,11 @@ public:
 	auto CreatePipeline(vk::ShaderModule vertex_shader_module, SpecData const& info) -> vk::Pipeline;
 
 	// void BuildNetwork();
-	void CreateAndUploadBuffers();
+	struct NetworkBufferInfo {
+		std::string_view file_name;
+		std::string_view header;
+	};
+	void CreateAndUploadBuffers(NetworkBufferInfo const& info);
 
 	// Return time in nanoseconds
 	auto GetQueryResult() -> u64;
@@ -108,6 +112,7 @@ public:
 
 	BrdfFunctionType function_type = BrdfFunctionType::eCoopVec;
 	// std::optional<BrdfFunctionType> function_type = std::nullopt;
+	std::string_view weights_file_name;
 
 	bool benchmark_single = false;
 

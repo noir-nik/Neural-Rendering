@@ -124,7 +124,7 @@ void BRDFSample::Init() {
 	CreatePipelineLayout();
 
 	LoadInstanceCooperativeVectorFunctionsNV(instance);
-	CreateAndUploadBuffers();
+	CreateAndUploadBuffers({.file_name = weights_file_name.size() > 0 ? weights_file_name : "Assets/simple_brdf_weights.bin", .header = ""});
 
 	depth_image.Create(
 		device, vma_allocator, allocator,

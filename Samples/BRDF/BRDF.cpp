@@ -65,18 +65,18 @@ auto PrintLayerBiases(Linear layer, std::byte const* parameters) -> void {
 	std::printf("\n");
 }
 
-void BRDFSample::CreateAndUploadBuffers() {
+void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	std::size_t vertices_size_bytes   = sphere.GetVertexCount() * sizeof(UVSphere::Vertex);
 	std::size_t indices_size_bytes    = sphere.GetIndexCount() * sizeof(UVSphere::IndexType);
 	std::size_t alignment             = sizeof(float) * 4;
 	std::size_t vertices_size_aligned = AlignUpPowerOfTwo(vertices_size_bytes, alignment);
 	std::size_t indices_size_aligned  = AlignUpPowerOfTwo(indices_size_bytes, alignment);
 
-	auto weights_path = "Assets/simple_brdf_weights.bin";
+	// auto weights_path = "Assets/simple_brdf_weights.bin";
 
 	std::vector<float>        brdf_weights_vec;
 	std::vector<LayerVariant> layers;
-	CHECK(load_weights("Assets/simple_brdf_weights.bin", layers, brdf_weights_vec, "hydrann1"));
+	CHECK(load_weights(network_info.file_name.data(), layers, brdf_weights_vec, network_info.header.data()));
 
 	using Component = vk::ComponentTypeKHR;
 	using Layout    = vk::CooperativeVectorMatrixLayoutNV;
@@ -516,8 +516,8 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 		last_test  = kTestFunctionsCount;
 	}
 
-	// BrdfFunctionType skip[] = {BrdfFunctionType::eWeightsInHeader};
-	BrdfFunctionType skip[] = {};
+	BrdfFunctionType skip[] = {BrdfFunctionType::eWeightsInHeader};
+	// BrdfFunctionType skip[] = {};
 
 	// std::mem_fn(&BRDFSample::DrawWindow);
 
@@ -607,6 +607,12 @@ auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 			function_type    = BrdfFunctionType::eWeightsInHeader;
 			benchmark_single = true;
 			function_id      = value;
+			++it;
+		} else if (arg == "-w") { // input weights file
+			if ((it + 1) == args_range.end()) return "expected <file>";
+			auto str = std::string_view(*(it + 1));
+			// if (!std::filesystem::exists(str)) return *(it + 1);
+			weights_file_name = str;
 			++it;
 		} else return *it;
 	}

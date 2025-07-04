@@ -79,15 +79,21 @@ func ps_main(VSOutput vs_input)->float4 {
 	// typealias Ty = _TY;
 	// typealias Ty = float;
 	typealias Ty       = half;
-	Ty input[6] = { view_tbn.x, view_tbn.y, view_tbn.z, light_tbn.x, light_tbn.y, light_tbn.z };
-	Ty output[3];
+	Ty        input[6] = { view_tbn.x, view_tbn.y, view_tbn.z, light_tbn.x, light_tbn.y, light_tbn.z };
+	Ty        output[3];
 
 	if (shader_type == BrdfFunctionType::eCoopVec) {
 		color = BRDFCoopVec<COOPVEC_TYPE>(view_typed, light_typed, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
 	} else if (shader_type == BrdfFunctionType::eWeightsInBuffer) {
-		color = BRDFWeightsInBuffer<float>(view_tbn, light_tbn, gWeights, ctx.weights_offsets, ctx.bias_offsets);
+		typealias Ty = float;
+
+		Ty input[6] = { view_tbn.x, view_tbn.y, view_tbn.z, light_tbn.x, light_tbn.y, light_tbn.z };
+		Ty output[3];
+		BRDFWeightsInBuffer<float>(input, output, gWeights, ctx.weights_offsets, ctx.bias_offsets);
+		color = float3(output[0], output[1], output[2]);
 	} else if (shader_type == BrdfFunctionType::eWeightsInBufferF16) {
-		color = BRDFWeightsInBuffer<half>(view_typed, light_typed, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
+		BRDFWeightsInBuffer<half>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
+		color = float3(output[0], output[1], output[2]);
 	} else if (shader_type == BrdfFunctionType::eWeightsInHeader) {
 
 		// BRDFWeightsInHeader_6_8_8_8_6_3_275<Ty>(input, output);
