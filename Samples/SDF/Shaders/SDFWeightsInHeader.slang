@@ -2,10 +2,7 @@
 #include "SDFWeights.h"
 // clang-format off
 
- 
-T SDFWeightsInHeader1<T : __BuiltinFloatingPointType>(vector<T, 3> p)  {
 
-}
 
 vector<T, 1> SDFWeightsInHeader<T : __BuiltinFloatingPointType>(vector<T, 3> p)  {
 	if (length(p) > T(1.)) {

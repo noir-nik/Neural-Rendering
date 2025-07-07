@@ -465,7 +465,7 @@ void BRDFSample::CreatePipelines() {
 	}
 
 	for (auto i = 0u; i < kTestFunctionsCount; ++i) {
-		pipelines_header[i] = CreatePipeline(shader_modules[0], {.function_type = BrdfFunctionType::eWeightsInHeader, .function_id = i});
+		pipelines_header[i] = CreatePipeline(shader_modules[0], {.function_type = function_type, .function_id = i});
 	}
 
 	for (auto& shader_module : shader_modules) {

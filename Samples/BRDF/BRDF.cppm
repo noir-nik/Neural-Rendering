@@ -108,7 +108,8 @@ public:
 
 	bool is_test_mode   = false;
 	bool verbose        = false;
-	bool use_validation = true;
+	// bool use_validation = true;
+	bool use_validation = false;
 
 	BrdfFunctionType function_type = BrdfFunctionType::eCoopVec;
 	// std::optional<BrdfFunctionType> function_type = std::nullopt;
