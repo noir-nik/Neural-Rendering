@@ -1,9 +1,11 @@
 import Pbr;
 #include "BRDFConstants.h"
 
-func BRDFClassic(float3 world_pos, float3 view, Light light, float3 normal, float3 albedo, float metallic, float roughness)->float3 {
+// func BRDFClassic(float3 view, Light light, float3 world_pos, float3 normal, float3 albedo, float metallic, float roughness)->float3 {
+
+void BRDFClassic(in float input[6], out float output[3], Light light, float3 world_pos, float3 normal, float3 albedo, float metallic, float roughness) {
 	static const float PI = 3.14159265359;
-	float3 F0 = float3(0.04, 0.04, 0.04);
+	float3             F0 = float3(0.04, 0.04, 0.04);
 
 	F0 = lerp(F0, albedo, metallic);
 
@@ -11,6 +13,8 @@ func BRDFClassic(float3 world_pos, float3 view, Light light, float3 normal, floa
 	float3 Lo = float3(0.0, 0.0, 0.0);
 
 	{
+		float3 view = float3(input[0], input[1], input[2]);
+
 		float3 L           = normalize(light.position - world_pos);
 		float3 H           = normalize(view + L);
 		float  distance    = length(light.position - world_pos);
@@ -46,7 +50,10 @@ func BRDFClassic(float3 world_pos, float3 view, Light light, float3 normal, floa
 	// Final color
 	float3 color = ambient + Lo;
 
-	return color;
+	// return color;
+	output[0] = color.x;
+	output[1] = color.y;
+	output[2] = color.z;
 }
 
 

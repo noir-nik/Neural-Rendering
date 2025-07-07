@@ -509,15 +509,14 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 		last_test  = first_test + 1;
 	}
 
-	auto is_header = function_type == BrdfFunctionType::eWeightsInHeader;
-
+	auto is_header = true;
 	if (is_header) {
 		first_test = 0;
 		last_test  = kTestFunctionsCount;
 	}
 
-	BrdfFunctionType skip[] = {BrdfFunctionType::eWeightsInHeader};
-	// BrdfFunctionType skip[] = {};
+	// BrdfFunctionType skip[] = {BrdfFunctionType::eWeightsInHeader};
+	BrdfFunctionType skip[] = {};
 
 	// std::mem_fn(&BRDFSample::DrawWindow);
 
@@ -604,7 +603,7 @@ auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 			int  value;
 			if (std::from_chars(str.data(), str.data() + str.size(), value).ec != std::errc()) return *(it + 1);
 			if (value < 0 || value >= kTestFunctionsCount) return *(it + 1);
-			function_type    = BrdfFunctionType::eWeightsInHeader;
+			// function_type    = BrdfFunctionType::eWeightsInHeader;
 			benchmark_single = true;
 			function_id      = value;
 			++it;

@@ -4,7 +4,7 @@
 // #define _TY COOPVEC_TYPE
 // #define WEIGHTS_SIZE_TY size_t
 // #include "BRDFWeights.h"
-#include "BRDFWeights_split.h"
+// #include "BRDFWeights_split.h"
 
 import CoopVec; //relu
 
