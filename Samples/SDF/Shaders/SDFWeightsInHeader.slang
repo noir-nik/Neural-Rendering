@@ -4,12 +4,15 @@
 
 
 
-vector<T, 1> SDFWeightsInHeader<T : __BuiltinFloatingPointType>(vector<T, 3> p)  {
+void SDFWeightsInHeader<T : __BuiltinFloatingPointType>(in T input[3], out T output[1]) {
+	vector<T, 3> p = { input[0], input[1], input[2] };
 	if (length(p) > T(1.)) {
-		return length(p) - T(.8);
+		// return length(p) - T(.8);
+		output[0] = length(p) - T(.8);
+		return;
 	}
 
-	T input0[3] = {p.x, p.y, p.z};
+	// T input0[3] = {p.x, p.y, p.z};
 	T output0[16];
 	T output1[16];
 	T output2[16];
@@ -25,7 +28,7 @@ vector<T, 1> SDFWeightsInHeader<T : __BuiltinFloatingPointType>(vector<T, 3> p) 
 	// Forward pass
 	for (int i = 0; i < 16; ++i) {
 		for (int j = 0; j < 3; ++j) {
-			output0[i] += T(kSDFWeights0[i][j]) * input0[j];
+			output0[i] += T(kSDFWeights0[i][j]) * input[j];
 		}
 		output0[i] = sin(output0[i]);
 	}
@@ -48,7 +51,7 @@ vector<T, 1> SDFWeightsInHeader<T : __BuiltinFloatingPointType>(vector<T, 3> p) 
 		output3[0] += T(kSDFWeights3[i]) * output2[i];
 	}
 
-	return output3[0];
+	output[0] = output3[0];
 }
 
 func D_SDFScalar<T : __BuiltinFloatingPointType>(vector<T, 3> p) -> vector<T, 3> {

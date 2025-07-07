@@ -63,7 +63,7 @@ public:
 
 	void Init();
 	void Run();
-	void RunTest(TestOptions const& options);
+	void RunBenchmark(TestOptions const& options);
 	void Destroy();
 	void CreateInstance();
 	void SelectPhysicalDevice();
@@ -94,14 +94,14 @@ public:
 		std::size_t                         staging_offset,
 		vk::CooperativeVectorMatrixLayoutNV dst_layout);
 
-	void RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offsets);
+	void RecordCommands(vk::Pipeline pipeline);
 	// Return time in nanoseconds
 	auto GetQueryResult() -> u64;
-	auto DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets) -> u64;
+	auto DrawWindow(vk::Pipeline pipeline) -> u64;
 	auto DrawWindow() -> u64 {
 		return kDstMatrixType == vk::ComponentTypeKHR::eFloat32
-				   ? DrawWindow(pipelines[u32(SdfFunctionType::eVec4)], row_major_offsets)
-				   : DrawWindow(pipelines[u32(SdfFunctionType::eCoopVec)], optimal_offsets);
+				   ? DrawWindow(pipelines[u32(SdfFunctionType::eVec4)])
+				   : DrawWindow(pipelines[u32(SdfFunctionType::eCoopVec)]);
 	}
 	// auto DrawWindow() -> u64 { return DrawWindow(pipelines[u32(SdfFunctionType::eScalarBuffer)], row_major_offsets); }
 	void RecreateSwapchain(int width, int height);
@@ -116,6 +116,8 @@ public:
 	bool is_test_mode   = false;
 	bool is_verbose     = false;
 	bool use_validation = false;
+
+	std::optional<u32> function_id = std::nullopt;
 
 	GLFWWindow window{};
 	Mouse      mouse;
@@ -149,9 +151,14 @@ public:
 	// vk::Pipeline scalar_buffer_pipeline;
 	// vk::Pipeline vec4_pipeline;
 
-	SdfFunctionType function_type = SdfFunctionType::eCoopVec;
+	SdfFunctionType  function_type = SdfFunctionType::eCoopVec;
+	std::string_view weights_file_name;
 
 	std::array<vk::Pipeline, u32(SdfFunctionType::eCount)> pipelines;
+
+	static constexpr int kTestFunctionsCount = 6;
+
+	std::array<vk::Pipeline, kTestFunctionsCount> pipelines_header;
 
 	VulkanRHI::Buffer staging_buffer{};
 	VulkanRHI::Buffer sdf_weights_buffer{};
@@ -165,6 +172,10 @@ public:
 
 	NetworkOffsets optimal_offsets;
 	NetworkOffsets row_major_offsets;
+
+	auto GetOffsets() -> NetworkOffsets& {
+		return function_type == SdfFunctionType::eCoopVec ? optimal_offsets : row_major_offsets;
+	}
 
 	// std::vector<std::byte> network_parameters;
 
@@ -918,7 +929,7 @@ auto SDFSample::GetQueryResult() -> u64 {
 	return 0ull;
 }
 
-auto SDFSample::DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets) -> u64 {
+auto SDFSample::DrawWindow(vk::Pipeline pipeline) -> u64 {
 	auto HandleSwapchainResult = [this](vk::Result result) -> bool {
 		switch (result) {
 		case vk::Result::eSuccess:           return true;
@@ -933,7 +944,7 @@ auto SDFSample::DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets)
 	CHECK_VULKAN_RESULT(device.resetFences(1, &swapchain.GetCurrentFence()));
 	device.resetCommandPool(swapchain.GetCurrentCommandPool());
 	if (!HandleSwapchainResult(swapchain.AcquireNextImage())) return 0ull;
-	RecordCommands(pipeline, offsets);
+	RecordCommands(pipeline);
 	if (!HandleSwapchainResult(swapchain.SubmitAndPresent(queue, queue))) return 0ull;
 
 	// Call it here
@@ -942,7 +953,7 @@ auto SDFSample::DrawWindow(vk::Pipeline pipeline, NetworkOffsets const& offsets)
 	return elapsed;
 }
 
-void SDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offsets) {
+void SDFSample::RecordCommands(vk::Pipeline pipeline) {
 	int x, y, width, height;
 	window.GetRect(x, y, width, height);
 
@@ -1002,7 +1013,10 @@ void SDFSample::RecordCommands(vk::Pipeline pipeline, NetworkOffsets const& offs
 	};
 	// PrintMat4(camera.getView());
 
+	auto offsets = GetOffsets();
+
 	for (auto i = 0u; i < kNetworkLayers; ++i) {
+
 		constants.weights_offsets[i] = offsets.weights_offsets[i];
 		constants.bias_offsets[i]    = offsets.biases_offsets[i];
 	}
@@ -1120,7 +1134,15 @@ void SDFSample::Run() {
 	} while (true);
 }
 
-void SDFSample::RunTest(TestOptions const& options) {
+template <typename Range, typename Proj = std::identity>
+constexpr inline auto contains(Range&& range, auto&& value, Proj&& proj = std::identity{}) {
+	for (auto&& v : range)
+		if (std::invoke(proj, v) == value)
+			return true;
+	return false;
+};
+
+void SDFSample::RunBenchmark(TestOptions const& options) {
 	struct TestData {
 		vk::Pipeline   pipeline;
 		NetworkOffsets offsets;
@@ -1135,34 +1157,48 @@ void SDFSample::RunTest(TestOptions const& options) {
 	// std::printf("Resizing to %dx%d\n", width, height);
 	RecreateSwapchain(width, height);
 	// DrawWindow();
-	constexpr u32 kNumTestRuns  = 100;
-	constexpr u32 kNumTestKinds = u32(SdfFunctionType::eCount);
+	constexpr u32 kTestRunsCount = 32;
+	constexpr u32 kMaxTestKinds  = u32(SdfFunctionType::eCount);
 
-	TestData test_data[kNumTestKinds] = {
-		{pipelines[u32(SdfFunctionType::eCoopVec)], optimal_offsets},
-		{pipelines[u32(SdfFunctionType::eWeightsInHeader)], row_major_offsets},
-		{pipelines[u32(SdfFunctionType::eWeightsInBuffer)], row_major_offsets},
-		{pipelines[u32(SdfFunctionType::eVec4)], row_major_offsets},
+	int first_test{}, last_test = kMaxTestKinds - 1;
+
+	auto is_header = true;
+	if (is_header) {
+		first_test = 0;
+		last_test  = kTestFunctionsCount;
+	}
+
+	SdfFunctionType skip[] = {};
+
+	auto draw = [&](u32 id) {
+		if (is_header) {
+			return DrawWindow(pipelines_header[id]);
+		} else {
+			return DrawWindow(pipelines[id]);
+		};
 	};
 
-	// Coopvec usually works in float16
-	u32 first_test_index = 0;
-	if constexpr (kDstMatrixType == vk::ComponentTypeKHR::eFloat32) {
-		first_test_index = 1;
-	}
-
-	std::vector<std::array<u64, kNumTestKinds>> test_times(kNumTestRuns);
-
-	for (u32 test_kind_index = first_test_index; test_kind_index < kNumTestKinds; ++test_kind_index) {
-		TestData& data = test_data[test_kind_index];
-		for (u32 iter = 0; iter < kNumTestRuns; ++iter) {
-			// WindowManager::PollEvents();
-			u64   time_nanoseconds            = DrawWindow(data.pipeline, data.offsets);
-			float ns_per_tick                 = physical_device.GetNsPerTick();
-			float elapsed_ms                  = (time_nanoseconds * ns_per_tick) / 1e6f;
-			test_times[iter][test_kind_index] = time_nanoseconds;
+	constexpr u32 kWarmupCount = 2;
+	for (u32 t_i = first_test; t_i < last_test; ++t_i) {
+		for (u32 iter = 0; iter < kWarmupCount; ++iter) {
+			(void)draw(t_i);
 		}
 	}
+
+	std::array<std::array<u64, kMaxTestKinds>, kTestRunsCount> test_times;
+
+	for (u32 t_i = first_test; t_i < last_test; ++t_i) {
+		// TestData& data = test_data[t_i];
+		for (u32 iter = 0; iter < kTestRunsCount; ++iter) {
+			// WindowManager::PollEvents();
+			u64   time_nanoseconds = draw(t_i);
+			float ns_per_tick      = physical_device.GetNsPerTick();
+			float elapsed_ms       = (time_nanoseconds * ns_per_tick) / 1e6f;
+			test_times[iter][t_i]  = time_nanoseconds;
+		}
+	}
+
+	std::string_view names[] = {"CoopVec", "WeightsInBuffer", "WeightsInBufferFloat16", "WeightsInHeader"};
 
 	// Print csv
 	if constexpr (kDstMatrixType == vk::ComponentTypeKHR::eFloat16) {
@@ -1171,11 +1207,22 @@ void SDFSample::RunTest(TestOptions const& options) {
 		std::printf("ScalarInline_Float32,ScalarBuffer_Float32,Vec4_Float32\n");
 	}
 
-	for (u32 iter = 0; iter < kNumTestRuns; ++iter) {
-		for (u32 test_kind_index = first_test_index; test_kind_index < kNumTestKinds - 1; ++test_kind_index) {
-			std::printf("%llu, ", test_times[iter][test_kind_index]);
+	for (u32 t_i = first_test; t_i < last_test; ++t_i) {
+		if (contains(skip, SdfFunctionType(t_i))) continue;
+		if (is_header) {
+			std::printf("SDF_%s_%u", names[t_i].data(), t_i);
+		} else {
+			std::printf("%s", names[t_i].data());
 		}
-		std::printf("%llu \n", test_times[iter][kNumTestKinds - 1]);
+		if (t_i < last_test - 1 && !contains(skip, SdfFunctionType(t_i + 1))) std::printf(",");
+	}
+	std::printf("\n");
+
+	for (u32 iter = 0; iter < kTestRunsCount; ++iter) {
+		for (u32 t_i = first_test; t_i < last_test; ++t_i) {
+			std::printf("%llu, ", test_times[iter][t_i]);
+		}
+		std::printf("%llu \n", test_times[iter][kMaxTestKinds - 1]);
 	}
 }
 
@@ -1193,11 +1240,27 @@ auto SDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 		else if (arg == "--kind") {
 			if ((it + 1) == args_range.end()) return "expected <kind>";
 			auto kind = std::string_view(*(it + 1));
-			int  result;
-			auto res = std::from_chars(kind.data(), kind.data() + kind.size(), result);
-			if (res.ec != std::errc()) return *(it + 1);
-			if (result < 0 || result >= std::to_underlying(SdfFunctionType::eCount)) return *(it + 1);
-			function_type = static_cast<SdfFunctionType>(result);
+			int  value;
+			if (std::from_chars(kind.data(), kind.data() + kind.size(), value).ec != std::errc()) return *(it + 1);
+			if (value < 0 || value >= std::to_underlying(SdfFunctionType::eCount)) return *(it + 1);
+			function_type = static_cast<SdfFunctionType>(value);
+			// benchmark_single = true;
+			++it;
+		} else if (arg == "-f") {
+			if ((it + 1) == args_range.end()) return "expected <id>";
+			auto str = std::string_view(*(it + 1));
+			int  value;
+			if (std::from_chars(str.data(), str.data() + str.size(), value).ec != std::errc()) return *(it + 1);
+			if (value < 0 || value >= kTestFunctionsCount) return *(it + 1);
+			// function_type    = SDFFunctionType::eWeightsInHeader;
+			// benchmark_single = true;
+			function_id = value;
+			++it;
+		} else if (arg == "-w") { // input weights file
+			if ((it + 1) == args_range.end()) return "expected <file>";
+			auto str = std::string_view(*(it + 1));
+			// if (!std::filesystem::exists(str)) return *(it + 1);
+			weights_file_name = str;
 			++it;
 		} else return *it;
 	}
@@ -1221,7 +1284,7 @@ auto main(int argc, char const* argv[]) -> int {
 	};
 
 	int2 res_arr[] = {
-		// {1920, 1080},
+		{1920, 1080},
 		// {3840, 2160},
 		// {512, 512},
 		{640, 480},
@@ -1233,15 +1296,15 @@ auto main(int argc, char const* argv[]) -> int {
 
 	auto res_count = //
 
-		std::size(res_arr);
-	// 1;
+		// std::size(res_arr);
+		1;
 
 	sample.Init();
 	if (sample.IsTestMode()) {
 		for (int i = 0; i < res_count; ++i) {
 			options.resolution = res_arr[i];
 			std::printf("resolution: %d x %d\n", res_arr[i].x, res_arr[i].y);
-			sample.RunTest(options);
+			sample.RunBenchmark(options);
 		}
 	} else {
 		sample.Run();

@@ -20,10 +20,11 @@ struct SDFConstants {
 };
 
 enum class SdfFunctionType : int {
-	eCoopVec         = 0,
-	eWeightsInHeader = 1,
-	eWeightsInBuffer = 2,
-	eVec4            = 3,
+	eCoopVec,
+	eWeightsInBuffer,
+	// eWeightsInBufferF16,
+	eWeightsInHeader,
+	eVec4,
 
 	eCount
 };

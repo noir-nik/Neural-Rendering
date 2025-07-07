@@ -1,6 +1,9 @@
-func SDFWeightsInBuffer<T : __BuiltinFloatingPointType>(vector<T, 3> p, StructuredBuffer<T> sdf_weights, uint32_t weights_offsets[4], uint32_t bias_offsets[4])->T {
+void SDFWeightsInBuffer<T : __BuiltinFloatingPointType>(in T input[3], out T output[1], StructuredBuffer<T> sdf_weights, uint32_t weights_offsets[4], uint32_t bias_offsets[4]) {
+	vector<T, 3> p = { input[0], input[1], input[2] };
 	if (length(p) > T(1.)) {
-		return length(p) - T(.8);
+		// return length(p) - T(.8);
+		output[0] = length(p) - T(.8);
+		return;
 	}
 
 	T input0[3] = { p.x, p.y, p.z };
@@ -43,7 +46,8 @@ func SDFWeightsInBuffer<T : __BuiltinFloatingPointType>(vector<T, 3> p, Structur
 		output3[0] += sdf_weights[weights_offsets[3] / sizeof(T) + i] * output2[i];
 	}
 
-	return output3[0];
+	// return output3[0];
+	output[0] = output3[0];
 }
 
 
