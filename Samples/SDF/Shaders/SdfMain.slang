@@ -6,16 +6,16 @@ import SDFCoopVec;
 import SDFWeightsInBuffer;
 import SDFWeightsInHeader;
 
-// clang-format off1
+// clang-format off
 
-[[vk::binding(0, 0)]]
-StructuredBuffer<COOPVEC_TYPE> gSDFWeights;
+[[vk::binding(0, 0)]] StructuredBuffer<COOPVEC_TYPE> gSDFWeights;
 
-[[vk::push_constant]]
-SDFConstants ctx;
+[[vk::push_constant]] SDFConstants ctx;
 
-[SpecializationConstant]
-const int shader_type = 0;
+[SpecializationConstant] const int shader_type = 0;
+[SpecializationConstant] const int func_id = 0;
+
+// clang-format on
 
 func RotateAxisAngle(float3 vector, float3 axis, float angle)->float3 {
 	return lerp(dot(vector, axis) * axis, vector, cos(angle)) + sin(angle) * cross(axis, vector);
@@ -23,18 +23,23 @@ func RotateAxisAngle(float3 vector, float3 axis, float angle)->float3 {
 
 func Scene(float3 p)->float {
 	vector<COOPVEC_TYPE, 3> pos = { p.x, p.y, p.z };
+
+	typealias Ty = COOPVEC_TYPE;
+
+	Ty input[3] = { pos.x, pos.y, pos.z };
+	Ty output[1];
 	if (shader_type == SdfFunctionType::eCoopVec) {
-		return SDFCoopVec<COOPVEC_TYPE>(pos, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
-	} else if (shader_type == SdfFunctionType::eWeightsInHeader) {
-		return float(SDFWeightsInHeader<COOPVEC_TYPE>(pos));
+		SDFCoopVec<COOPVEC_TYPE>(input, output, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
 	} else if (shader_type == SdfFunctionType::eWeightsInBuffer) {
-		return SDFWeightsInBuffer<COOPVEC_TYPE>(pos, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
+		SDFWeightsInBuffer<COOPVEC_TYPE>(input, output, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
+	} else if (shader_type == SdfFunctionType::eWeightsInHeader) {
+		SDFWeightsInHeader<COOPVEC_TYPE>(input, output);
 	} else if (shader_type == SdfFunctionType::eVec4) {
-		return SDFVec4<COOPVEC_TYPE>(pos);
+		SDFVec4<COOPVEC_TYPE>(pos);
 	} else {
-		return SDFCoopVec<COOPVEC_TYPE>(pos, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
+		SDFCoopVec<COOPVEC_TYPE>(input, output, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
 	}
-	return 0;
+	return output[0];
 }
 
 func GetNormal(float3 p)->float3 {
