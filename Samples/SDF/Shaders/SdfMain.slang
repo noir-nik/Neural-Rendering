@@ -11,8 +11,8 @@ import SDFWeightsInHeader_3_24_24_24_1_1321;
 import SDFWeightsInHeader_3_32_32_32_1_2273;
 import SDFWeightsInHeader_3_32_32_32_32_1_3329;
 import SDFWeightsInHeader_3_48_48_48_1_4945;
+import SDFWeightsInHeader_3_64_64_64_1_8641;
 
-// import SDFWeightsInHeader_3_64_64_64_1_8641;
 // import SDFWeightsInHeader_3_32_32_32_32_1_3329;
 // import SDFWeightsInHeader_3_48_48_48_48_1_7297;
 // import SDFWeightsInHeader_3_64_64_64_64_1_12801;
@@ -23,9 +23,9 @@ typealias FTy = float;
 typealias Ty  = half;
 
 // clang-format off
-[[vk::binding(0, 0)]] StructuredBuffer<FTy> gSDFWeights;
-[[vk::binding(0, 0)]] StructuredBuffer<Ty> gWeightsCoopVec;
-// [[vk::binding(0, 0)]] StructuredBuffer<COOPVEC_TYPE> gSDFWeights;
+[[vk::binding(0, 0)]] StructuredBuffer<FTy> gWeights;
+[[vk::binding(0, 0)]] StructuredBuffer<Ty> gWeightsF16;
+// [[vk::binding(0, 0)]] StructuredBuffer<COOPVEC_TYPE> gWeights;
 
 [[vk::push_constant]] SDFConstants ctx;
 
@@ -52,6 +52,9 @@ float Scene(float3 pos) {
 	uint wo4[4] = { ctx.weights_offsets[0], ctx.weights_offsets[1], ctx.weights_offsets[2], ctx.weights_offsets[3] };
 	uint bo4[4] = { ctx.bias_offsets[0], ctx.bias_offsets[1], ctx.bias_offsets[2], ctx.bias_offsets[3] };
 
+	uint wo5[5] = { ctx.weights_offsets[0], ctx.weights_offsets[1], ctx.weights_offsets[2], ctx.weights_offsets[3], ctx.weights_offsets[4] };
+	uint bo5[5] = { ctx.bias_offsets[0], ctx.bias_offsets[1], ctx.bias_offsets[2], ctx.bias_offsets[3], ctx.bias_offsets[4] };
+
 	// typealias HTy = half;
 	typealias HTy = float;
 
@@ -61,40 +64,58 @@ float Scene(float3 pos) {
 	// if (shader_type != SdfFunctionType::eWeightsInHeader) {
 	// 	return 0.5;
 	// }
-	
+
 	constexpr int fi = func_id;
 
 	if (shader_type == SdfFunctionType::eCoopVec) {
 		// SDFWeightsInHeader<Ty>(input, output);
-		SDFCoopVec<Ty>(input, output, gWeightsCoopVec, wo4, bo4);
+		// SDFCoopVec<Ty>(input, output, gWeightsF16, wo4, bo4);
+		// SDFCoopVec_3_16_16_16_1_625<Ty>(input, output, gWeightsF16, wo4, bo4);
+
+		// SDFWeightsInHeader_3_16_16_16_1_625<Ty>(input, output);
+		// SDFWeightsInHeader_3_24_24_24_1_1321<Ty>(input, output);
+		// SDFWeightsInHeader_3_32_32_32_1_2273<Ty>(input, output);
+		// SDFWeightsInHeader_3_32_32_32_32_1_3329<Ty>(input, output);
+		// SDFWeightsInHeader_3_48_48_48_1_4945<Ty>(input, output);
+
+		if (fi == 0) SDFCoopVec_3_16_16_16_1_625<Ty>(input, output, gWeightsF16, wo4, bo4);
+		else if (fi == 1) SDFCoopVec_3_24_24_24_1_1321<Ty>(input, output, gWeightsF16, wo4, bo4);
+		else if (fi == 2) SDFCoopVec_3_32_32_32_1_2273<Ty>(input, output, gWeightsF16, wo4, bo4);
+		else if (fi == 3) SDFCoopVec_3_32_32_32_32_1_3329<Ty>(input, output, gWeightsF16, wo5, bo5);
+		else if (fi == 4) SDFCoopVec_3_48_48_48_1_4945<Ty>(input, output, gWeightsF16, wo4, bo4);
+		else return 0.5;
 
 	} else if (shader_type == SdfFunctionType::eWeightsInBuffer) {
 		// SDFWeightsInHeader<FTy>(inputf, outputf);
-		SDFWeightsInBuffer<FTy>(inputf, outputf, gSDFWeights, wo4, bo4);
+		// SDFWeightsInHeader_3_16_16_16_1_625<FTy>(inputf, outputf);
+		// SDFWeightsInBuffer<FTy>(inputf, outputf, gWeights, wo4, bo4);
+
+		if (fi == 0) SDFWeightsInBuffer_3_16_16_16_1_625<FTy>(inputf, outputf, gWeights, wo4, bo4);
+		else if (fi == 1) SDFWeightsInBuffer_3_24_24_24_1_1321<FTy>(inputf, outputf, gWeights, wo4, bo4);
+		else if (fi == 2) SDFWeightsInBuffer_3_32_32_32_1_2273<FTy>(inputf, outputf, gWeights, wo4, bo4);
+		else if (fi == 3) SDFWeightsInBuffer_3_32_32_32_32_1_3329<FTy>(inputf, outputf, gWeights, wo5, bo5);
+		else if (fi == 4) SDFWeightsInBuffer_3_48_48_48_1_4945<FTy>(inputf, outputf, gWeights, wo4, bo4);
+		else return 0.5;
 	} else if (shader_type == SdfFunctionType::eWeightsInBufferF16) {
 		// SDFWeightsInHeader<Ty>(input, output);
-		SDFWeightsInBuffer<Ty>(input, output, gWeightsCoopVec, wo4, bo4);
-		// SDFWeightsInBuffer_3_16_16_16_1_625<FTy>(inputf, outputf, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
+		SDFWeightsInBuffer<Ty>(input, output, gWeightsF16, wo4, bo4);
+		// SDFWeightsInBuffer_3_16_16_16_1_625<FTy>(inputf, outputf, gWeights, ctx.weights_offsets, ctx.bias_offsets);
 
-		// if (func_id == 0) SDFWeightsInBuffer_3_16_16_16_16_1_897<FTy>(inputf, outputf, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
-		// else if (func_id == 1) SDFWeightsInBuffer_3_32_32_32_32_1_3329<FTy>(inputf, outputf, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
-		// else if (func_id == 2) SDFWeightsInBuffer_3_48_48_48_48_1_7297<FTy>(inputf, outputf, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
-		// else if (func_id == 3) SDFWeightsInBuffer_3_64_64_64_64_1_12801<FTy>(inputf, outputf, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
-		// else if (func_id == 4) SDFWeightsInBuffer_3_128_128_128_128_1_50177<FTy>(inputf, outputf, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
-		// else if (func_id == 5) SDFWeightsInBuffer_3_256_256_256_256_256_1_264449<FTy>(inputf, outputf, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
-		// else if (func_id == 5) BRDFWeightsIBufferr<FTy>(input, output);
-		// else if (func_id == 6) BRDFWeightsIBufferr<float>(input, output);
-
+		if (fi == 0) SDFWeightsInBuffer_3_16_16_16_1_625<Ty>(input, output, gWeightsF16, wo4, bo4);
+		else if (fi == 1) SDFWeightsInBuffer_3_24_24_24_1_1321<Ty>(input, output, gWeightsF16, wo4, bo4);
+		else if (fi == 2) SDFWeightsInBuffer_3_32_32_32_1_2273<Ty>(input, output, gWeightsF16, wo4, bo4);
+		else if (fi == 3) SDFWeightsInBuffer_3_32_32_32_32_1_3329<Ty>(input, output, gWeightsF16, wo5, bo5);
+		else if (fi == 4) SDFWeightsInBuffer_3_48_48_48_1_4945<Ty>(input, output, gWeightsF16, wo4, bo4);
+		else return 0.5;
+ 
 	} else if (shader_type == SdfFunctionType::eWeightsInHeader) {
 		// SDFWeightsInHeader<HTy>(inputh, outputh);
 
-
-
-		// SDFWeightsInHeader_3_16_16_16_1_625<HTy>(inputh, outputh);
+		SDFWeightsInHeader_3_16_16_16_1_625<HTy>(inputh, outputh);
 		// SDFWeightsInHeader_3_24_24_24_1_1321<HTy>(inputh, outputh); // 13.2h // 13f
 		// SDFWeightsInHeader_3_32_32_32_1_2273<HTy>(inputh, outputh); // 180h 180f
 		// SDFWeightsInHeader_3_32_32_32_32_1_3329<HTy>(inputh, outputh); // 190h // undef f
-		SDFWeightsInHeader_3_48_48_48_1_4945<HTy>(inputh, outputh);
+		// SDFWeightsInHeader_3_48_48_48_1_4945<HTy>(inputh, outputh);
 		// SDFWeightsInHeader_3_64_64_64_1_8641<HTy>(inputh, outputh);
 
 		// if (fi == 0) SDFWeightsInHeader_3_16_16_16_1_625<HTy>(inputh, outputh);
@@ -112,12 +133,12 @@ float Scene(float3 pos) {
 		inputf[0] = SDFVec4<FTy>(pos);
 	} else {
 		// SDFWeightsInHeader<Ty>(input, output);
-		SDFCoopVec<Ty>(input, output, gWeightsCoopVec, wo4, bo4);
+		SDFCoopVec<Ty>(input, output, gWeightsF16, wo4, bo4);
 	}
 
-	if (shader_type == SdfFunctionType::eWeightsInHeader ) {
+	if (shader_type == SdfFunctionType::eWeightsInHeader) {
 		return outputh[0];
-	} else	if (shader_type == SdfFunctionType::eCoopVec || shader_type == SdfFunctionType::eWeightsInBufferF16) {
+	} else if (shader_type == SdfFunctionType::eCoopVec || shader_type == SdfFunctionType::eWeightsInBufferF16) {
 		return output[0];
 	} else {
 		return outputf[0];
@@ -163,7 +184,7 @@ void main(float2 fragCoord, out float4 fragColor: SV_Target0) {
 	float3 init = ctx.camera_pos;
 
 	float3 p   = init;
-	bool hit = false;
+	bool   hit = false;
 	// [ForceUnroll(100)]
 	for (int i = 0; i < 100 && !hit; ++i) {
 		float dist = Scene(p);
@@ -193,7 +214,7 @@ void main(float2 fragCoord, out float4 fragColor: SV_Target0) {
 		col = smoothstep(-.02, 1.05, sqrt(col)) * (1. - dot(uv, uv) * .5);
 
 		fragColor.xyz = hit ? col : bg;
-		fragColor.w = 1.0f;
+		fragColor.w   = 1.0f;
 		// if (hit) {
 		// 	fragColor.xyz = col;
 		// 	fragColor.w = 1.0f;
