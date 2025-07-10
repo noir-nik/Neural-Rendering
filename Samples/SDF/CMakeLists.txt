@@ -27,12 +27,18 @@ target_sources(${SAMPLE_NAME} PUBLIC
 	FILES ${MODULE_SOURCES}
 )
 
+set(shaders_include ${${PROJECT_NAME}_SHADERS_DIR} ${${SAMPLE_NAME}_SHADERS_DIR} ${${SAMPLE_NAME}_SHADERS_OUTPUT_DIR})
+
+target_include_directories(${SAMPLE_NAME} PUBLIC ${shaders_include})
+
 # Compile shaders
 set(${SAMPLE_NAME}_SHADERS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Shaders CACHE PATH "${SAMPLE_NAME} shaders")
 set(${SAMPLE_NAME}_SHADERS_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/Shaders CACHE PATH "${SAMPLE_NAME} shaders output")
 
+
 generate_spv_shader_slang(${${SAMPLE_NAME}_SHADERS_DIR}/SdfMain.slang ${${SAMPLE_NAME}_SHADERS_OUTPUT_DIR}/SdfMain.slang.spv
-	INCLUDE ${${PROJECT_NAME}_SHADERS_DIR}
+	INCLUDE ${shaders_include}
+	OPTIONS "-Wno-30081" "-Wno-39001"
 )
 
 add_custom_target(${SAMPLE_NAME}_shaders_spv ALL DEPENDS

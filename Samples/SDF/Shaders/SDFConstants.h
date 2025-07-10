@@ -15,14 +15,16 @@ struct SDFConstants {
 	float3 camera_right;
 	int    pad;
 
-	uint32_t weights_offsets[4];
-	uint32_t bias_offsets[4];
+	uint32_t weights_offsets[6];
+	int      pad3[3];
+	uint32_t bias_offsets[6];
+	int      pad4[3];
 };
 
 enum class SdfFunctionType : int {
 	eCoopVec,
 	eWeightsInBuffer,
-	// eWeightsInBufferF16,
+	eWeightsInBufferF16,
 	eWeightsInHeader,
 	eVec4,
 

@@ -1,3 +1,5 @@
+#include "stddef.h" // offsetof
+
 #include "CheckResult.h"
 #include "Shaders/SDFConfig.h"
 
@@ -20,16 +22,28 @@ extern "C++" {
 #include "Shaders/SDFConstants.h"
 }
 
-#include "Shaders/SDFWeights.h"
+// #include "Shaders/SDFWeights.h"
+#define _TY float
+
+#include  "SDFWeightsInHeader_3_16_16_16_1_625.h"
+#include  "SDFWeightsInHeader_3_24_24_24_1_1321.h"
+#include  "SDFWeightsInHeader_3_32_32_32_1_2273.h"
+#include  "SDFWeightsInHeader_3_32_32_32_32_1_3329.h"
+#include  "SDFWeightsInHeader_3_48_48_48_1_4945.h"
+
+// #include "Shaders/SDFWeightsInHeader_3_16_16_16_16_1_897.h"
 
 using namespace Utils;
 using namespace mesh;
+
+using StrView = std::string_view;
 
 struct TestOptions {
 	int2 resolution = {640, 480};
 	// TestType    test_type    = TestType::eSDF;
 	// NetworkType network_type = NetworkType::eScalarInline;
-	int test_count = 1;
+	int     test_count = 1;
+	StrView weights_file;
 };
 
 class SDFSample {
@@ -46,17 +60,22 @@ public:
 		vk::EXTShaderReplicatedCompositesExtensionName,
 	};
 
-	static constexpr vk::ComponentTypeKHR kSrcComponentType = COMPONENT_TYPE;
-	static constexpr vk::ComponentTypeKHR kDstMatrixType    = COMPONENT_TYPE;
-	static constexpr vk::ComponentTypeKHR kDstVectorType    = COMPONENT_TYPE;
+	// static constexpr vk::ComponentTypeKHR comp = vk ::ComponentTypeKHR ::eFloat16;
+	static constexpr vk::ComponentTypeKHR comp = vk ::ComponentTypeKHR ::eFloat32;
+
+	static constexpr vk::ComponentTypeKHR kSrcComponentType = comp;
+	static constexpr vk::ComponentTypeKHR kDstMatrixType    = comp;
+	static constexpr vk::ComponentTypeKHR kDstVectorType    = comp;
 
 	static constexpr u32 kFramesInFlight = 3;
 
-	static constexpr u32 kNetworkLayers = 4;
+	// static constexpr u32 kNetworkLayers = std::size(SDFConstants{}.weights_offsets);
+	// static constexpr u32 kNetworkLayers = 4;
+	static constexpr u32 kMaxOffsets = 5;
 
 	struct NetworkOffsets {
-		u32 weights_offsets[kNetworkLayers];
-		u32 biases_offsets[kNetworkLayers];
+		u32 weights_offsets[kMaxOffsets];
+		u32 biases_offsets[kMaxOffsets];
 	};
 
 	~SDFSample();
@@ -79,12 +98,17 @@ public:
 
 	void CreatePipelineLayout();
 
+	struct SpecData {
+		SdfFunctionType function_type = SdfFunctionType::eCoopVec;
+		u32             function_id   = 0; // inline
+	};
+
 	void CreatePipelines();
 	[[nodiscard]]
 	auto CreatePipeline(
 		vk::ShaderModule vertex_shader_module,
 		vk::ShaderModule fragment_shader_module,
-		SdfFunctionType  function_type = SdfFunctionType::eCoopVec) -> vk::Pipeline;
+		SpecData const&  spec) -> vk::Pipeline;
 
 	// void BuildNetwork();
 	void CreateAndUploadBuffers();
@@ -99,9 +123,7 @@ public:
 	auto GetQueryResult() -> u64;
 	auto DrawWindow(vk::Pipeline pipeline) -> u64;
 	auto DrawWindow() -> u64 {
-		return kDstMatrixType == vk::ComponentTypeKHR::eFloat32
-				   ? DrawWindow(pipelines[u32(SdfFunctionType::eVec4)])
-				   : DrawWindow(pipelines[u32(SdfFunctionType::eCoopVec)]);
+		return DrawWindow(pipelines[function_id.value_or(0)]);
 	}
 	// auto DrawWindow() -> u64 { return DrawWindow(pipelines[u32(SdfFunctionType::eScalarBuffer)], row_major_offsets); }
 	void RecreateSwapchain(int width, int height);
@@ -154,16 +176,20 @@ public:
 	SdfFunctionType  function_type = SdfFunctionType::eCoopVec;
 	std::string_view weights_file_name;
 
-	std::array<vk::Pipeline, u32(SdfFunctionType::eCount)> pipelines;
+	// std::array<vk::Pipeline, u32(SdfFunctionType::eCount)> pipelines;
+	// std::array<vk::Pipeline, u32(SdfFunctionType::eCount)> pipelines;
 
-	static constexpr int kTestFunctionsCount = 6;
+	static constexpr int kTestFunctionsCount = 2;
 
-	std::array<vk::Pipeline, kTestFunctionsCount> pipelines_header;
+	// vk::Pipeline pipelines[u32(SdfFunctionType::eCount)][kTestFunctionsCount];
+	// vk::Pipeline pipelines[kTestFunctionsCount];
+
+	std::array<vk::Pipeline, kTestFunctionsCount> pipelines;
 
 	VulkanRHI::Buffer staging_buffer{};
-	VulkanRHI::Buffer sdf_weights_buffer{};
+	VulkanRHI::Buffer device_buffer{};
 
-	VulkanCoopVecNetwork sdf_network = {
+	VulkanCoopVecNetwork network = {
 		Linear(3, 16),
 		Linear(16, 16),
 		Linear(16, 16),
@@ -198,12 +224,16 @@ public:
 	vk::QueryPool timestamp_query_pool{};
 
 	Camera camera{{
-		.position = {-4.180247, -0.427392, 0.877357},
-		.focus    = {0.0f, 0.0f, 0.0f},
-		.up       = {0.213641, -0.093215, 0.972476},
-		.fov      = 35.0f,
-		.z_near   = 0.01f,
-		.z_far    = 1000.0f,
+		// .position = {-4.180247, -0.427392, 0.877357},
+		.position = {2.7, 0.8, -4.3},
+		// .focus    = {-0.1f, 0.0f, 0.0f},
+		.focus = {},
+		// .up       = {0.213641, -0.093215, 0.972476},
+		.up = {0, 1, 0},
+		// .fov    = 35.0f,
+		.fov    = 32.0f,
+		.z_near = 0.01f,
+		.z_far  = 1000.0f,
 	}};
 };
 
@@ -280,7 +310,8 @@ void SDFSample::Init() {
 	WindowManager::SetErrorCallback(WindowErrorCallback);
 	WindowManager::Init();
 
-	u32 const initial_width = 1600, initial_height = 1200;
+	// u32 const initial_width = 1600, initial_height = 1200;
+	u32 const initial_width = 1920, initial_height = 1080;
 	window.Init({.x = 30, .y = 30, .width = initial_width, .height = initial_height, .title = "SDF"});
 	window.GetWindowCallbacks().framebufferSizeCallback = FramebufferSizeCallback;
 	if (!is_test_mode) {
@@ -360,12 +391,15 @@ void SDFSample::Destroy() {
 		}
 
 		staging_buffer.Destroy();
-		sdf_weights_buffer.Destroy();
+		device_buffer.Destroy();
 
-		for (vk::Pipeline& pipeline : pipelines) {
+		// for (auto& pip : pipelines) {
+		for (auto& pipeline : pipelines) {
+			// for (auto& pipeline : pip) {
 			device.destroyPipeline(pipeline, GetAllocator());
 			pipeline = vk::Pipeline{};
 		}
+		// }
 		device.destroyPipelineLayout(pipeline_layout, GetAllocator());
 
 		device.destroyDescriptorSetLayout(descriptor_set_layout, GetAllocator());
@@ -622,10 +656,14 @@ void SDFSample::CreatePipelines() {
 		CHECK_VULKAN_RESULT(device.createShaderModule(&shader_module_infos[i], GetAllocator(), &shader_modules[i]));
 	}
 
-	pipelines[int(SdfFunctionType::eCoopVec)]         = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eCoopVec);
-	pipelines[int(SdfFunctionType::eWeightsInHeader)] = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eWeightsInHeader);
-	pipelines[int(SdfFunctionType::eWeightsInBuffer)] = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eWeightsInBuffer);
-	pipelines[int(SdfFunctionType::eVec4)]            = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eVec4);
+	// pipelines[int(SdfFunctionType::eCoopVec)]         = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eCoopVec);
+	// pipelines[int(SdfFunctionType::eWeightsInHeader)] = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eWeightsInHeader);
+	// pipelines[int(SdfFunctionType::eWeightsInBuffer)] = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eWeightsInBuffer);
+	// pipelines[int(SdfFunctionType::eVec4)]            = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eVec4);
+
+	for (auto i = 0u; i < std::size(pipelines); ++i) {
+		pipelines[i] = CreatePipeline(shader_modules[0], shader_modules[1], {function_type, i});
+	}
 
 	for (auto& shader_module : shader_modules) {
 		device.destroyShaderModule(shader_module, GetAllocator());
@@ -634,21 +672,26 @@ void SDFSample::CreatePipelines() {
 
 auto SDFSample::CreatePipeline(vk::ShaderModule vertex_shader_module,
 							   vk::ShaderModule fragment_shader_module,
-							   SdfFunctionType  function_type) -> vk::Pipeline {
+							   SpecData const&  info) -> vk::Pipeline {
 
 	// Specialization constant for type of inferencing function
-	SdfFunctionType specialization_value = function_type;
-
-	vk::SpecializationMapEntry specialization_entry{
-		.constantID = 0,
-		.offset     = 0,
-		.size       = sizeof(SdfFunctionType),
+	vk::SpecializationMapEntry specialization_entries[] = {
+		{
+			.constantID = 0,
+			.offset     = offsetof(SpecData, function_type),
+			.size       = sizeof(info.function_type),
+		},
+		{
+			.constantID = 1,
+			.offset     = offsetof(SpecData, function_id),
+			.size       = sizeof(info.function_id),
+		},
 	};
 	vk::SpecializationInfo specialization_info{
-		.mapEntryCount = 1,
-		.pMapEntries   = &specialization_entry,
-		.dataSize      = sizeof(SdfFunctionType),
-		.pData         = &specialization_value,
+		.mapEntryCount = std::size(specialization_entries),
+		.pMapEntries   = specialization_entries,
+		.dataSize      = sizeof(info),
+		.pData         = &info,
 	};
 
 	vk::PipelineShaderStageCreateInfo shader_stages[] = {
@@ -722,7 +765,7 @@ auto SDFSample::CreatePipeline(vk::ShaderModule vertex_shader_module,
 		// .stencilAttachmentFormat = vk::Format::eUndefined,
 	};
 
-	vk::GraphicsPipelineCreateInfo info{
+	vk::GraphicsPipelineCreateInfo create_info{
 		.pNext               = &pipeline_rendering_info,
 		.stageCount          = static_cast<u32>(std::size(shader_stages)),
 		.pStages             = shader_stages,
@@ -738,7 +781,7 @@ auto SDFSample::CreatePipeline(vk::ShaderModule vertex_shader_module,
 	};
 
 	vk::Pipeline pipeline;
-	CHECK_VULKAN_RESULT(device.createGraphicsPipelines(GetPipelineCache(), 1, &info, GetAllocator(), &pipeline));
+	CHECK_VULKAN_RESULT(device.createGraphicsPipelines(GetPipelineCache(), 1, &create_info, GetAllocator(), &pipeline));
 
 	return pipeline;
 }
@@ -749,33 +792,33 @@ void SDFSample::CreateAndUploadBuffers() {
 	std::size_t row_major_size_bytes = 0;
 
 	// Optimal layout
-	CHECK_VULKAN_RESULT(sdf_network.UpdateOffsetsAndSize(
+	CHECK_VULKAN_RESULT(network.UpdateOffsetsAndSize(
 		device, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal,
 		kDstMatrixType, kDstVectorType));
-	optimal_size_bytes = AlignUpPowerOfTwo(sdf_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
-	if (is_verbose) sdf_network.Print();
+	optimal_size_bytes = AlignUpPowerOfTwo(network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
+	if (is_verbose) network.Print();
 
 	// Write optimal offsets
-	for (u32 i = 0; i < kNetworkLayers; ++i) {
-		u32 weights_offset = static_cast<u32>(sdf_network.GetLayer<Linear>(i).GetWeightsOffset());
-		u32 biases_offset  = static_cast<u32>(sdf_network.GetLayer<Linear>(i).GetBiasesOffset());
+	for (u32 i = 0; i < network.GetLayers().size(); ++i) {
+		u32 weights_offset = static_cast<u32>(network.GetLayer<Linear>(i).GetWeightsOffset());
+		u32 biases_offset  = static_cast<u32>(network.GetLayer<Linear>(i).GetBiasesOffset());
 
 		optimal_offsets.weights_offsets[i] = weights_offset;
 		optimal_offsets.biases_offsets[i]  = biases_offset;
 	}
 
 	// Row-major layout
-	CHECK_VULKAN_RESULT(sdf_network.UpdateOffsetsAndSize(
+	CHECK_VULKAN_RESULT(network.UpdateOffsetsAndSize(
 		device, vk::CooperativeVectorMatrixLayoutNV::eRowMajor,
 		kDstMatrixType, kDstVectorType));
-	row_major_size_bytes = AlignUpPowerOfTwo(sdf_network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
+	row_major_size_bytes = AlignUpPowerOfTwo(network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
 
-	if (is_verbose) sdf_network.Print();
+	if (is_verbose) network.Print();
 
 	// Write row-major offsets
-	for (u32 i = 0; i < kNetworkLayers; ++i) {
-		u32 weights_offset = static_cast<u32>(sdf_network.GetLayer<Linear>(i).GetWeightsOffset());
-		u32 biases_offset  = static_cast<u32>(sdf_network.GetLayer<Linear>(i).GetBiasesOffset());
+	for (u32 i = 0; i < network.GetLayers().size(); ++i) {
+		u32 weights_offset = static_cast<u32>(network.GetLayer<Linear>(i).GetWeightsOffset());
+		u32 biases_offset  = static_cast<u32>(network.GetLayer<Linear>(i).GetBiasesOffset());
 
 		row_major_offsets.weights_offsets[i] = optimal_size_bytes + weights_offset;
 		row_major_offsets.biases_offsets[i]  = optimal_size_bytes + biases_offset;
@@ -784,7 +827,7 @@ void SDFSample::CreateAndUploadBuffers() {
 	std::size_t total_size_bytes = optimal_size_bytes + row_major_size_bytes;
 
 	// clang-format off
-	CHECK_VULKAN_RESULT(sdf_weights_buffer.Create(device, vma_allocator, {
+	CHECK_VULKAN_RESULT(device_buffer.Create(device, vma_allocator, {
 		.size   = total_size_bytes,
 		.usage  = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
 		.memory = vk::MemoryPropertyFlagBits::eDeviceLocal,
@@ -800,7 +843,7 @@ void SDFSample::CreateAndUploadBuffers() {
 	// Update descriptor
 	{
 		vk::DescriptorBufferInfo buffer_info{
-			.buffer = sdf_weights_buffer,
+			.buffer = device_buffer,
 			.offset = 0,
 			.range  = total_size_bytes,
 		};
@@ -820,8 +863,8 @@ void SDFSample::CreateAndUploadBuffers() {
 	// Upload weights
 	{
 		auto update_and_write = [&](u32 offset, vk::CooperativeVectorMatrixLayoutNV layout) {
-			CHECK_VULKAN_RESULT(sdf_network.UpdateOffsetsAndSize(device, layout, kDstMatrixType, kDstVectorType))
-			WriteNetworkWeights(sdf_network, staging_buffer, offset, layout);
+			CHECK_VULKAN_RESULT(network.UpdateOffsetsAndSize(device, layout, kDstMatrixType, kDstVectorType))
+			WriteNetworkWeights(network, staging_buffer, offset, layout);
 		};
 		std::size_t offset = 0;
 		update_and_write(offset, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal);
@@ -831,7 +874,7 @@ void SDFSample::CreateAndUploadBuffers() {
 		vk::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
 		CHECK_VULKAN_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
 		// clang-format off
-		cmd.copyBuffer(staging_buffer, sdf_weights_buffer, {{
+		cmd.copyBuffer(staging_buffer, device_buffer, {{
 			.srcOffset = 0,
 			.dstOffset = 0,
 			.size      = total_size_bytes,
@@ -1015,7 +1058,7 @@ void SDFSample::RecordCommands(vk::Pipeline pipeline) {
 
 	auto offsets = GetOffsets();
 
-	for (auto i = 0u; i < kNetworkLayers; ++i) {
+	for (auto i = 0u; i < network.GetLayers().size(); ++i) {
 
 		constants.weights_offsets[i] = offsets.weights_offsets[i];
 		constants.bias_offsets[i]    = offsets.biases_offsets[i];
@@ -1116,6 +1159,7 @@ void SDFSample::SaveSwapchainImageToFile(std::string_view filename) {
 	auto data   = staging_buffer.GetMappedData();
 	auto stride = extent.width * format_block_size;
 	if (stbi_write_bmp(filename.data(), extent.width, extent.height, format_block_size, data)) {
+		// if (stbi_write_png(filename.data(), extent.width, extent.height, format_block_size, data, 0)) {
 		std::printf("Saved %s\n", filename.data());
 	} else {
 		std::printf("Failed to write %s\n", filename.data());
@@ -1157,39 +1201,41 @@ void SDFSample::RunBenchmark(TestOptions const& options) {
 	// std::printf("Resizing to %dx%d\n", width, height);
 	RecreateSwapchain(width, height);
 	// DrawWindow();
-	constexpr u32 kTestRunsCount = 32;
-	constexpr u32 kMaxTestKinds  = u32(SdfFunctionType::eCount);
+	constexpr u32 kIters = 32;
+	// constexpr u32 kMaxTestKinds  = u32(SdfFunctionType::eCount);
+	// constexpr u32 kMaxTestKinds = kTestFunctionsCount;
+	constexpr u32 kMaxTestKinds = 1;
 
 	int first_test{}, last_test = kMaxTestKinds - 1;
 
 	auto is_header = true;
-	if (is_header) {
-		first_test = 0;
-		last_test  = kTestFunctionsCount;
-	}
+	// if (is_header) {
+	// 	first_test = 0;
+	// 	last_test  = kTestFunctionsCount;
+	// }
 
 	SdfFunctionType skip[] = {};
 
 	auto draw = [&](u32 id) {
-		if (is_header) {
-			return DrawWindow(pipelines_header[id]);
-		} else {
-			return DrawWindow(pipelines[id]);
-		};
+		// if (is_header) {
+		// return DrawWindow(pipelines_header[id]);
+		// } else {
+		return DrawWindow(pipelines[id]);
+		// };
 	};
 
-	constexpr u32 kWarmupCount = 2;
-	for (u32 t_i = first_test; t_i < last_test; ++t_i) {
+	constexpr u32 kWarmupCount = 0;
+	for (u32 t_i = first_test; t_i <= last_test; ++t_i) {
 		for (u32 iter = 0; iter < kWarmupCount; ++iter) {
 			(void)draw(t_i);
 		}
 	}
 
-	std::array<std::array<u64, kMaxTestKinds>, kTestRunsCount> test_times;
+	std::array<std::array<u64, kMaxTestKinds + 10>, kIters> test_times;
 
-	for (u32 t_i = first_test; t_i < last_test; ++t_i) {
+	for (u32 t_i = first_test; t_i <= last_test; ++t_i) {
 		// TestData& data = test_data[t_i];
-		for (u32 iter = 0; iter < kTestRunsCount; ++iter) {
+		for (u32 iter = 0; iter < kIters; ++iter) {
 			// WindowManager::PollEvents();
 			u64   time_nanoseconds = draw(t_i);
 			float ns_per_tick      = physical_device.GetNsPerTick();
@@ -1201,28 +1247,33 @@ void SDFSample::RunBenchmark(TestOptions const& options) {
 	std::string_view names[] = {"CoopVec", "WeightsInBuffer", "WeightsInBufferFloat16", "WeightsInHeader"};
 
 	// Print csv
-	if constexpr (kDstMatrixType == vk::ComponentTypeKHR::eFloat16) {
-		std::printf("CoopVec_Float16,ScalarInline_Float16,ScalarBuffer_Float16,Vec4_Float16\n");
-	} else {
-		std::printf("ScalarInline_Float32,ScalarBuffer_Float32,Vec4_Float32\n");
-	}
+	// if constexpr (kDstMatrixType == vk::ComponentTypeKHR::eFloat16) {
+	// 	std::printf("CoopVec_Float16,ScalarInline_Float16,ScalarBuffer_Float16,Vec4_Float16\n");
+	// } else {
+	// 	std::printf("ScalarInline_Float32,ScalarBuffer_Float32,Vec4_Float32\n");
+	// }
 
-	for (u32 t_i = first_test; t_i < last_test; ++t_i) {
+	for (u32 t_i = first_test; t_i <= last_test; ++t_i) {
 		if (contains(skip, SdfFunctionType(t_i))) continue;
 		if (is_header) {
-			std::printf("SDF_%s_%u", names[t_i].data(), t_i);
+			std::printf("SDF_%s_%u", names[u32(function_type)].data(), t_i);
 		} else {
 			std::printf("%s", names[t_i].data());
 		}
-		if (t_i < last_test - 1 && !contains(skip, SdfFunctionType(t_i + 1))) std::printf(",");
+		if (t_i < last_test && !contains(skip, SdfFunctionType(t_i + 1))) std::printf(",");
 	}
 	std::printf("\n");
 
-	for (u32 iter = 0; iter < kTestRunsCount; ++iter) {
-		for (u32 t_i = first_test; t_i < last_test; ++t_i) {
-			std::printf("%llu, ", test_times[iter][t_i]);
+	for (u32 iter = 0; iter < kIters; ++iter) {
+		auto const& tests_row = test_times[iter];
+
+		for (u32 t_i = first_test; t_i <= last_test; ++t_i) {
+			if (contains(skip, SdfFunctionType(t_i))) continue;
+			std::printf("%llu", tests_row[t_i]);
+			if (t_i < last_test && !contains(skip, SdfFunctionType(t_i + 1))) std::printf(",");
 		}
-		std::printf("%llu \n", test_times[iter][kMaxTestKinds - 1]);
+		// std::printf("%llu \n", test_times[iter][last_test]);
+		std::printf("\n");
 	}
 }
 

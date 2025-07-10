@@ -5,9 +5,9 @@
 #define COMPONENT_BITS 16
 #endif
 
-#ifndef COOPVEC_TYPE
-#define COOPVEC_TYPE float16_t
-#endif
+// #ifndef COOPVEC_TYPE
+// #define COOPVEC_TYPE float16_t
+// #endif
 
 #ifndef _COMPONENT_TYPE
 #define _COMPONENT_TYPE Float16
