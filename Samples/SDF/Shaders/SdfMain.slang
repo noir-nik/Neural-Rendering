@@ -1,4 +1,4 @@
-#include "SDFConfig.h"
+// #include "SDFConfig.h"
 #include "SDFConstants.h"
 
 import SDFVec4;
@@ -6,9 +6,26 @@ import SDFCoopVec;
 import SDFWeightsInBuffer;
 import SDFWeightsInHeader;
 
-// clang-format off
+import SDFWeightsInHeader_3_16_16_16_1_625;
+import SDFWeightsInHeader_3_24_24_24_1_1321;
+import SDFWeightsInHeader_3_32_32_32_1_2273;
+import SDFWeightsInHeader_3_32_32_32_32_1_3329;
+import SDFWeightsInHeader_3_48_48_48_1_4945;
 
-[[vk::binding(0, 0)]] StructuredBuffer<COOPVEC_TYPE> gSDFWeights;
+// import SDFWeightsInHeader_3_64_64_64_1_8641;
+// import SDFWeightsInHeader_3_32_32_32_32_1_3329;
+// import SDFWeightsInHeader_3_48_48_48_48_1_7297;
+// import SDFWeightsInHeader_3_64_64_64_64_1_12801;
+// import SDFWeightsInHeader_3_128_128_128_128_1_50177;
+// import SDFWeightsInHeader_3_256_256_256_256_256_1_264449;
+
+typealias FTy = float;
+typealias Ty  = half;
+
+// clang-format off
+[[vk::binding(0, 0)]] StructuredBuffer<FTy> gSDFWeights;
+[[vk::binding(0, 0)]] StructuredBuffer<Ty> gWeightsCoopVec;
+// [[vk::binding(0, 0)]] StructuredBuffer<COOPVEC_TYPE> gSDFWeights;
 
 [[vk::push_constant]] SDFConstants ctx;
 
@@ -21,29 +38,94 @@ func RotateAxisAngle(float3 vector, float3 axis, float angle)->float3 {
 	return lerp(dot(vector, axis) * axis, vector, cos(angle)) + sin(angle) * cross(axis, vector);
 }
 
-func Scene(float3 p)->float {
-	vector<COOPVEC_TYPE, 3> pos = { p.x, p.y, p.z };
+float Scene(float3 pos) {
 
-	typealias Ty = COOPVEC_TYPE;
+	// vector<COOPVEC_TYPE, 3> pos = { p.x, p.y, p.z };
+	// vector<COOPVEC_TYPE, 3> pos = { p.x, p.y, p.z };
 
 	Ty input[3] = { pos.x, pos.y, pos.z };
 	Ty output[1];
+
+	FTy inputf[3] = { pos.x, pos.y, pos.z };
+	FTy outputf[1];
+
+	uint wo4[4] = { ctx.weights_offsets[0], ctx.weights_offsets[1], ctx.weights_offsets[2], ctx.weights_offsets[3] };
+	uint bo4[4] = { ctx.bias_offsets[0], ctx.bias_offsets[1], ctx.bias_offsets[2], ctx.bias_offsets[3] };
+
+	// typealias HTy = half;
+	typealias HTy = float;
+
+	HTy inputh[3] = { pos.x, pos.y, pos.z };
+	HTy outputh[1];
+
+	// if (shader_type != SdfFunctionType::eWeightsInHeader) {
+	// 	return 0.5;
+	// }
+	
+	constexpr int fi = func_id;
+
 	if (shader_type == SdfFunctionType::eCoopVec) {
-		SDFCoopVec<COOPVEC_TYPE>(input, output, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
+		// SDFWeightsInHeader<Ty>(input, output);
+		SDFCoopVec<Ty>(input, output, gWeightsCoopVec, wo4, bo4);
+
 	} else if (shader_type == SdfFunctionType::eWeightsInBuffer) {
-		SDFWeightsInBuffer<COOPVEC_TYPE>(input, output, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
+		// SDFWeightsInHeader<FTy>(inputf, outputf);
+		SDFWeightsInBuffer<FTy>(inputf, outputf, gSDFWeights, wo4, bo4);
+	} else if (shader_type == SdfFunctionType::eWeightsInBufferF16) {
+		// SDFWeightsInHeader<Ty>(input, output);
+		SDFWeightsInBuffer<Ty>(input, output, gWeightsCoopVec, wo4, bo4);
+		// SDFWeightsInBuffer_3_16_16_16_1_625<FTy>(inputf, outputf, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
+
+		// if (func_id == 0) SDFWeightsInBuffer_3_16_16_16_16_1_897<FTy>(inputf, outputf, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
+		// else if (func_id == 1) SDFWeightsInBuffer_3_32_32_32_32_1_3329<FTy>(inputf, outputf, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
+		// else if (func_id == 2) SDFWeightsInBuffer_3_48_48_48_48_1_7297<FTy>(inputf, outputf, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
+		// else if (func_id == 3) SDFWeightsInBuffer_3_64_64_64_64_1_12801<FTy>(inputf, outputf, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
+		// else if (func_id == 4) SDFWeightsInBuffer_3_128_128_128_128_1_50177<FTy>(inputf, outputf, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
+		// else if (func_id == 5) SDFWeightsInBuffer_3_256_256_256_256_256_1_264449<FTy>(inputf, outputf, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
+		// else if (func_id == 5) BRDFWeightsIBufferr<FTy>(input, output);
+		// else if (func_id == 6) BRDFWeightsIBufferr<float>(input, output);
+
 	} else if (shader_type == SdfFunctionType::eWeightsInHeader) {
-		SDFWeightsInHeader<COOPVEC_TYPE>(input, output);
+		// SDFWeightsInHeader<HTy>(inputh, outputh);
+
+
+
+		// SDFWeightsInHeader_3_16_16_16_1_625<HTy>(inputh, outputh);
+		// SDFWeightsInHeader_3_24_24_24_1_1321<HTy>(inputh, outputh); // 13.2h // 13f
+		// SDFWeightsInHeader_3_32_32_32_1_2273<HTy>(inputh, outputh); // 180h 180f
+		// SDFWeightsInHeader_3_32_32_32_32_1_3329<HTy>(inputh, outputh); // 190h // undef f
+		SDFWeightsInHeader_3_48_48_48_1_4945<HTy>(inputh, outputh);
+		// SDFWeightsInHeader_3_64_64_64_1_8641<HTy>(inputh, outputh);
+
+		// if (fi == 0) SDFWeightsInHeader_3_16_16_16_1_625<HTy>(inputh, outputh);
+		// else if (fi == 1) SDFWeightsInHeader_3_24_24_24_1_1321<HTy>(inputh, outputh);
+		// else if (fi == 2) SDFWeightsInHeader_3_32_32_32_1_2273<HTy>(inputh, outputh);
+		// else if (fi == 4) SDFWeightsInHeader_3_32_32_32_32_1_3329<HTy>(inputh, outputh);
+		// else if (fi == 5) SDFWeightsInHeader_3_48_48_48_1_4945<HTy>(inputh, outputh);
+		// else if (fi == 5) SDFWeightsInHeader_3_256_256_256_256_256_1_264449<HTy>(input, output);
+		// else if (fi == 5) BRDFWeightsInHeader<Ty>(input, output);
+		// else if (fi == 6) BRDFWeightsInHeader<float>(input, output);
+		// else SDFWeightsInHeader<HTy>(inputh, outputh);
+		// else return 0.5;
 	} else if (shader_type == SdfFunctionType::eVec4) {
-		SDFVec4<COOPVEC_TYPE>(pos);
+		// SDFWeightsInHeader<HTy>(inputf, outputf);
+		inputf[0] = SDFVec4<FTy>(pos);
 	} else {
-		SDFCoopVec<COOPVEC_TYPE>(input, output, gSDFWeights, ctx.weights_offsets, ctx.bias_offsets);
+		// SDFWeightsInHeader<Ty>(input, output);
+		SDFCoopVec<Ty>(input, output, gWeightsCoopVec, wo4, bo4);
 	}
-	return output[0];
+
+	if (shader_type == SdfFunctionType::eWeightsInHeader ) {
+		return outputh[0];
+	} else	if (shader_type == SdfFunctionType::eCoopVec || shader_type == SdfFunctionType::eWeightsInBufferF16) {
+		return output[0];
+	} else {
+		return outputf[0];
+	}
 }
 
 func GetNormal(float3 p)->float3 {
-	const COOPVEC_TYPE kDiffEpsilon = COOPVEC_TYPE(0.1);
+	const float kDiffEpsilon = float(0.1);
 	return normalize(Scene(p) - float3(Scene(p - float3(kDiffEpsilon, 0, 0)), Scene(p - float3(0, kDiffEpsilon, 0)), Scene(p - float3(0, 0, kDiffEpsilon))));
 }
 
@@ -51,8 +133,11 @@ func GetNormal(float3 p)->float3 {
 void main(float2 fragCoord, out float4 fragColor: SV_Target0) {
 	const float PI         = 3.141592653589793238462643383279;
 	const float DEG_TO_RAD = PI / 180.0f;
-	const float kEpsilon   = 1e-4;
-	const float kMaxDist   = 1000.0f;
+	const float kEpsilon   = 2e-3;
+	// const float kEpsilon = 1e-5;
+	const float kMaxDist = 1000.0f;
+
+	// fragColor.w = 1.0f;
 
 	float2 uv = (fragCoord - 0.5); // center of the pixel
 
@@ -78,8 +163,9 @@ void main(float2 fragCoord, out float4 fragColor: SV_Target0) {
 	float3 init = ctx.camera_pos;
 
 	float3 p   = init;
-	bool   hit = false;
-	for (int i = 0; i < 75 && !hit; ++i) {
+	bool hit = false;
+	// [ForceUnroll(100)]
+	for (int i = 0; i < 100 && !hit; ++i) {
 		float dist = Scene(p);
 
 		// hit = dist * dist < kEpsilon;
@@ -89,19 +175,98 @@ void main(float2 fragCoord, out float4 fragColor: SV_Target0) {
 			break;
 	}
 
-	float3 n = GetNormal(p);
-	// float3 n = D_SDFScalar<COOPVEC_TYPE>({p.x, p.y, p.z});
-	float3 r    = reflect(ray_dir, n);
-	float3 nz   = p - RotateAxisAngle(p, float3(1, 1, 1), 2.) + RotateAxisAngle(p, float3(1, 1, 1), 4.);
-	float  spec = length(sin(r * 3.5 + sin(nz * 120.) * .15) * .4 + .6) / sqrt(3.);
-	// float spec = length(sin(r * 3.5) * .4 + .6) / sqrt(3.);
+	float3 n  = GetNormal(p);
+	float3 bg = float3(.1, .1, .11);
 
-	spec *= smoothstep(-.3, .2, Scene(p + r * .2));
-	float3 col    = float3(.1, .1, .12) * spec + pow(spec, 8.);
-	float  bgdot  = length(sin(ray_dir * 8.) * .4 + .6) / 2.;
-	float3 bg     = float3(.1, .1, .11) * bgdot + pow(bgdot, 10.);
+	{ // float3 n = D_SDFScalar<COOPVEC_TYPE>({p.x, p.y, p.z});
+		float3 r    = reflect(ray_dir, n);
+		float3 nz   = p - RotateAxisAngle(p, float3(1, 1, 1), 2.) + RotateAxisAngle(p, float3(1, 1, 1), 4.);
+		float  spec = length(sin(r * 3.5 + sin(nz * 120.) * .15) * .4 + .6) / sqrt(3.);
+		// float spec = length(sin(r * 3.5) * .4 + .6) / sqrt(3.);
+
+		spec *= smoothstep(-.3, .2, Scene(p + r * .2));
+		float3 col   = float3(.1, .1, .12) * spec + pow(spec, 8.);
+		float  bgdot = length(sin(ray_dir * 8.) * .4 + .6) / 2.;
+		float3 bg    = float3(.1, .1, .11) * bgdot + pow(bgdot, 10.);
+		bg           = float3(1.0f, 1.0f, 1.0f);
+
+		col = smoothstep(-.02, 1.05, sqrt(col)) * (1. - dot(uv, uv) * .5);
+
+		fragColor.xyz = hit ? col : bg;
+		fragColor.w = 1.0f;
+		// if (hit) {
+		// 	fragColor.xyz = col;
+		// 	fragColor.w = 1.0f;
+		// }
+		// fragColor     = smoothstep(-.02, 1.05, sqrt(fragColor)) * (1. - dot(uv, uv) * .5);
+
+		return;
+	}
+	float3 light_pos = float3(-2.0, 2.0, -2.0);
+
+	float3 lightDir      = normalize(light_pos - p);
+	float3 viewDir       = normalize(init - p);
+	float3 halfwayDir    = normalize(lightDir + viewDir);
+	float3 normal        = normalize(n);
+	float3 lightColor    = float3(0.8, 0.8, 0.8);
+	float3 specularColor = float3(0.8, 0.8, 0.8);
+	float  spec; //= pow(max(dot(normal, halfwayDir), 0.0), shininess);
+	// float3   specular   = lightColor * spec;
+	float3 ambient = float3(.2, .2, .2);
+
+	// float shininess = 1.0;
+	float3 col       = {};
+	float  shininess = 1;
+	shininess        = 64;
+	shininess        = 24;
+	if (1)
+	// if (0)
+	{
+		float3 halfwayDir = normalize(lightDir + viewDir);
+		spec              = pow(max(dot(normal, halfwayDir), 0.0), shininess * 2);
+	} else {
+		float3 reflectDir = reflect(-lightDir, normal);
+		spec              = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
+	}
+
+	float3 objectColor = float3(0.8, 0.8, 0.8);
+	{
+		float3 specular = lightColor * spec;
+		float3 diffuse  = lightColor * max(dot(lightDir, normal), 0.0);
+		diffuse *= 0.2;
+		float3 col = (ambient + diffuse + specular) * objectColor;
+	}
+
+	{
+		// Reflection vector
+		float3 reflectDir = reflect(-lightDir, normal);
+
+		// Ambient term
+		float3 ambient = ambient * lightColor;
+
+		// Diffuse term (Lambert)
+		float  diff    = max(dot(normal, lightDir), 0.0);
+		float3 diffuse = diff * objectColor * lightColor;
+
+		// Specular term (Phong)
+		float  spec     = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
+		float3 specular = spec * specularColor * lightColor;
+		specular *= 0.2;
+
+		float cosViewNormal = dot(viewDir, normal);
+
+		// float fresnel = clamp(1.0 + pow(1.0 - cosViewNormal, 20.0), 0.0, 1.0);
+		float fresnel = -cosViewNormal * cosViewNormal + 1.0;
+		fresnel       = clamp(pow(1 - fresnel, 0.2), 0.0, 1.0);
+		fresnel       = 1.;
+		// Combine
+		float3 phong = (ambient + diffuse + specular) * fresnel;
+
+		col = phong;
+	}
+
 	fragColor.xyz = hit ? col : bg;
-	fragColor     = smoothstep(-.02, 1.05, sqrt(fragColor)) * (1. - dot(uv, uv) * .5);
+	fragColor.w   = 1.0;
 }
 
 

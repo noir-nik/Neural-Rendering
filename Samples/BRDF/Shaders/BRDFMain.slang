@@ -68,6 +68,7 @@ func ps_main(VSOutput vs_input)->float4 {
 	light_tbn = normalize(light_tbn);
 
 	float3 color = float3(0, 0, 0);
+	// float3 color = float3(1, 1, 1);
 
 	float3 albedo    = ctx.material.base_color.rgb;
 	float  metallic  = ctx.material.metallic;
@@ -75,6 +76,9 @@ func ps_main(VSOutput vs_input)->float4 {
 
 	vector<COOPVEC_TYPE, 3> view_typed  = { view_tbn.x, view_tbn.y, view_tbn.z };
 	vector<COOPVEC_TYPE, 3> light_typed = { light_tbn.x, light_tbn.y, light_tbn.z };
+
+	// view_typed = abs(view_typed);
+	// light_typed = abs(light_typed);
 
 	// typealias Ty = _TY;
 	// typealias Ty = float;
@@ -92,12 +96,14 @@ func ps_main(VSOutput vs_input)->float4 {
 
 	if (shader_type == BrdfFunctionType::eCoopVec) {
 		// BRDFCoopVec<COOPVEC_TYPE>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
-		if (func_id == 0) BRDFCoopVec_6_8_8_8_6_3_275<Ty>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
+		if (func_id == 0) BRDFCoopVec<COOPVEC_TYPE>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
+		// if (func_id == 0) BRDFCoopVec_6_8_8_8_6_3_275<Ty>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
 		else if (func_id == 1) BRDFCoopVec_6_16_16_16_6_3_779<Ty>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
 		else if (func_id == 2) BRDFCoopVec_6_32_32_32_6_3_2555<Ty>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
 		else if (func_id == 3) BRDFCoopVec_6_64_48_6_3_3883<Ty>(input, output, gWeightsCoopVec, wo4, bo4);
 		else if (func_id == 4) BRDFCoopVec_6_48_48_48_6_3_5355<Ty>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
 		else if (func_id == 5) BRDFCoopVec_6_64_64_64_6_3_9179<Ty>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
+		// else if (func_id == 5) BRDFCoopVec<COOPVEC_TYPE>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
 		else return float4(1, 0, 1, 1.0);
 	} else if (shader_type == BrdfFunctionType::eWeightsInBuffer) {
 		// BRDFWeightsInBuffer<float>(inputf, outputf, gWeights, ctx.weights_offsets, ctx.bias_offsets);
@@ -149,6 +155,15 @@ func ps_main(VSOutput vs_input)->float4 {
 
 	// Gamma correction
 	color = pow(color, 1.0 / 2.2);
+
+	// color = float3(color.x, color.y, color.z);
+	// color = float3(color.x, color.z, color.y);
+	// color = float3(color.y, color.x, color.z);
+	// color = float3(color.y, color.z, color.x);
+	// color = float3(color.z, color.y, color.x);
+	// color = float3(color.z, color.x, color.y);
+
+	color = float3(color.z, color.y, color.x);
 
 	return float4(color, 1.0);
 }

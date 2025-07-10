@@ -19,7 +19,7 @@ void BRDFCoopVec<T : __BuiltinFloatingPointType>(in T input[6], out T output[3],
 	FWD(1, 64, 64, output0, output1);
 	FWD(2, 64, 64, output1, output2);
 	FWD(3, 64, 6, output2, output3);
-	FWD(4, 6, 3, output3, output4);
+	FWD_LAST(4, 6, 3, output3, output4);
 
 	output[0] = output4[0];
 	output[1] = output4[1];

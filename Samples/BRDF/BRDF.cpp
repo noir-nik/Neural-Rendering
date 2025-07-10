@@ -66,6 +66,7 @@ auto PrintLayerBiases(Linear layer, std::byte const* parameters) -> void {
 }
 
 void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
+	sphere = UVSphere(1.0f, 32*2, 16*2);
 	std::size_t vertices_size_bytes   = sphere.GetVertexCount() * sizeof(UVSphere::Vertex);
 	std::size_t indices_size_bytes    = sphere.GetIndexCount() * sizeof(UVSphere::IndexType);
 	std::size_t alignment             = sizeof(float) * 4;
@@ -371,7 +372,9 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 			.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
 			.loadOp      = vk::AttachmentLoadOp::eClear,
 			.storeOp     = vk::AttachmentStoreOp::eStore,
-			.clearValue  = {{{{0.1f, 0.1f, 0.1f, 1.0f}}}},
+			// .clearValue  = {{{{0.1f, 0.1f, 0.1f, 1.0f}}}},
+			.clearValue  = {{{{1.f, 1.f, 1.f, 1.0f}}}},
+			// .clearValue  = {{{{0.f, 0.f, 0.f, 1.0f}}}},
 		}}},
 		.depthAttachment  = {
 			 .imageView   = depth_image.GetView(),
