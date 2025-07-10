@@ -22,14 +22,15 @@ extern "C++" {
 #include "Shaders/SDFConstants.h"
 }
 
-// #include "Shaders/SDFWeights.h"
 #define _TY float
 
-#include  "SDFWeightsInHeader_3_16_16_16_1_625.h"
-#include  "SDFWeightsInHeader_3_24_24_24_1_1321.h"
-#include  "SDFWeightsInHeader_3_32_32_32_1_2273.h"
-#include  "SDFWeightsInHeader_3_32_32_32_32_1_3329.h"
-#include  "SDFWeightsInHeader_3_48_48_48_1_4945.h"
+#include "Shaders/SDFWeights.h"
+#define WEIGHTS_H
+// #include "SDFWeightsInHeader_3_16_16_16_1_625.h"
+// #include "SDFWeightsInHeader_3_24_24_24_1_1321.h"
+// #include "SDFWeightsInHeader_3_32_32_32_1_2273.h"
+// #include "SDFWeightsInHeader_3_32_32_32_32_1_3329.h"
+// #include "SDFWeightsInHeader_3_48_48_48_1_4945.h"
 
 // #include "Shaders/SDFWeightsInHeader_3_16_16_16_16_1_897.h"
 
@@ -42,10 +43,12 @@ struct TestOptions {
 	int2 resolution = {640, 480};
 	// TestType    test_type    = TestType::eSDF;
 	// NetworkType network_type = NetworkType::eScalarInline;
-	int     test_count = 1;
-	StrView weights_file;
+	int test_count = 1;
+	// StrView weights_file;
 };
-
+struct InitInfo {
+	std::string_view weights_file;
+};
 class SDFSample {
 public:
 	static constexpr u32 kApiVersion = vk::ApiVersion13;
@@ -60,27 +63,11 @@ public:
 		vk::EXTShaderReplicatedCompositesExtensionName,
 	};
 
-	// static constexpr vk::ComponentTypeKHR comp = vk ::ComponentTypeKHR ::eFloat16;
-	static constexpr vk::ComponentTypeKHR comp = vk ::ComponentTypeKHR ::eFloat32;
-
-	static constexpr vk::ComponentTypeKHR kSrcComponentType = comp;
-	static constexpr vk::ComponentTypeKHR kDstMatrixType    = comp;
-	static constexpr vk::ComponentTypeKHR kDstVectorType    = comp;
-
 	static constexpr u32 kFramesInFlight = 3;
-
-	// static constexpr u32 kNetworkLayers = std::size(SDFConstants{}.weights_offsets);
-	// static constexpr u32 kNetworkLayers = 4;
-	static constexpr u32 kMaxOffsets = 5;
-
-	struct NetworkOffsets {
-		u32 weights_offsets[kMaxOffsets];
-		u32 biases_offsets[kMaxOffsets];
-	};
 
 	~SDFSample();
 
-	void Init();
+	void Init(InitInfo const& init_info);
 	void Run();
 	void RunBenchmark(TestOptions const& options);
 	void Destroy();
@@ -110,13 +97,13 @@ public:
 		vk::ShaderModule fragment_shader_module,
 		SpecData const&  spec) -> vk::Pipeline;
 
+	struct NetworkBufferInfo {
+		std::string_view file_name;
+		std::string_view header;
+	};
 	// void BuildNetwork();
-	void CreateAndUploadBuffers();
-	void WriteNetworkWeights(
-		VulkanCoopVecNetwork const&         network,
-		VulkanRHI::Buffer const&            staging_buffer,
-		std::size_t                         staging_offset,
-		vk::CooperativeVectorMatrixLayoutNV dst_layout);
+	// void CreateAndUploadBuffers();
+	void CreateAndUploadBuffers(NetworkBufferInfo const& info);
 
 	void RecordCommands(vk::Pipeline pipeline);
 	// Return time in nanoseconds
@@ -173,13 +160,13 @@ public:
 	// vk::Pipeline scalar_buffer_pipeline;
 	// vk::Pipeline vec4_pipeline;
 
-	SdfFunctionType  function_type = SdfFunctionType::eCoopVec;
-	std::string_view weights_file_name;
+	SdfFunctionType function_type = SdfFunctionType::eCoopVec;
+	// std::string_view weights_file_name;
 
 	// std::array<vk::Pipeline, u32(SdfFunctionType::eCount)> pipelines;
 	// std::array<vk::Pipeline, u32(SdfFunctionType::eCount)> pipelines;
-
-	static constexpr int kTestFunctionsCount = 2;
+ 
+	static constexpr u32 kTestFunctionsCount = u32(SdfFunctionType::eCount);
 
 	// vk::Pipeline pipelines[u32(SdfFunctionType::eCount)][kTestFunctionsCount];
 	// vk::Pipeline pipelines[kTestFunctionsCount];
@@ -189,21 +176,10 @@ public:
 	VulkanRHI::Buffer staging_buffer{};
 	VulkanRHI::Buffer device_buffer{};
 
-	VulkanCoopVecNetwork network = {
-		Linear(3, 16),
-		Linear(16, 16),
-		Linear(16, 16),
-		Linear(16, 1),
-	};
+	static constexpr u32 kNetworksCount = 3;
+	VulkanCoopVecNetwork networks[kNetworksCount];
 
-	NetworkOffsets optimal_offsets;
-	NetworkOffsets row_major_offsets;
-
-	auto GetOffsets() -> NetworkOffsets& {
-		return function_type == SdfFunctionType::eCoopVec ? optimal_offsets : row_major_offsets;
-	}
-
-	// std::vector<std::byte> network_parameters;
+	std::array<vk::DeviceSize, kTestFunctionsCount> weights_offsets;
 
 	bool                 pending_image_save  = false;
 	static constexpr u32 kTimestampsPerFrame = 2;
@@ -228,7 +204,7 @@ public:
 		.position = {2.7, 0.8, -4.3},
 		// .focus    = {-0.1f, 0.0f, 0.0f},
 		.focus = {},
-		// .up       = {0.213641, -0.093215, 0.972476},
+		// .up    = {0.213641, -0.093215, 0.972476},
 		.up = {0, 1, 0},
 		// .fov    = 35.0f,
 		.fov    = 32.0f,
@@ -236,7 +212,7 @@ public:
 		.z_far  = 1000.0f,
 	}};
 };
-
+namespace {
 static void FramebufferSizeCallback(GLFWWindow* window, int width, int height) {
 	SDFSample* sample = static_cast<SDFSample*>(window->GetUserPointer());
 
@@ -305,8 +281,9 @@ static void MouseButtonCallback(GLFWWindow* in_window, int in_button, int in_act
 		}
 	}
 }
+} // namespace
 
-void SDFSample::Init() {
+void SDFSample::Init(InitInfo const& init_info) {
 	WindowManager::SetErrorCallback(WindowErrorCallback);
 	WindowManager::Init();
 
@@ -347,7 +324,7 @@ void SDFSample::Init() {
 	CreatePipelineLayout();
 
 	LoadInstanceCooperativeVectorFunctionsNV(instance);
-	CreateAndUploadBuffers();
+	CreateAndUploadBuffers({.file_name = init_info.weights_file.size() > 0 ? init_info.weights_file : "Assets/simple_brdf_weights.bin", .header = ""});
 
 	CreatePipelines();
 
@@ -786,121 +763,108 @@ auto SDFSample::CreatePipeline(vk::ShaderModule vertex_shader_module,
 	return pipeline;
 }
 
-void SDFSample::CreateAndUploadBuffers() {
-	// BuildNetwork();
-	std::size_t optimal_size_bytes   = 0;
-	std::size_t row_major_size_bytes = 0;
+void SDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
+	// sphere = UVSphere(1.0f, 32*2, 16*2);
+	// std::size_t vertices_size_bytes   = sphere.GetVertexCount() * sizeof(UVSphere::Vertex);
+	// std::size_t indices_size_bytes    = sphere.GetIndexCount() * sizeof(UVSphere::IndexType);
+	std::size_t alignment = sizeof(float) * 4;
+	// std::size_t vertices_size_aligned = AlignUpPowerOfTwo(vertices_size_bytes, alignment);
+	// std::size_t indices_size_aligned  = AlignUpPowerOfTwo(indices_size_bytes, alignment);
 
-	// Optimal layout
-	CHECK_VULKAN_RESULT(network.UpdateOffsetsAndSize(
-		device, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal,
-		kDstMatrixType, kDstVectorType));
-	optimal_size_bytes = AlignUpPowerOfTwo(network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
-	if (is_verbose) network.Print();
+	// auto weights_path = "Assets/simple_brdf_weights.bin";
 
-	// Write optimal offsets
-	for (u32 i = 0; i < network.GetLayers().size(); ++i) {
-		u32 weights_offset = static_cast<u32>(network.GetLayer<Linear>(i).GetWeightsOffset());
-		u32 biases_offset  = static_cast<u32>(network.GetLayer<Linear>(i).GetBiasesOffset());
+	std::vector<float>        brdf_weights_vec;
+	std::vector<LayerVariant> layers;
+	CHECK(load_weights(network_info.file_name.data(), layers, brdf_weights_vec, network_info.header.data()));
 
-		optimal_offsets.weights_offsets[i] = weights_offset;
-		optimal_offsets.biases_offsets[i]  = biases_offset;
-	}
+	// for (auto const& layer : layers) {
+	// 	std::printf("Layer %u-> %u\n", layer.GetInputsCount(), layer.GetOutputsCount());
+	// }
 
-	// Row-major layout
-	CHECK_VULKAN_RESULT(network.UpdateOffsetsAndSize(
-		device, vk::CooperativeVectorMatrixLayoutNV::eRowMajor,
-		kDstMatrixType, kDstVectorType));
-	row_major_size_bytes = AlignUpPowerOfTwo(network.GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
+	using Component = vk::ComponentTypeKHR;
+	using Layout    = vk::CooperativeVectorMatrixLayoutNV;
+	// if (layers.size() != expected_layer_count) {
+	// 	std::printf("Error loading weights : wrong number of layers\n");
+	// 	std::exit(1);
+	// }
+	networks[u32(SdfFunctionType::eWeightsInBuffer)].Init(layers);
+	networks[u32(SdfFunctionType::eWeightsInBufferF16)].Init(layers);
+	networks[u32(SdfFunctionType::eCoopVec)].Init(layers);
 
-	if (is_verbose) network.Print();
+	CHECK_VULKAN_RESULT(networks[u32(SdfFunctionType::eCoopVec)].UpdateOffsetsAndSize(device, Layout::eInferencingOptimal, Component::eFloat16, Component::eFloat16));
+	CHECK_VULKAN_RESULT(networks[u32(SdfFunctionType::eWeightsInBuffer)].UpdateOffsetsAndSize(device, Layout::eRowMajor, Component::eFloat32, Component::eFloat32));
+	CHECK_VULKAN_RESULT(networks[u32(SdfFunctionType::eWeightsInBufferF16)].UpdateOffsetsAndSize(device, Layout::eRowMajor, Component::eFloat16, Component::eFloat16));
 
-	// Write row-major offsets
-	for (u32 i = 0; i < network.GetLayers().size(); ++i) {
-		u32 weights_offset = static_cast<u32>(network.GetLayer<Linear>(i).GetWeightsOffset());
-		u32 biases_offset  = static_cast<u32>(network.GetLayer<Linear>(i).GetBiasesOffset());
+	vk::DeviceSize const kMinSize = 8 * 1024 * 1024;
 
-		row_major_offsets.weights_offsets[i] = optimal_size_bytes + weights_offset;
-		row_major_offsets.biases_offsets[i]  = optimal_size_bytes + biases_offset;
-	}
-
-	std::size_t total_size_bytes = optimal_size_bytes + row_major_size_bytes;
+	std::size_t total_size_bytes = std::max(
+		kMinSize,
+		0
+			+ networks[u32(SdfFunctionType::eCoopVec)].GetParametersSize()
+			+ networks[u32(SdfFunctionType::eWeightsInBuffer)].GetParametersSize()
+			+ networks[u32(SdfFunctionType::eWeightsInBufferF16)].GetParametersSize());
 
 	// clang-format off
 	CHECK_VULKAN_RESULT(device_buffer.Create(device, vma_allocator, {
 		.size   = total_size_bytes,
-		.usage  = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+		.usage  = vk::BufferUsageFlagBits::eTransferDst 
+				| vk::BufferUsageFlagBits::eStorageBuffer
+				| vk::BufferUsageFlagBits::eVertexBuffer
+				| vk::BufferUsageFlagBits::eIndexBuffer,
 		.memory = vk::MemoryPropertyFlagBits::eDeviceLocal,
 	}));
-
+ 
 	CHECK_VULKAN_RESULT(staging_buffer.Create(device, vma_allocator, {
 		.size   = total_size_bytes,
 		.usage  = vk::BufferUsageFlagBits::eTransferSrc,
-		.memory = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
+		.memory = vk::MemoryPropertyFlagBits::eHostVisible 
+				| vk::MemoryPropertyFlagBits::eHostCoherent,
 	}));
 	// clang-format on
 
-	// Update descriptor
-	{
-		vk::DescriptorBufferInfo buffer_info{
-			.buffer = device_buffer,
-			.offset = 0,
-			.range  = total_size_bytes,
-		};
+	// Update descriptor set
+	vk::DescriptorBufferInfo buffer_infos[] = {{.buffer = device_buffer, .offset = 0, .range = device_buffer.GetSize()}};
 
-		vk::WriteDescriptorSet write{
-			.dstSet          = descriptor_set,
-			.dstBinding      = 0,
-			.dstArrayElement = 0,
-			.descriptorCount = 1,
-			.descriptorType  = vk::DescriptorType::eStorageBuffer,
-			.pBufferInfo     = &buffer_info,
-		};
+	vk::WriteDescriptorSet writes[] = {{
+		.dstSet          = descriptor_set,
+		.dstBinding      = 0,
+		.dstArrayElement = 0,
+		.descriptorCount = static_cast<u32>(std::size(buffer_infos)),
+		.descriptorType  = vk::DescriptorType::eStorageBuffer,
+		.pBufferInfo     = buffer_infos,
+	}};
 
-		device.updateDescriptorSets(1, &write, 0, nullptr);
+	auto descriptor_copy_count = 0u;
+	auto copy_descriptor_sets  = nullptr;
+	device.updateDescriptorSets(std::size(writes), writes, descriptor_copy_count, copy_descriptor_sets);
+
+	// this->vertices_offset = 0;
+	// this->indices_offset  = this->vertices_offset + vertices_size_aligned;
+
+	// this->linear_weights_offset     = this->indices_offset + AlignUpPowerOfTwo(indices_size_bytes, CoopVecUtils::GetMatrixAlignment());
+	// this->linear_weights_offset_f16 = this->linear_weights_offset + AlignUpPowerOfTwo(networks[u32(SdfFunctionType::eScalarBuffer)].GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
+	// this->optimal_weights_offset    = this->linear_weights_offset_f16 + AlignUpPowerOfTwo(networks[u32(SdfFunctionType::eScalarBufferF16)].GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
+
+	auto offset = 0;
+
+	auto kGap = 128*1024;
+	for (auto i = 0u; i < std::size(networks); ++i) {
+		offset             = AlignUpPowerOfTwo(offset, CoopVecUtils::GetMatrixAlignment());
+		weights_offsets[i] = offset;
+		offset += AlignUpPowerOfTwo(networks[i].GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
+		// offset += kGap;
 	}
 
-	// Upload weights
-	{
-		auto update_and_write = [&](u32 offset, vk::CooperativeVectorMatrixLayoutNV layout) {
-			CHECK_VULKAN_RESULT(network.UpdateOffsetsAndSize(device, layout, kDstMatrixType, kDstVectorType))
-			WriteNetworkWeights(network, staging_buffer, offset, layout);
-		};
-		std::size_t offset = 0;
-		update_and_write(offset, vk::CooperativeVectorMatrixLayoutNV::eInferencingOptimal);
-		offset += optimal_size_bytes;
-		update_and_write(offset, vk::CooperativeVectorMatrixLayoutNV::eRowMajor);
+	auto p_staging = static_cast<std::byte*>(staging_buffer.GetMappedData());
 
-		vk::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
-		CHECK_VULKAN_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
-		// clang-format off
-		cmd.copyBuffer(staging_buffer, device_buffer, {{
-			.srcOffset = 0,
-			.dstOffset = 0,
-			.size      = total_size_bytes,
-		}});
-		// clang-format on
-		CHECK_VULKAN_RESULT(cmd.end());
-		CHECK_VULKAN_RESULT(queue.submit({vk::SubmitInfo{.commandBufferCount = 1, .pCommandBuffers = &cmd}}));
-		CHECK_VULKAN_RESULT(queue.waitIdle());
-	}
-}
-
-void SDFSample::WriteNetworkWeights(
-	VulkanCoopVecNetwork const&         network,
-	VulkanRHI::Buffer const&            staging_buffer,
-	std::size_t                         staging_offset,
-	vk::CooperativeVectorMatrixLayoutNV dst_layout) {
-
-	auto ConvertLayerWeights = [](
-								   vk::Device                          device,
-								   void const*                         src,
-								   std::size_t                         src_size,
-								   std::byte*                          dst,
-								   Linear const&                       linear,
-								   vk::ComponentTypeKHR                src_component,
-								   vk::ComponentTypeKHR                dst_matrix_type,
-								   vk::CooperativeVectorMatrixLayoutNV dst_layout) {
+	auto write_weights = [&](
+							 void const*                         src,
+							 std::size_t                         src_size,
+							 std::byte*                          dst,
+							 vk::CooperativeVectorMatrixLayoutNV dst_layout,
+							 vk::ComponentTypeKHR                src_component_type,
+							 vk::ComponentTypeKHR                dst_matrix_type,
+							 Linear const&                       linear) {
 		std::size_t expected_size = linear.GetWeightsSize();
 		std::size_t required_size = expected_size;
 
@@ -909,12 +873,12 @@ void SDFSample::WriteNetworkWeights(
 			.srcData          = {.hostAddress = src},
 			.pDstSize         = &required_size,
 			.dstData          = {.hostAddress = dst + linear.GetWeightsOffset()},
-			.srcComponentType = src_component,
+			.srcComponentType = src_component_type,
 			.dstComponentType = dst_matrix_type,
 			.numRows          = linear.GetOutputsCount(),
 			.numColumns       = linear.GetInputsCount(),
 			.srcLayout        = vk::CooperativeVectorMatrixLayoutNV::eRowMajor,
-			.srcStride        = linear.GetInputsCount() * GetVulkanComponentSize(src_component),
+			.srcStride        = linear.GetInputsCount() * GetVulkanComponentSize(src_component_type),
 			.dstLayout        = dst_layout,
 			.dstStride        = linear.GetInputsCount() * GetVulkanComponentSize(dst_matrix_type),
 		};
@@ -929,17 +893,76 @@ void SDFSample::WriteNetworkWeights(
 		CHECK_VULKAN_RESULT(device.convertCooperativeVectorMatrixNV(&info));
 	};
 
-	std::byte* staging_ptr = staging_offset + reinterpret_cast<std::byte*>(staging_buffer.GetMappedData());
+	auto brdf_weights_src = std::span{reinterpret_cast<std::byte*>(brdf_weights_vec.data()), brdf_weights_vec.size() * sizeof(float)};
 
-	ConvertLayerWeights(device, kSDFWeights0, sizeof(kSDFWeights0), staging_ptr, network.GetLayer<Linear>(0), kSrcComponentType, kDstMatrixType, dst_layout);
-	ConvertLayerWeights(device, kSDFWeights1, sizeof(kSDFWeights1), staging_ptr, network.GetLayer<Linear>(1), kSrcComponentType, kDstMatrixType, dst_layout);
-	ConvertLayerWeights(device, kSDFWeights2, sizeof(kSDFWeights2), staging_ptr, network.GetLayer<Linear>(2), kSrcComponentType, kDstMatrixType, dst_layout);
-	ConvertLayerWeights(device, kSDFWeights3, sizeof(kSDFWeights3), staging_ptr, network.GetLayer<Linear>(3), kSrcComponentType, kDstMatrixType, dst_layout);
+	auto write_network = [write_weights]<typename SrcBiasType, typename DstBiasType>(
+							 VulkanCoopVecNetwork const&         network,
+							 std::byte*                          src_parameters,
+							 std::byte*                          dst_parameters,
+							 vk::CooperativeVectorMatrixLayoutNV dst_layout,
+							 vk::ComponentTypeKHR                src_component_type,
+							 vk::ComponentTypeKHR                dst_matrix_type) {
+		auto src_offset = std::size_t{0};
+		for (u32 i = 0; i < network.GetLayers().size(); ++i) {
+			auto& layer = network.GetLayer<Linear>(i);
 
-	std::memcpy(staging_ptr + network.GetLayer<Linear>(0).GetBiasesOffset(), kSDFBias0, sizeof(kSDFBias0));
-	std::memcpy(staging_ptr + network.GetLayer<Linear>(1).GetBiasesOffset(), kSDFBias1, sizeof(kSDFBias1));
-	std::memcpy(staging_ptr + network.GetLayer<Linear>(2).GetBiasesOffset(), kSDFBias2, sizeof(kSDFBias2));
-	std::memcpy(staging_ptr + network.GetLayer<Linear>(3).GetBiasesOffset(), kSDFBias3, sizeof(kSDFBias3));
+			std::size_t const src_weights_size_bytes = layer.GetWeightsCount() * GetVulkanComponentSize(src_component_type);
+			std::size_t const src_biases_size_bytes  = layer.GetBiasesCount() * GetVulkanComponentSize(src_component_type);
+
+			auto const* src_weights = src_parameters + src_offset;
+			write_weights(src_weights, src_weights_size_bytes, dst_parameters, dst_layout, src_component_type, dst_matrix_type, layer);
+			src_offset += src_weights_size_bytes;
+
+			auto const* src_bias = src_parameters + src_offset;
+			std::byte*  dst_bias = dst_parameters + layer.GetBiasesOffset();
+			// std::memcpy(dst_bias, src_bias, src_biases_size_bytes);
+			for (u32 j = 0; j < layer.GetBiasesCount(); ++j) {
+				DstBiasType* p_dst = reinterpret_cast<DstBiasType*>(dst_bias + j * sizeof(DstBiasType));
+				*p_dst             = static_cast<DstBiasType>(reinterpret_cast<SrcBiasType const*>(src_bias)[j]);
+			}
+			src_offset += src_biases_size_bytes;
+		}
+	};
+
+	write_network.template operator()<float, numeric::float16_t>(networks[u32(SdfFunctionType::eCoopVec)], brdf_weights_src.data(), p_staging + weights_offsets[u32(SdfFunctionType::eCoopVec)], Layout::eInferencingOptimal, Component::eFloat32, Component::eFloat16);
+	write_network.template operator()<float, numeric::float16_t>(networks[u32(SdfFunctionType::eWeightsInBufferF16)], brdf_weights_src.data(), p_staging + weights_offsets[u32(SdfFunctionType::eWeightsInBufferF16)], Layout::eRowMajor, Component::eFloat32, Component::eFloat16);
+	write_network.template operator()<float, float>(networks[u32(SdfFunctionType::eWeightsInBuffer)], brdf_weights_src.data(), p_staging + weights_offsets[u32(SdfFunctionType::eWeightsInBuffer)], Layout::eRowMajor, Component::eFloat32, Component::eFloat32);
+
+	// networks[u32(SdfFunctionType::eCoopVec)].Print();
+	// networks[u32(SdfFunctionType::eWeightsInBufferF16)].Print();
+	// networks[u32(SdfFunctionType::eWeightsInBuffer)].Print();
+
+	// DumpVertexData({p_vertices, sphere.GetVertexCount()}, {p_indices, sphere.GetIndexCount()});
+
+	vk::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
+	CHECK_VULKAN_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
+	vk::BufferCopy regions[] = {
+
+		// Linear
+		{
+			.srcOffset = weights_offsets[u32(SdfFunctionType::eWeightsInBuffer)],
+			.dstOffset = weights_offsets[u32(SdfFunctionType::eWeightsInBuffer)],
+			.size      = networks[u32(SdfFunctionType::eWeightsInBuffer)].GetParametersSize(),
+		},
+		// Linear f16
+		{
+			.srcOffset = weights_offsets[u32(SdfFunctionType::eWeightsInBufferF16)],
+			.dstOffset = weights_offsets[u32(SdfFunctionType::eWeightsInBufferF16)],
+			.size      = networks[u32(SdfFunctionType::eWeightsInBufferF16)].GetParametersSize(),
+		},
+		// Optimal
+		{
+			.srcOffset = weights_offsets[u32(SdfFunctionType::eCoopVec)],
+			.dstOffset = weights_offsets[u32(SdfFunctionType::eCoopVec)],
+			.size      = networks[u32(SdfFunctionType::eCoopVec)].GetParametersSize(),
+		},
+	};
+
+	cmd.copyBuffer(staging_buffer, device_buffer, std::size(regions), regions);
+
+	CHECK_VULKAN_RESULT(cmd.end());
+	CHECK_VULKAN_RESULT(queue.submit({{.commandBufferCount = 1, .pCommandBuffers = &cmd}}));
+	CHECK_VULKAN_RESULT(queue.waitIdle());
 }
 
 auto SDFSample::GetQueryResult() -> u64 {
@@ -1056,12 +1079,22 @@ void SDFSample::RecordCommands(vk::Pipeline pipeline) {
 	};
 	// PrintMat4(camera.getView());
 
-	auto offsets = GetOffsets();
+	// auto offsets = GetOffsets();
 
-	for (auto i = 0u; i < network.GetLayers().size(); ++i) {
+	// for (auto i = 0u; i < network.GetLayers().size(); ++i) {
 
-		constants.weights_offsets[i] = offsets.weights_offsets[i];
-		constants.bias_offsets[i]    = offsets.biases_offsets[i];
+	// 	constants.weights_offsets[i] = offsets.weights_offsets[i];
+	// 	constants.bias_offsets[i]    = offsets.biases_offsets[i];
+	// }
+	if (u32(function_type) < kNetworksCount) {
+		auto const& network = networks[u32(function_type)];
+		for (int i = 0; i < network.GetLayers().size(); ++i) {
+			auto layer                   = network.GetLayer<Linear>(i);
+			auto offset_base             = weights_offsets[u32(function_type)];
+			constants.weights_offsets[i] = offset_base + layer.GetWeightsOffset();
+			constants.bias_offsets[i]    = offset_base + layer.GetBiasesOffset();
+			// std::printf("Layer %d weights_offset %d bias_offset %d\n", i, constants.weights_offsets[i], constants.bias_offsets[i]);
+		}
 	}
 	// std::printf("W offsets: %u %u %u %u\n", offsets.weights_offsets[0], offsets.weights_offsets[1], offsets.weights_offsets[2], offsets.weights_offsets[3]);
 	// std::printf("B offsets: %u %u %u %u\n", offsets.biases_offsets[0], offsets.biases_offsets[1], offsets.biases_offsets[2], offsets.biases_offsets[3]);
@@ -1188,8 +1221,7 @@ constexpr inline auto contains(Range&& range, auto&& value, Proj&& proj = std::i
 
 void SDFSample::RunBenchmark(TestOptions const& options) {
 	struct TestData {
-		vk::Pipeline   pipeline;
-		NetworkOffsets offsets;
+		vk::Pipeline pipeline;
 	};
 	// WindowManager::WaitEvents();
 	// if (window.GetShouldClose()) return;
@@ -1307,12 +1339,6 @@ auto SDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 			// benchmark_single = true;
 			function_id = value;
 			++it;
-		} else if (arg == "-w") { // input weights file
-			if ((it + 1) == args_range.end()) return "expected <file>";
-			auto str = std::string_view(*(it + 1));
-			// if (!std::filesystem::exists(str)) return *(it + 1);
-			weights_file_name = str;
-			++it;
 		} else return *it;
 	}
 	return nullptr;
@@ -1330,7 +1356,8 @@ auto main(int argc, char const* argv[]) -> int {
 	}
 
 	TestOptions options{
-		.resolution = {640, 480},
+		// .resolution = {640, 480},
+		.resolution = {1920, 1080},
 		.test_count = 64,
 	};
 
@@ -1345,18 +1372,27 @@ auto main(int argc, char const* argv[]) -> int {
 		{3840, 2160},
 	};
 
+	std::string_view weights_files[] = {
+		"Assets/SDFWeights_16_3.bin",
+		"Assets/SDFWeights_24_3.bin",
+		"Assets/SDFWeights_32_3.bin",
+		"Assets/SDFWeights_32_4.bin",
+		"Assets/SDFWeights_48_3.bin",
+	};
+
 	auto res_count = //
 
 		// std::size(res_arr);
 		1;
 
-	sample.Init();
+	// if ()
+	sample.Init({weights_files[sample.function_id.value_or(0)]});
 	if (sample.IsTestMode()) {
-		for (int i = 0; i < res_count; ++i) {
-			options.resolution = res_arr[i];
-			std::printf("resolution: %d x %d\n", res_arr[i].x, res_arr[i].y);
-			sample.RunBenchmark(options);
-		}
+		// options.resolution   = res_arr[i];
+		// options.weights_file = weights_files[i];
+		// std::printf("resolution: %d x %d\n", res_arr[i].x, res_arr[i].y);
+		sample.RunBenchmark(options);
+
 	} else {
 		sample.Run();
 	}
