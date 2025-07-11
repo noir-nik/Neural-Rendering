@@ -63,7 +63,10 @@ public:
 		vk::EXTShaderReplicatedCompositesExtensionName,
 	};
 
-	static constexpr u32 kFramesInFlight = 3;
+	static constexpr u32 kFramesInFlight     = 3;
+	static constexpr u32 kTestFunctionsCount = 8;
+	static constexpr u32 kNetworksCount      = 3;
+	static constexpr u32 kTimestampsPerFrame = 2;
 
 	~SDFSample();
 
@@ -125,6 +128,7 @@ public:
 	bool is_test_mode   = false;
 	bool is_verbose     = false;
 	bool use_validation = false;
+	bool pics           = false;
 
 	std::optional<u32> function_id = std::nullopt;
 
@@ -165,8 +169,6 @@ public:
 
 	// std::array<vk::Pipeline, u32(SdfFunctionType::eCount)> pipelines;
 	// std::array<vk::Pipeline, u32(SdfFunctionType::eCount)> pipelines;
- 
-	static constexpr u32 kTestFunctionsCount = u32(SdfFunctionType::eCount);
 
 	// vk::Pipeline pipelines[u32(SdfFunctionType::eCount)][kTestFunctionsCount];
 	// vk::Pipeline pipelines[kTestFunctionsCount];
@@ -176,13 +178,11 @@ public:
 	VulkanRHI::Buffer staging_buffer{};
 	VulkanRHI::Buffer device_buffer{};
 
-	static constexpr u32 kNetworksCount = 3;
 	VulkanCoopVecNetwork networks[kNetworksCount];
 
 	std::array<vk::DeviceSize, kTestFunctionsCount> weights_offsets;
 
-	bool                 pending_image_save  = false;
-	static constexpr u32 kTimestampsPerFrame = 2;
+	bool pending_image_save = false;
 
 	std::array<u64, kFramesInFlight * kTimestampsPerFrame>  timestamp_results = {};
 	std::array<bool, kFramesInFlight * kTimestampsPerFrame> timestamp_valid   = {};
@@ -201,13 +201,16 @@ public:
 
 	Camera camera{{
 		// .position = {-4.180247, -0.427392, 0.877357},
-		.position = {2.7, 0.8, -4.3},
+		// .position = {2.7, 0.8, -4.3},
+		.position = {3.2, 1.21, -4.3},
 		// .focus    = {-0.1f, 0.0f, 0.0f},
-		.focus = {},
+		// .focus = {},
+		.focus = {-0.3f, 0.65f, -0.0f},
 		// .up    = {0.213641, -0.093215, 0.972476},
 		.up = {0, 1, 0},
 		// .fov    = 35.0f,
-		.fov    = 32.0f,
+		// .fov    = 32.0f,
+		.fov    = 10.0f,
 		.z_near = 0.01f,
 		.z_far  = 1000.0f,
 	}};
@@ -250,11 +253,18 @@ static void KeyCallback(GLFWWindow* window, int key, int scancode, int action, i
 		case Key::eEscape:
 			window->SetShouldClose(true);
 			break;
-		case Key::eF8:
+		case Key::eF8: {
 			sample->pending_image_save = true;
-			sample->SaveSwapchainImageToFile("sdf.bmp");
+
+			// auto fname = "sdf.bmp";
+
+			char fname[256] = {};
+
+			std::snprintf(fname, sizeof(fname), "sdf_%d.bmp", *sample->function_id);
+
+			sample->SaveSwapchainImageToFile(fname);
 			// sample->SaveSwapchainImageToFile("sdf.png");
-			break;
+		} break;
 		default:
 			break;
 		}
@@ -288,7 +298,8 @@ void SDFSample::Init(InitInfo const& init_info) {
 	WindowManager::Init();
 
 	// u32 const initial_width = 1600, initial_height = 1200;
-	u32 const initial_width = 1920, initial_height = 1080;
+	u32 const initial_width = 800, initial_height = 600;
+	// u32 const initial_width = 1920, initial_height = 1080;
 	window.Init({.x = 30, .y = 30, .width = initial_width, .height = initial_height, .title = "SDF"});
 	window.GetWindowCallbacks().framebufferSizeCallback = FramebufferSizeCallback;
 	if (!is_test_mode) {
@@ -502,6 +513,7 @@ void SDFSample::CreateDevice() {
 			.shaderFloat16       = vk::True,
 			.hostQueryReset      = timestamps_supported ? vk::True : vk::False,
 			.bufferDeviceAddress = vk::True,
+			.vulkanMemoryModel   = vk::True,
 		},
 		vk::PhysicalDeviceVulkan13Features{.synchronization2 = vk::True, .dynamicRendering = vk::True},
 		vk::PhysicalDeviceCooperativeVectorFeaturesNV{.cooperativeVector = vk::True, .cooperativeVectorTraining = vk::True},
@@ -638,7 +650,14 @@ void SDFSample::CreatePipelines() {
 	// pipelines[int(SdfFunctionType::eWeightsInBuffer)] = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eWeightsInBuffer);
 	// pipelines[int(SdfFunctionType::eVec4)]            = CreatePipeline(shader_modules[0], shader_modules[1], SdfFunctionType::eVec4);
 
+	// u32 num = 6u;
+	u32 num = 7u;
+	// u32 num = 8u;
+	// for (auto i = num; i < num + 1; ++i) {
 	for (auto i = 0u; i < std::size(pipelines); ++i) {
+		if (is_verbose) {
+			std::printf("Creating pipeline %d\n", i);
+		}
 		pipelines[i] = CreatePipeline(shader_modules[0], shader_modules[1], {function_type, i});
 	}
 
@@ -816,7 +835,7 @@ void SDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
  
 	CHECK_VULKAN_RESULT(staging_buffer.Create(device, vma_allocator, {
 		.size   = total_size_bytes,
-		.usage  = vk::BufferUsageFlagBits::eTransferSrc,
+		.usage  = vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst,
 		.memory = vk::MemoryPropertyFlagBits::eHostVisible 
 				| vk::MemoryPropertyFlagBits::eHostCoherent,
 	}));
@@ -847,7 +866,7 @@ void SDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 
 	auto offset = 0;
 
-	auto kGap = 128*1024;
+	auto kGap = 128 * 1024;
 	for (auto i = 0u; i < std::size(networks); ++i) {
 		offset             = AlignUpPowerOfTwo(offset, CoopVecUtils::GetMatrixAlignment());
 		weights_offsets[i] = offset;
@@ -1158,17 +1177,15 @@ void SDFSample::SaveSwapchainImageToFile(std::string_view filename) {
 	VulkanRHI::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
 	CHECK_VULKAN_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
 
-	if (new_layout != vk::ImageLayout::eTransferSrcOptimal) {
-		cmd.Barrier({
-			.image         = image,
-			.oldLayout     = vk::ImageLayout::ePresentSrcKHR,
-			.newLayout     = new_layout,
-			.srcStageMask  = vk::PipelineStageFlagBits2::eBottomOfPipe,
-			.srcAccessMask = vk::AccessFlagBits2::eShaderWrite,
-			.dstStageMask  = vk::PipelineStageFlagBits2::eTransfer,
-			.dstAccessMask = vk::AccessFlagBits2::eTransferRead,
-		});
-	}
+	cmd.Barrier({
+		.image         = image,
+		.oldLayout     = vk::ImageLayout::ePresentSrcKHR,
+		.newLayout     = new_layout,
+		.srcStageMask  = vk::PipelineStageFlagBits2::eAllCommands,
+		.srcAccessMask = vk::AccessFlagBits2::eShaderWrite,
+		.dstStageMask  = vk::PipelineStageFlagBits2::eTransfer,
+		.dstAccessMask = vk::AccessFlagBits2::eTransferRead,
+	});
 
 	auto region = vk::BufferImageCopy{
 		.bufferOffset      = 0,
@@ -1208,6 +1225,8 @@ void SDFSample::Run() {
 		window.GetRect(x, y, width, height);
 		if (width <= 0 || height <= 0) continue;
 		DrawWindow();
+		if (pics)
+			break;
 	} while (true);
 }
 
@@ -1220,9 +1239,9 @@ constexpr inline auto contains(Range&& range, auto&& value, Proj&& proj = std::i
 };
 
 void SDFSample::RunBenchmark(TestOptions const& options) {
-	struct TestData {
-		vk::Pipeline pipeline;
-	};
+	// struct TestData {
+	// 	vk::Pipeline pipeline;
+	// };
 	// WindowManager::WaitEvents();
 	// if (window.GetShouldClose()) return;
 
@@ -1233,10 +1252,12 @@ void SDFSample::RunBenchmark(TestOptions const& options) {
 	// std::printf("Resizing to %dx%d\n", width, height);
 	RecreateSwapchain(width, height);
 	// DrawWindow();
-	constexpr u32 kIters = 32;
-	// constexpr u32 kMaxTestKinds  = u32(SdfFunctionType::eCount);
-	// constexpr u32 kMaxTestKinds = kTestFunctionsCount;
-	constexpr u32 kMaxTestKinds = 1;
+	// constexpr u32 kIters = 32;
+	constexpr u32 kIters = 16;
+	// constexpr u32 kIters = 256;
+	// constexpr u32 kMaxTestKinds = u32(SdfFunctionType::eCount);
+	// constexpr u32 kMaxTestKinds = 5;
+	constexpr u32 kMaxTestKinds = kTestFunctionsCount;
 
 	int first_test{}, last_test = kMaxTestKinds - 1;
 
@@ -1256,6 +1277,7 @@ void SDFSample::RunBenchmark(TestOptions const& options) {
 		// };
 	};
 
+	// constexpr u32 kWarmupCount = 2;
 	constexpr u32 kWarmupCount = 0;
 	for (u32 t_i = first_test; t_i <= last_test; ++t_i) {
 		for (u32 iter = 0; iter < kWarmupCount; ++iter) {
@@ -1277,6 +1299,16 @@ void SDFSample::RunBenchmark(TestOptions const& options) {
 	}
 
 	std::string_view names[] = {"CoopVec", "WeightsInBuffer", "WeightsInBufferFloat16", "WeightsInHeader"};
+	std::string_view fs[]    = {
+        "3_16_16_16_1_625",
+        "3_24_24_24_1_1321",
+        "3_32_32_32_1_2273",
+        "3_32_32_32_32_1_3329",
+        "3_48_48_48_1_4945",
+        "3_64_64_64_1_8641",
+        "3_128_128_128_1_33665",
+        "3_128_128_128_128_1_50177",
+    };
 
 	// Print csv
 	// if constexpr (kDstMatrixType == vk::ComponentTypeKHR::eFloat16) {
@@ -1288,7 +1320,8 @@ void SDFSample::RunBenchmark(TestOptions const& options) {
 	for (u32 t_i = first_test; t_i <= last_test; ++t_i) {
 		if (contains(skip, SdfFunctionType(t_i))) continue;
 		if (is_header) {
-			std::printf("SDF_%s_%u", names[u32(function_type)].data(), t_i);
+			// std::printf("SDF_%s_%u", names[u32(function_type)].data(), t_i);
+			std::printf("SDF_%s_%s", names[u32(function_type)].data(), fs[t_i].data());
 		} else {
 			std::printf("%s", names[t_i].data());
 		}
@@ -1302,6 +1335,7 @@ void SDFSample::RunBenchmark(TestOptions const& options) {
 		for (u32 t_i = first_test; t_i <= last_test; ++t_i) {
 			if (contains(skip, SdfFunctionType(t_i))) continue;
 			std::printf("%llu", tests_row[t_i]);
+			// std::printf("%f", float(tests_row[t_i])/1e6f);
 			if (t_i < last_test && !contains(skip, SdfFunctionType(t_i + 1))) std::printf(",");
 		}
 		// std::printf("%llu \n", test_times[iter][last_test]);
@@ -1320,6 +1354,7 @@ auto SDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 		if (arg == "--benchmark" || arg == "-b") is_test_mode = true;
 		else if (arg == "--verbose" || arg == "-v") is_verbose = true;
 		else if (arg == "--validation") use_validation = true;
+		else if (arg == "--pics" || arg == "-p") pics = true;
 		else if (arg == "--kind") {
 			if ((it + 1) == args_range.end()) return "expected <kind>";
 			auto kind = std::string_view(*(it + 1));
@@ -1358,7 +1393,8 @@ auto main(int argc, char const* argv[]) -> int {
 	TestOptions options{
 		// .resolution = {640, 480},
 		.resolution = {1920, 1080},
-		.test_count = 64,
+		// .test_count = 64,
+		.test_count = 1,
 	};
 
 	int2 res_arr[] = {
@@ -1373,28 +1409,51 @@ auto main(int argc, char const* argv[]) -> int {
 	};
 
 	std::string_view weights_files[] = {
+		// "Assets/SDFWeights_64_3.bin",
+
 		"Assets/SDFWeights_16_3.bin",
 		"Assets/SDFWeights_24_3.bin",
 		"Assets/SDFWeights_32_3.bin",
 		"Assets/SDFWeights_32_4.bin",
 		"Assets/SDFWeights_48_3.bin",
+		"Assets/SDFWeights_64_3.bin",
+		"Assets/SDFWeights_128_3.bin",
+		"Assets/SDFWeights_128_4.bin",
+		// "Assets/SDFWeights_128_5.bin",
 	};
 
-	auto res_count = //
+	auto test_count = //
 
 		// std::size(res_arr);
-		1;
-
-	// if ()
-	sample.Init({weights_files[sample.function_id.value_or(0)]});
-	if (sample.IsTestMode()) {
-		// options.resolution   = res_arr[i];
-		// options.weights_file = weights_files[i];
-		// std::printf("resolution: %d x %d\n", res_arr[i].x, res_arr[i].y);
-		sample.RunBenchmark(options);
-
-	} else {
+		std::size(weights_files);
+	// 1;
+	if (not sample.pics) {
+		sample.Init({weights_files[sample.function_id.value_or(0)]});
 		sample.Run();
+	} else {
+		// if ()
+		for (int i = 0; i < test_count; ++i) {
+			// sample.Init({weights_files[sample.function_id.value_or(0)]});
+			sample.function_id = i;
+			sample.Init({weights_files[i]});
+			if (sample.IsTestMode()) {
+				// options.resolution   = res_arr[i];
+				// options.weights_file = weights_files[i];
+				// std::printf("resolution: %d x %d\n", res_arr[i].x, res_arr[i].y);
+				sample.RunBenchmark(options);
+
+			} else {
+				sample.Run();
+
+				char fname[256] = {};
+
+				std::snprintf(fname, sizeof(fname), "sdf_%d.bmp", *sample.function_id);
+				sample.SaveSwapchainImageToFile(fname);
+			}
+			// std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+			if (i < test_count - 1)
+				sample.Destroy();
+		}
 	}
 	return 0;
 }
