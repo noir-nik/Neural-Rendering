@@ -98,6 +98,7 @@ public:
 	// Return time in nanoseconds
 	auto GetQueryResult() -> u64;
 	void RecreateSwapchain(int width, int height);
+	void SaveSwapchainImageToFile(std::string_view filename);
 
 	auto GetAllocator() const -> vk::AllocationCallbacks const* { return allocator; }
 	auto GetPipelineCache() const -> vk::PipelineCache { return pipeline_cache; }

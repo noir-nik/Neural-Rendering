@@ -163,7 +163,7 @@ func ps_main(VSOutput vs_input)->float4 {
 	// color = float3(color.z, color.y, color.x);
 	// color = float3(color.z, color.x, color.y);
 
-	color = float3(color.z, color.y, color.x);
+	// color = float3(color.z, color.y, color.x);
 
 	return float4(color, 1.0);
 }

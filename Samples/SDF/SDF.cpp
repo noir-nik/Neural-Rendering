@@ -201,16 +201,16 @@ public:
 
 	Camera camera{{
 		// .position = {-4.180247, -0.427392, 0.877357},
-		// .position = {2.7, 0.8, -4.3},
-		.position = {3.2, 1.21, -4.3},
+		.position = {2.7, 0.8, -4.3},
+		// .position = {3.2, 1.21, -4.3},
 		// .focus    = {-0.1f, 0.0f, 0.0f},
-		// .focus = {},
-		.focus = {-0.3f, 0.65f, -0.0f},
+		.focus = {},
+		// .focus = {-0.3f, 0.65f, -0.0f},
 		// .up    = {0.213641, -0.093215, 0.972476},
 		.up = {0, 1, 0},
 		// .fov    = 35.0f,
-		// .fov    = 32.0f,
-		.fov    = 10.0f,
+		.fov = 32.0f,
+		// .fov    = 10.0f,
 		.z_near = 0.01f,
 		.z_far  = 1000.0f,
 	}};
@@ -304,6 +304,12 @@ void SDFSample::Init(InitInfo const& init_info) {
 	window.GetWindowCallbacks().framebufferSizeCallback = FramebufferSizeCallback;
 	if (!is_test_mode) {
 		window.GetWindowCallbacks().windowRefreshCallback = WindowRefreshCallback;
+	}
+	
+	if (false) {
+		camera.getPosition() = {3.2, 1.21, -4.3};
+		camera.getFocus()    = {-0.3f, 0.65f, -0.0f};
+		camera.getFov()      = 10.0f;
 	}
 
 	int x, y, width, height;
@@ -1262,10 +1268,10 @@ void SDFSample::RunBenchmark(TestOptions const& options) {
 	int first_test{}, last_test = kMaxTestKinds - 1;
 
 	auto is_header = true;
-	// if (is_header) {
-	// 	first_test = 0;
-	// 	last_test  = kTestFunctionsCount;
-	// }
+	if (is_header) {
+		first_test = *function_id;
+		last_test  = first_test;
+	}
 
 	SdfFunctionType skip[] = {};
 
@@ -1425,35 +1431,43 @@ auto main(int argc, char const* argv[]) -> int {
 	auto test_count = //
 
 		// std::size(res_arr);
-		std::size(weights_files);
-	// 1;
-	if (not sample.pics) {
-		sample.Init({weights_files[sample.function_id.value_or(0)]});
-		sample.Run();
-	} else {
-		// if ()
-		for (int i = 0; i < test_count; ++i) {
-			// sample.Init({weights_files[sample.function_id.value_or(0)]});
-			sample.function_id = i;
-			sample.Init({weights_files[i]});
-			if (sample.IsTestMode()) {
-				// options.resolution   = res_arr[i];
-				// options.weights_file = weights_files[i];
-				// std::printf("resolution: %d x %d\n", res_arr[i].x, res_arr[i].y);
-				sample.RunBenchmark(options);
+		// std::size(weights_files);
+		// 1;
+		4;
 
-			} else {
-				sample.Run();
-
-				char fname[256] = {};
-
-				std::snprintf(fname, sizeof(fname), "sdf_%d.bmp", *sample.function_id);
-				sample.SaveSwapchainImageToFile(fname);
-			}
-			// std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-			if (i < test_count - 1)
-				sample.Destroy();
-		}
+	auto is_render_mode = not sample.is_test_mode and not sample.pics;
+	if (is_render_mode) {
+		test_count = 1;
 	}
+
+	// if ()
+	for (int i = 0; i < test_count; ++i) {
+		if (!is_render_mode) sample.function_id = i;
+
+		sample.Init({weights_files[i]});
+		if (sample.IsTestMode()) {
+			// options.resolution   = res_arr[i];
+			// options.weights_file = weights_files[i];
+			// std::printf("resolution: %d x %d\n", res_arr[i].x, res_arr[i].y);
+			sample.RunBenchmark(options);
+
+		}
+
+		else if (sample.pics) {
+			sample.Run();
+
+			char fname[256] = {};
+
+			std::snprintf(fname, sizeof(fname), "sdf_%d.bmp", *sample.function_id);
+			sample.SaveSwapchainImageToFile(fname);
+		} else {
+			sample.Init({weights_files[sample.function_id.value_or(0)]});
+			sample.Run();
+		}
+		// std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+		if (i < test_count - 1)
+			sample.Destroy();
+	}
+
 	return 0;
 }
