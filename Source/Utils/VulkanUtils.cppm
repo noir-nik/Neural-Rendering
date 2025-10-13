@@ -47,8 +47,8 @@ constexpr auto GetVulkanComponentSize(vk::ComponentTypeKHR const type) -> std::s
 	case vk::ComponentTypeKHR::eUint64:        return sizeof(std::uint64_t);
 	case vk::ComponentTypeKHR::eSint8PackedNV: return sizeof(std::uint8_t);
 	case vk::ComponentTypeKHR::eUint8PackedNV: return sizeof(std::uint8_t);
-	case vk::ComponentTypeKHR::eFloatE4M3NV:   return sizeof(std::uint16_t);
-	case vk::ComponentTypeKHR::eFloatE5M2NV:   return sizeof(std::uint16_t);
+	case vk::ComponentTypeKHR::eFloatE4M3:   return sizeof(std::uint16_t);
+	case vk::ComponentTypeKHR::eFloatE5M2:   return sizeof(std::uint16_t);
 	default:
 		return 0;
 	}
