@@ -260,7 +260,7 @@ static void KeyCallback(GLFWWindow* window, int key, int scancode, int action, i
 
 			char fname[256] = {};
 
-			std::snprintf(fname, sizeof(fname), "sdf_%d.bmp", *sample->function_id);
+			std::snprintf(fname, sizeof(fname), "brdf_%d.bmp", *sample->function_id);
 
 			sample->SaveSwapchainImageToFile(fname);
 			// sample->SaveSwapchainImageToFile("sdf.png");
@@ -1258,8 +1258,8 @@ void SDFSample::RunBenchmark(TestOptions const& options) {
 	// std::printf("Resizing to %dx%d\n", width, height);
 	RecreateSwapchain(width, height);
 	// DrawWindow();
-	// constexpr u32 kIters = 32;
-	constexpr u32 kIters = 16;
+	constexpr u32 kIters = 32;
+	// constexpr u32 kIters = 16;
 	// constexpr u32 kIters = 256;
 	// constexpr u32 kMaxTestKinds = u32(SdfFunctionType::eCount);
 	// constexpr u32 kMaxTestKinds = 5;
@@ -1431,9 +1431,9 @@ auto main(int argc, char const* argv[]) -> int {
 	auto test_count = //
 
 		// std::size(res_arr);
-		// std::size(weights_files);
+		std::size(weights_files);
 		// 1;
-		4;
+		// 4;
 
 	auto is_render_mode = not sample.is_test_mode and not sample.pics;
 	if (is_render_mode) {

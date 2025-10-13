@@ -114,6 +114,7 @@ void BRDFSample::Init() {
 	int x, y, width, height;
 	window.GetFullScreenRect(x, y, width, height);
 
+	camera.fov    = 35.0f;
 	camera.updateProjection(initial_width, initial_height);
 
 	window.GetInputCallbacks().cursorPosCallback   = CursorPosCallback;
@@ -355,8 +356,6 @@ void BRDFSample::CreateDevice() {
 		.pNext                   = &features.get<vk::PhysicalDeviceFeatures2>(),
 		.queueCreateInfoCount    = static_cast<u32>(std::size(queue_create_infos)),
 		.pQueueCreateInfos       = queue_create_infos,
-		.enabledLayerCount       = static_cast<u32>(std::size(enabled_layers)),
-		.ppEnabledLayerNames     = enabled_layers.data(),
 		.enabledExtensionCount   = static_cast<u32>(std::size(kEnabledDeviceExtensions)),
 		.ppEnabledExtensionNames = kEnabledDeviceExtensions,
 	};

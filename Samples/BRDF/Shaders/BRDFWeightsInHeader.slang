@@ -7,7 +7,7 @@
 // #include "BRDFWeights_split.h"
 
 import CoopVec; //relu
-
+/* 
 void BRDFWeightsInHeader<T : __BuiltinFloatingPointType>(in T input[6], out T output[3]) {
 	T a[128];
 	for (int i = 0; i < 64; ++i) {
@@ -45,5 +45,5 @@ void BRDFWeightsInHeader<T : __BuiltinFloatingPointType>(in T input[6], out T ou
 		}
 	}
 }
-
+ */
 

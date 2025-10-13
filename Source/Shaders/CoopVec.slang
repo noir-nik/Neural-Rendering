@@ -16,7 +16,7 @@ CoopVec<T, M> LinearForward<T : __BuiltinFloatingPointType, int M, int K>(
 		biasOffset,
 		componentType,
 		matrixLayout,
-		transpose,
+		false, // transpose
 		0);
 }
 

@@ -66,7 +66,7 @@ auto PrintLayerBiases(Linear layer, std::byte const* parameters) -> void {
 }
 
 void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
-	sphere = UVSphere(1.0f, 32*2, 16*2);
+	sphere                            = UVSphere(1.0f, 32 * 2, 16 * 2);
 	std::size_t vertices_size_bytes   = sphere.GetVertexCount() * sizeof(UVSphere::Vertex);
 	std::size_t indices_size_bytes    = sphere.GetIndexCount() * sizeof(UVSphere::IndexType);
 	std::size_t alignment             = sizeof(float) * 4;
@@ -373,7 +373,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 			.loadOp      = vk::AttachmentLoadOp::eClear,
 			.storeOp     = vk::AttachmentStoreOp::eStore,
 			// .clearValue  = {{{{0.1f, 0.1f, 0.1f, 1.0f}}}},
-			.clearValue  = {{{{1.f, 1.f, 1.f, 1.0f}}}},
+			.clearValue = {{{{1.f, 1.f, 1.f, 1.0f}}}},
 			// .clearValue  = {{{{0.f, 0.f, 0.f, 1.0f}}}},
 		}}},
 		.depthAttachment  = {
@@ -568,7 +568,8 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 	RecreateSwapchain(width, height);
 	constexpr u32 kTestRunsCount = 32;
 
-	constexpr u32 kMaxTestKinds = std::to_underlying(BrdfFunctionType::eCount);
+	// constexpr u32 kMaxTestKinds = std::to_underlying(BrdfFunctionType::eCount);
+	constexpr u32 kMaxTestKinds = kTestFunctionsCount;
 
 	constexpr u32 kMaxTests = 32;
 	// std::vector<std::array<u64, kMaxTestKinds>> test_times(kTestRunsCount);
@@ -586,6 +587,9 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 		first_test = 0;
 		last_test  = kTestFunctionsCount;
 	}
+
+	first_test = *function_id;
+	last_test  = first_test + 1;
 
 	// BrdfFunctionType skip[] = {BrdfFunctionType::eWeightsInHeader};
 	BrdfFunctionType skip[] = {};
