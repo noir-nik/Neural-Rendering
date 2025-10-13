@@ -56,10 +56,26 @@ static void CursorPosCallback(GLFWWindow* window, double xpos, double ypos) {
 static void KeyCallback(GLFWWindow* window, int key, int scancode, int action, int mods) {
 	BRDFSample* sample = static_cast<BRDFSample*>(window->GetUserPointer());
 
-	switch (key) {
-	case 256:
-		window->SetShouldClose(true);
-		break;
+	using namespace Glfw;
+	if (Action(action) == Action::ePress) {
+		switch (Key(key)) {
+		case Key::eEscape:
+			window->SetShouldClose(true);
+			break;
+		case Key::eF8: {
+			// sample->pending_image_save = true;
+
+			// auto fname = "sdf.bmp";
+
+			char fname[256] = {};
+
+			std::snprintf(fname, sizeof(fname), "brdf_%d.bmp", *sample->function_id);
+
+			sample->SaveSwapchainImageToFile(fname);
+			// sample->SaveSwapchainImageToFile("sdf.png");
+		} break;
+		default: break;
+		}
 	}
 }
 

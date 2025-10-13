@@ -461,7 +461,76 @@ void BRDFSample::RecreateSwapchain(int width, int height) {
 	CHECK_VULKAN_RESULT(swapchain.Recreate(width, height));
 	swapchain_dirty = false;
 }
-static auto last_frame_time = std::chrono::steady_clock::now();
+
+void BRDFSample::SaveSwapchainImageToFile(std::string_view filename) {
+	CHECK_VULKAN_RESULT(device.waitForFences(1, &swapchain.GetCurrentFence(), vk::True, std::numeric_limits<u32>::max()));
+
+	int x, y, width, height;
+	window.GetRect(x, y, width, height);
+	auto const image             = swapchain.GetCurrentImage();
+	auto const image_view        = swapchain.GetCurrentImageView();
+	auto const new_layout        = vk::ImageLayout::eTransferSrcOptimal;
+	auto const image_aspect      = vk::ImageAspectFlagBits::eColor;
+	auto const image_subresource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1);
+
+	auto extent            = swapchain.GetExtent();
+	auto format_block_size = vk::blockSize(swapchain.GetFormat());
+
+	vk::DeviceSize const image_size = extent.width * extent.height * format_block_size;
+
+	if (image_size >= staging_buffer.GetSize()) {
+		staging_buffer.Destroy();
+		// clang-format off
+		CHECK_VULKAN_RESULT(staging_buffer.Create(device, vma_allocator, {
+			.size   = image_size,
+			.usage  = vk::BufferUsageFlagBits::eTransferSrc,
+			.memory = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
+		}));
+		// clang-format on
+	}
+
+	VulkanRHI::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
+	CHECK_VULKAN_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
+
+	cmd.Barrier({
+		.image         = image,
+		.oldLayout     = vk::ImageLayout::ePresentSrcKHR,
+		.newLayout     = new_layout,
+		.srcStageMask  = vk::PipelineStageFlagBits2::eAllCommands,
+		.srcAccessMask = vk::AccessFlagBits2::eShaderWrite,
+		.dstStageMask  = vk::PipelineStageFlagBits2::eTransfer,
+		.dstAccessMask = vk::AccessFlagBits2::eTransferRead,
+	});
+
+	auto region = vk::BufferImageCopy{
+		.bufferOffset      = 0,
+		.bufferRowLength   = 0,
+		.bufferImageHeight = 0,
+		.imageSubresource  = image_subresource,
+		.imageOffset       = vk::Offset3D{0, 0, 0},
+		.imageExtent       = vk::Extent3D{extent.width, extent.height, 1},
+	};
+
+	cmd.copyImageToBuffer(image, new_layout, staging_buffer, 1, &region);
+
+	auto cmd_info = vk::CommandBufferSubmitInfo{.commandBuffer = cmd};
+	CHECK_VULKAN_RESULT(cmd.end());
+	CHECK_VULKAN_RESULT(queue.submit2(vk::SubmitInfo2{
+		.commandBufferInfoCount = 1,
+		.pCommandBufferInfos    = &cmd_info,
+	}))
+	CHECK_VULKAN_RESULT(queue.waitIdle());
+
+	auto data   = staging_buffer.GetMappedData();
+	auto stride = extent.width * format_block_size;
+	if (stbi_write_bmp(filename.data(), extent.width, extent.height, format_block_size, data)) {
+		// if (stbi_write_png(filename.data(), extent.width, extent.height, format_block_size, data, 0)) {
+		std::printf("Saved %s\n", filename.data());
+	} else {
+		std::printf("Failed to write %s\n", filename.data());
+	}
+	// pending_image_save = false;
+}
 
 void BRDFSample::Run() {
 	do {
