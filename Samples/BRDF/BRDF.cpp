@@ -325,7 +325,7 @@ auto BRDFSample::DrawWindow(vk::Pipeline pipeline) -> u64 {
 		return false;
 	};
 	CHECK_VULKAN_RESULT(device.waitForFences(1, &swapchain.GetCurrentFence(), vk::True, std::numeric_limits<u32>::max()));
-	device.resetCommandPool(swapchain.GetCurrentCommandPool());
+	CHECK_VULKAN_RESULT(device.resetCommandPool(swapchain.GetCurrentCommandPool()));
 	if (!HandleSwapchainResult(swapchain.AcquireNextImage())) return 0ull;
 	CHECK_VULKAN_RESULT(device.resetFences(1, &swapchain.GetCurrentFence()));
 	RecordCommands(pipeline);
@@ -626,7 +626,7 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 		}
 	}
 
-	char const* names[] = {"Classic", "CoopVec", "WeightsInBuffer", "WeightsInBufferFloat16", "WeightsInHeader"};
+	char const* names[] = {"Classic", "CoopVec", "WeightsInBuffer", "WeightsInBufferFloat16", "WeightsInHeader, Kan"};
 
 	// Print csv
 	// std::printf("Classic,CoopVec,WeightsInBuffer,WeightsInBufferFloat16,WeightsInHeader\n");
@@ -705,6 +705,13 @@ auto PrintUsage([[maybe_unused]] int argc, char const* argv[]) -> void {
 	std::printf("        2: Weights in buffer\n");
 	std::printf("        3: Weights in buffer float16\n");
 	std::printf("        4: Weights in header\n");
+	std::printf("        5: Kan\n");
+	std::printf("  --benchmark | -b\n");
+	std::printf("      Run benchmark\n");
+	std::printf("  --verbose | -v\n");
+	std::printf("      Run benchmark with verbose output\n");
+	std::printf("  --validation\n");
+	std::printf("      Enable validation\n");
 	std::printf("\n");
 };
 

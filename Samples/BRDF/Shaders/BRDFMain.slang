@@ -104,14 +104,19 @@ func ps_main(VSOutput vs_input)->float4 {
 		BRDFWeightsInBuffer<half>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
 	} else if (shader_type == BrdfFunctionType::eWeightsInHeader) {
 		// BRDFWeightsInHeader<float>(inputf, outputf);
-		BRDFCoopVec<COOPVEC_TYPE>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
+		// BRDFCoopVec<COOPVEC_TYPE>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
+		output = { 0.5f, 0.5f, 0.5f };
+	} else if (shader_type == BrdfFunctionType::eKan) {
+		outputf = { 0.0f, 0.5f, 0.0f };
 
 	} else {
 		FTy inputc[6] = { view.x, view.y, view.z, light_dir.x, light_dir.y, light_dir.z };
 		BRDFClassic(inputc, outputf, ctx.light, vs_input.world_pos, normal, albedo, metallic, roughness);
 	}
 
-	if (shader_type == BrdfFunctionType::eWeightsInBuffer || shader_type == BrdfFunctionType::eClassic) {
+	if (shader_type == BrdfFunctionType::eWeightsInBuffer
+		|| shader_type == BrdfFunctionType::eClassic
+		|| shader_type == BrdfFunctionType::eKan) {
 		color = float3(outputf[0], outputf[1], outputf[2]);
 	} else {
 		color = float3(output[0], output[1], output[2]);

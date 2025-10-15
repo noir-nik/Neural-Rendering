@@ -40,6 +40,7 @@ enum class BrdfFunctionType : int {
 	eWeightsInBuffer,
 	eWeightsInBufferF16,
 	eWeightsInHeader,
+	eKan,
 	eCount
 };
 #endif
