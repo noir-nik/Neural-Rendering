@@ -6,6 +6,9 @@ import BRDFClassic;
 import BRDFWeightsInBuffer;
 import BRDFWeightsInHeader;
 
+import BRDFKAN;
+import Utils; // rusinkiewicz_transform
+
 // #define _TY half
 // #define _TY int
 
@@ -48,8 +51,8 @@ VSOutput vs_main(VSInput in_vertex) {
 
 [[shader("fragment")]]
 func ps_main(VSOutput vs_input)->float4 {
-	float3 normal = normalize(vs_input.normal);
-	float3 view   = normalize(ctx.camera_pos - vs_input.world_pos);
+	float3 normal   = normalize(vs_input.normal);
+	float3 view_dir = normalize(ctx.camera_pos - vs_input.world_pos);
 
 	float3 light_dir = normalize(ctx.light.position - vs_input.world_pos);
 
@@ -61,7 +64,7 @@ func ps_main(VSOutput vs_input)->float4 {
 
 	float3x3 inv_tbn = (tbn);
 
-	float3 view_tbn  = mul(inv_tbn, view);
+	float3 view_tbn  = mul(inv_tbn, view_dir);
 	float3 light_tbn = mul(inv_tbn, light_dir);
 
 	view_tbn  = normalize(view_tbn);
@@ -105,12 +108,19 @@ func ps_main(VSOutput vs_input)->float4 {
 	} else if (shader_type == BrdfFunctionType::eWeightsInHeader) {
 		// BRDFWeightsInHeader<float>(inputf, outputf);
 		// BRDFCoopVec<COOPVEC_TYPE>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
-		output = { 0.5f, 0.5f, 0.5f };
+		output = { 0.5h, 0.5h, 0.5h };
 	} else if (shader_type == BrdfFunctionType::eKan) {
-		outputf = { 0.0f, 0.5f, 0.0f };
+		float3x3 tbn_inv = transpose(tbn);
+		// float3x3 tbn_inv =  (tbn);
+		float3   wi      = mul(tbn_inv, -light_dir); // Incoming light direction
+		float3   wo      = mul(tbn_inv, view_dir);   // Outgoing view direction
+		// outputf          = { 0.0f, 0.5f, 0.0f };
+
+		rusinkiewicz_transform(wi, wo, inputf);
+		BRDFKAN(inputf, outputf);
 
 	} else {
-		FTy inputc[6] = { view.x, view.y, view.z, light_dir.x, light_dir.y, light_dir.z };
+		FTy inputc[6] = { view_dir.x, view_dir.y, view_dir.z, light_dir.x, light_dir.y, light_dir.z };
 		BRDFClassic(inputc, outputf, ctx.light, vs_input.world_pos, normal, albedo, metallic, roughness);
 	}
 
