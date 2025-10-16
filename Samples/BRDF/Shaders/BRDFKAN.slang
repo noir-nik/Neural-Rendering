@@ -1,11 +1,8 @@
 // #include "BRDFConfig.h"
 
-// #define _TY half
 #include "BRDFKAN.h"
+// #include "BRDFKAN_0.006604_flat.h"
 
-import Utils; //relu
-
-// Radial Basis Function evaluation
 void rbf_forward(in float x, in float grid[], in float denom_inv, out float basis[], int grid_size) {
 	for (int i = 0; i < grid_size; i++) {
 		float diff = (x - grid[i]) * denom_inv;
@@ -13,7 +10,6 @@ void rbf_forward(in float x, in float grid[], in float denom_inv, out float basi
 	}
 }
 
-// SplineLinear forward pass (no bias)
 float spline_linear_forward(in float basis_flat[], int basis_size, in float weights[], int out_idx, int weight_cols) {
 	float sum = 0.0;
 	for (int i = 0; i < basis_size; i++) {
@@ -22,28 +18,26 @@ float spline_linear_forward(in float basis_flat[], int basis_size, in float weig
 	return sum;
 }
 
-// Base activation function (tanh as specified in Python code)
 float base_activation(float x) {
 	return tanh(x);
 }
 
-// FastKANLayer forward pass
 void fastkan_layer_forward(
-	in float  input[],
-	int       input_dim,
-	out float output[],
-	int       output_dim,
-	in float  rbf_grid[],
-	in float  rbf_denom_inv,
-	in float  spline_weights[], // Max size for layer 0
-	in float  base_weights[],   // Max size for input
-	in float  base_bias[],
-	int       spline_weight_cols, // 48 todo: make a template parameter
-	int       grid_size) {
-	// Step 1: Compute RBF basis for each input dimension
+	in float input[], int input_dim,    // 6 -- first layer
+	out float output[], int output_dim, // 5 -- first layer
+	in float rbf_grid[], in float rbf_denom_inv,
+	in float spline_weights[],
+	in float base_weights[],
+	in float base_bias[],
+	int      spline_weight_cols, // 48 todo: make a template parameter
+	int      grid_size) {
+	// RBF basis
 	float basis_flat[48]; // Max: 6 inputs * 8 grids = 48
 	int   basis_idx = 0;  // 0 ... 48 (input_dim * grid_size)
 
+	// input (6) -> basis_flat (48)
+	// input[0] -> basis_flat[0, 1, 2, 3, 4, 5, 6, 7]
+	// input[1] -> basis_flat[8, 9, 10, 11, 12, 13, 14, 15]
 	for (int i = 0; i < input_dim; i++) {
 		// constexpr const int grid_size = sizeof(rbf_grid) / sizeof(rbf_grid[0]);
 		float basis[8]; // grid_size = 8
@@ -53,20 +47,20 @@ void fastkan_layer_forward(
 		}
 	}
 
-	// Step 2: Compute spline contribution and base contribution
-	// 0 ... 5
+	// Spline and base
+	// 0 ... 5 -- first layer
 	for (int out_idx = 0; out_idx < output_dim; out_idx++) {
 
 		// Spline linear (no bias)
 		float spline_val = 0.0;
-		// 0 ... 48
+		// 0 ... 48 -- first layer
 		for (int j = 0; j < basis_idx; j++) {
 			spline_val += basis_flat[j] * spline_weights[out_idx * basis_idx /* == 48 == spline_weight_cols */ + j];
 		}
 
 		// spline_linear_forward(basis_flat, grid_size , spline_weights, out_idx, spline_weight_cols);
 
-		// Base linear with bias
+		// Base linear + bias
 		float base_val = base_bias[out_idx];
 		for (int i = 0; i < input_dim; i++) {
 			base_val += base_activation(input[i]) * base_weights[out_idx * input_dim + i];
@@ -108,7 +102,7 @@ void BRDFKAN(in float input[6], out float output[3]) {
 		spline_weight2_shape1, // 5 * 8 = 40
 		rbf_grid2_shape0);
 
-	// Apply final activation: ReLU(exp(x) - 1)
+	// Final activation: ReLU(exp(x) - 1)
 	for (int i = 0; i < 3; i++) {
 		output[i] = max(0.0, exp(layer2_out[i]) - 1.0);
 	}

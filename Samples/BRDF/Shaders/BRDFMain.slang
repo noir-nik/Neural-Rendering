@@ -9,6 +9,8 @@ import BRDFWeightsInHeader;
 import BRDFKAN;
 import Utils; // rusinkiewicz_transform
 
+#include "BRDFMLP.h"
+
 // #define _TY half
 // #define _TY int
 
@@ -111,13 +113,19 @@ func ps_main(VSOutput vs_input)->float4 {
 		output = { 0.5h, 0.5h, 0.5h };
 	} else if (shader_type == BrdfFunctionType::eKan) {
 		float3x3 tbn_inv = transpose(tbn);
-		// float3x3 tbn_inv =  (tbn);
-		float3   wi      = mul(tbn_inv, -light_dir); // Incoming light direction
-		float3   wo      = mul(tbn_inv, view_dir);   // Outgoing view direction
-		// outputf          = { 0.0f, 0.5f, 0.0f };
+		float3   wi      = mul(tbn_inv, light_dir);
+		float3   wo      = mul(tbn_inv, view_dir);
+		// float3 wi = mul(-light_dir, tbn_inv);
+		// float3 wo = mul(view_dir, tbn_inv);
+		// wi = normalize(wi);
+		// wo = normalize(wo);
 
-		rusinkiewicz_transform(wi, wo, inputf);
-		BRDFKAN(inputf, outputf);
+		float3 half = float3(0.f, 0.f, 0.f);
+		float3 diff = float3(0.f, 0.f, 0.f);
+		RusinkiewiczTransform(wi, wo, &half, &diff);
+		inputf = { half.x, half.y, half.z, diff.x, diff.y, diff.z };
+		// BRDFKAN(inputf, outputf);
+		BRDFMLP(inputf, outputf);
 
 	} else {
 		FTy inputc[6] = { view_dir.x, view_dir.y, view_dir.z, light_dir.x, light_dir.y, light_dir.z };
@@ -137,6 +145,11 @@ func ps_main(VSOutput vs_input)->float4 {
 
 	// Gamma correction
 	color = pow(color, 1.0 / 2.2);
+
+	// Final color with Lambert cosine term
+	// float3 brdf_color = float3(outputf[0], outputf[1], outputf[2]);
+	// float  n_dot_l    = max(0.0, dot(normal, light_dir));
+	// color             = brdf_color * n_dot_l;
 
 	return float4(color, 1.0);
 }
