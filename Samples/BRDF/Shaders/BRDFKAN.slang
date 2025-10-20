@@ -1,6 +1,8 @@
 // #include "BRDFConfig.h"
 
-#include "BRDFKAN.h"
+#include "BRDFKAN-alum-bronze_6_5_5_3.h"
+// #include "BRDFKAN.h"
+
 // #include "BRDFKAN_0.006604_flat.h"
 
 void rbf_forward(in float x, in float grid[], in float denom_inv, out float basis[], int grid_size) {
@@ -10,9 +12,9 @@ void rbf_forward(in float x, in float grid[], in float denom_inv, out float basi
 	}
 }
 
-float spline_linear_forward(in float basis_flat[], int basis_size, in float weights[], int out_idx, int weight_cols) {
+inline float spline_linear_forward(in float basis_flat[], int weight_cols /* == basis_size */, in float weights[], int out_idx) {
 	float sum = 0.0;
-	for (int i = 0; i < basis_size; i++) {
+	for (int i = 0; i < weight_cols; i++) {
 		sum += basis_flat[i] * weights[out_idx * weight_cols + i];
 	}
 	return sum;
@@ -20,6 +22,10 @@ float spline_linear_forward(in float basis_flat[], int basis_size, in float weig
 
 float base_activation(float x) {
 	return tanh(x);
+}
+
+float silu(float x) {
+	return x / (1.0 + exp(-x));
 }
 
 void fastkan_layer_forward(
@@ -53,12 +59,13 @@ void fastkan_layer_forward(
 
 		// Spline linear (no bias)
 		float spline_val = 0.0;
+		
 		// 0 ... 48 -- first layer
 		for (int j = 0; j < basis_idx; j++) {
 			spline_val += basis_flat[j] * spline_weights[out_idx * basis_idx /* == 48 == spline_weight_cols */ + j];
 		}
 
-		// spline_linear_forward(basis_flat, grid_size , spline_weights, out_idx, spline_weight_cols);
+		// spline_val = spline_linear_forward(basis_flat, basis_idx, spline_weights, out_idx);
 
 		// Base linear + bias
 		float base_val = base_bias[out_idx];

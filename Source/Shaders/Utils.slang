@@ -22,7 +22,7 @@ float3 xyz2sph_cartesian(float3 cartesian) {
 	return float3(radius, theta, phi);
 }
 
-void rusinkiewicz_transform1(in float3 wi, in float3 wo, out float output[6]) {
+void rusinkiewicz_transform(in float3 wi, in float3 wo, out float output[6]) {
 	// Compute half vector
 	float3 half_vec = wi + wo;
 	half_vec        = normalize(half_vec);
@@ -49,7 +49,7 @@ void rusinkiewicz_transform1(in float3 wi, in float3 wo, out float output[6]) {
 	output[5] = diff.z;
 }
 
-void rusinkiewicz_transform(float3 wi, float3 wo, out float output[6]) {
+void rusinkiewicz_transform_isotropic(float3 wi, float3 wo, out float output[6]) {
 	float3 half_vec = normalize(wi + wo);
 
 	float3 sph     = xyz2sph(half_vec);
