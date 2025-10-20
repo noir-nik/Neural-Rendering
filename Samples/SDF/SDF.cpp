@@ -530,8 +530,8 @@ void SDFSample::CreateDevice() {
 		.pNext                   = &features.get<vk::PhysicalDeviceFeatures2>(),
 		.queueCreateInfoCount    = static_cast<u32>(std::size(queue_create_infos)),
 		.pQueueCreateInfos       = queue_create_infos,
-		.enabledLayerCount       = static_cast<u32>(std::size(enabled_layers)),
-		.ppEnabledLayerNames     = enabled_layers.data(),
+		// .enabledLayerCount       = static_cast<u32>(std::size(enabled_layers)),
+		// .ppEnabledLayerNames     = enabled_layers.data(),
 		.enabledExtensionCount   = static_cast<u32>(std::size(kEnabledDeviceExtensions)),
 		.ppEnabledExtensionNames = kEnabledDeviceExtensions,
 	};
@@ -1033,7 +1033,7 @@ auto SDFSample::DrawWindow(vk::Pipeline pipeline) -> u64 {
 	};
 	CHECK_VULKAN_RESULT(device.waitForFences(1, &swapchain.GetCurrentFence(), vk::True, std::numeric_limits<u32>::max()));
 	CHECK_VULKAN_RESULT(device.resetFences(1, &swapchain.GetCurrentFence()));
-	device.resetCommandPool(swapchain.GetCurrentCommandPool());
+	CHECK_VULKAN_RESULT(device.resetCommandPool(swapchain.GetCurrentCommandPool()));
 	if (!HandleSwapchainResult(swapchain.AcquireNextImage())) return 0ull;
 	RecordCommands(pipeline);
 	if (!HandleSwapchainResult(swapchain.SubmitAndPresent(queue, queue))) return 0ull;

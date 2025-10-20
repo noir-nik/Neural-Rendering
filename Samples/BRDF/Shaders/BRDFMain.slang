@@ -9,7 +9,13 @@ import BRDFWeightsInHeader;
 import BRDFKAN;
 import Utils; // rusinkiewicz_transform
 
-#include "BRDFMLP.h"
+// #include "BRDFMLP.h"
+// #include "BRDFMLP2.h"
+// #include "BRDFMLP-alum-bronze.h"
+// #include "BRDFMLP-aventurnine.h"
+// #include "BRDFMLP-orange-paint.h"
+#include "BRDFKAN-alum-bronze_6_5_5_3.h"
+
 
 // #define _TY half
 // #define _TY int
@@ -56,7 +62,9 @@ func ps_main(VSOutput vs_input)->float4 {
 	float3 normal   = normalize(vs_input.normal);
 	float3 view_dir = normalize(ctx.camera_pos - vs_input.world_pos);
 
-	float3 light_dir = normalize(ctx.light.position - vs_input.world_pos);
+	float3 ldir      = ctx.light.position - vs_input.world_pos;
+	float  dist      = length(ldir);
+	float3 light_dir = normalize(ldir);
 
 	float3 helper    = abs(normal.x) > 0.99f ? float3(0, 1, 0) : float3(1, 0, 0);
 	float3 tangent   = normalize(cross(helper, normal));
@@ -122,10 +130,14 @@ func ps_main(VSOutput vs_input)->float4 {
 
 		float3 half = float3(0.f, 0.f, 0.f);
 		float3 diff = float3(0.f, 0.f, 0.f);
+
+		// rusinkiewicz_transform(wi, wo, inputf);
+
 		RusinkiewiczTransform(wi, wo, &half, &diff);
 		inputf = { half.x, half.y, half.z, diff.x, diff.y, diff.z };
-		// BRDFKAN(inputf, outputf);
-		BRDFMLP(inputf, outputf);
+		
+		BRDFKAN(inputf, outputf);
+		// BRDFMLP(inputf, outputf);
 
 	} else {
 		FTy inputc[6] = { view_dir.x, view_dir.y, view_dir.z, light_dir.x, light_dir.y, light_dir.z };
@@ -139,18 +151,22 @@ func ps_main(VSOutput vs_input)->float4 {
 	} else {
 		color = float3(output[0], output[1], output[2]);
 	}
+	float attenuation = 1.0 / (dist * dist);
+	// float attenuation = 1.0;
 
 	// Reinhard tone mapping
-	color = color / (color + float3(1.0, 1.0, 1.0));
+	// color = color / (color + float3(1.0, 1.0, 1.0));
 
 	// Gamma correction
-	color = pow(color, 1.0 / 2.2);
+	// color = pow(color, 1.0 / 2.2);
 
 	// Final color with Lambert cosine term
-	// float3 brdf_color = float3(outputf[0], outputf[1], outputf[2]);
+	// float3 brdf_color = float3(outputf[0], outputf[1], outputf[2]) * attenuation;
 	// float  n_dot_l    = max(0.0, dot(normal, light_dir));
 	// color             = brdf_color * n_dot_l;
 
+	color = float3(color.z, color.y, color.x);
+	// color = color * attenuation;
 	return float4(color, 1.0);
 }
 

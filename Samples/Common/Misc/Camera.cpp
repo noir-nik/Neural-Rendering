@@ -37,7 +37,7 @@ void Camera::moveWithCursor(float width, float height, float delta_x, float delt
 
 	float half_tan_fov = std::tanf(math::DEG_TO_RAD * (fov * 0.5f));
 
-	if (aspect_ratio > 1.0f) {
+	if (width > height) {
 		frustum_width  = 2.0f * focus_distance * half_tan_fov;
 		frustum_height = frustum_width / aspect_ratio;
 	} else {

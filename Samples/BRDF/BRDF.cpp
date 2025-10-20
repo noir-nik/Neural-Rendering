@@ -372,7 +372,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 			.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
 			.loadOp      = vk::AttachmentLoadOp::eClear,
 			.storeOp     = vk::AttachmentStoreOp::eStore,
-			.clearValue  = {{{{0.1f, 0.1f, 0.1f, 1.0f}}}},
+			.clearValue  = {{{{0.5f, 0.5f, 0.5f, 0.0f}}}},
 			// .clearValue = {{{{1.f, 1.f, 1.f, 1.0f}}}},
 			// .clearValue  = {{{{0.f, 0.f, 0.f, 1.0f}}}},
 		}}},
@@ -399,7 +399,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 			 .roughness  = 0.5f,
         },
 		.light = {
-			.position          = vec3(1.5, 1.5, 1.5),
+			.position          = vec3(1.2, 1.2, 1.2),
 			.range             = 10.0,
 			.color             = vec3(0.75, 0.75, 0.75),
 			.intensity         = 8.0,
@@ -566,7 +566,7 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 	// window.Hide();
 	// std::printf("Resizing to %dx%d\n", width, height);
 	RecreateSwapchain(width, height);
-	constexpr u32 kTestRunsCount = 32;
+	constexpr u32 kTestRunsCount = 64;
 
 	// constexpr u32 kMaxTestKinds = std::to_underlying(BrdfFunctionType::eCount);
 	constexpr u32 kMaxTestKinds = kTestFunctionsCount;
@@ -580,16 +580,19 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 	if (benchmark_single) {
 		first_test = std::to_underlying(function_type);
 		last_test  = first_test + 1;
+	} else {
+		first_test = *function_id;
+		last_test  = first_test + 1;
 	}
 
-	auto is_header = true;
+	auto is_header = false;
 	if (is_header) {
 		first_test = 0;
 		last_test  = kTestFunctionsCount;
 	}
 
-	first_test = *function_id;
-	last_test  = first_test + 1;
+	// std::printf("Running %d tests\n", last_test - first_test);
+	// std::printf("test id: %d\n", first_test);
 
 	// BrdfFunctionType skip[] = {BrdfFunctionType::eWeightsInHeader};
 	BrdfFunctionType skip[] = {};
@@ -626,21 +629,24 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 		}
 	}
 
-	char const* names[] = {"Classic", "CoopVec", "WeightsInBuffer", "WeightsInBufferFloat16", "WeightsInHeader, Kan"};
+	char const* names[] = {"Classic", "CoopVec", "WeightsInBuffer", "WeightsInBufferFloat16", "WeightsInHeader", "Kan"};
 
 	// Print csv
+	// std::printf("Print csv\n");
 	// std::printf("Classic,CoopVec,WeightsInBuffer,WeightsInBufferFloat16,WeightsInHeader\n");
 	for (u32 t_i = first_test; t_i < last_test; ++t_i) {
 		if (contains(skip, BrdfFunctionType(t_i))) continue;
 		if (is_header) {
 			std::printf("WeightsInHeader_%u", t_i);
 		} else {
+			// std::printf("t_i %u", t_i);
 			std::printf("%s", names[t_i]);
 		}
 		if (t_i < last_test - 1 && !contains(skip, BrdfFunctionType(t_i + 1))) std::printf(",");
 	}
 	std::printf("\n");
 
+	// std::printf("Print times\n");
 	for (u32 iter = 0; iter < kTestRunsCount; ++iter) {
 		auto const& tests_row = test_times[iter];
 		// print with ,

@@ -60,7 +60,7 @@ void ProcessViewportInput(GLFWWindow const& window, Camera& camera, Mouse& mouse
 		return;
 	}
 
-	if (button_pressed(MouseButton::eMiddle)) {
+	if (button_pressed(MouseButton::eButton5)) {
 
 		int x, y, width, height;
 		window.GetRect(x, y, width, height);
