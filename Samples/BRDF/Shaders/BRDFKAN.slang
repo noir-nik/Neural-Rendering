@@ -1,9 +1,12 @@
 // #include "BRDFConfig.h"
 
-#include "BRDFKAN-alum-bronze_6_5_5_3.h"
-// #include "BRDFKAN.h"
-
-// #include "BRDFKAN_0.006604_flat.h"
+// #include "BRDFKAN-alum-bronze_6_5_5_3_grid_3.h"
+// #include "BRDFKAN-alum-bronze_6_5_5_3_grid_4.h"
+// #include "BRDFKAN-alum-bronze_6_5_5_3_grid_6.h"
+// #include "BRDFKAN-alum-bronze_6_5_5_3_grid_8.h"
+// #include "BRDFKAN-alum-bronze_6_5_5_3_grid_12.h"
+// #include "BRDFKAN-alum-bronze_6_5_5_3_grid_16.h"
+#include "BRDFKAN.h"
 
 void rbf_forward(in float x, in float grid[], in float denom_inv, out float basis[], int grid_size) {
 	for (int i = 0; i < grid_size; i++) {
@@ -28,7 +31,7 @@ float silu(float x) {
 	return x / (1.0 + exp(-x));
 }
 
-void fastkan_layer_forward(
+void fastkan_layer_forward<int IN, int GRID>(
 	in float input[], int input_dim,    // 6 -- first layer
 	out float output[], int output_dim, // 5 -- first layer
 	in float rbf_grid[], in float rbf_denom_inv,
@@ -38,7 +41,7 @@ void fastkan_layer_forward(
 	int      spline_weight_cols, // 48 todo: make a template parameter
 	int      grid_size) {
 	// RBF basis
-	float basis_flat[48]; // Max: 6 inputs * 8 grids = 48
+	float basis_flat[IN * GRID]; // Max: 6 inputs * 8 grids = 48
 	int   basis_idx = 0;  // 0 ... 48 (input_dim * grid_size)
 
 	// input (6) -> basis_flat (48)
@@ -46,7 +49,7 @@ void fastkan_layer_forward(
 	// input[1] -> basis_flat[8, 9, 10, 11, 12, 13, 14, 15]
 	for (int i = 0; i < input_dim; i++) {
 		// constexpr const int grid_size = sizeof(rbf_grid) / sizeof(rbf_grid[0]);
-		float basis[8]; // grid_size = 8
+		float basis[GRID]; // grid_size = 8
 		rbf_forward(input[i], rbf_grid, rbf_denom_inv, basis, grid_size);
 		for (int j = 0; j < grid_size; j++) {
 			basis_flat[basis_idx++] = basis[j];
@@ -78,12 +81,12 @@ void fastkan_layer_forward(
 }
 
 void BRDFKAN(in float input[6], out float output[3]) {
-	float layer0_out[5];
-	float layer1_out[5];
-	float layer2_out[3];
+	float layer0_out[base_weight0_shape0]; // 5
+	float layer1_out[base_weight1_shape0]; // 5
+	float layer2_out[base_weight2_shape0]; // 3
 
 	// Layer 0: [6] -> [5]
-	fastkan_layer_forward(
+	fastkan_layer_forward<base_weight0_shape1, rbf_grid0_shape0>(
 		input, base_weight0_shape1,      // 6
 		layer0_out, base_weight0_shape0, // 5
 		rbf_grid0, rbf_denom_inv0[0],
@@ -92,7 +95,7 @@ void BRDFKAN(in float input[6], out float output[3]) {
 		rbf_grid0_shape0);
 
 	// Layer 1: [5] -> [5]
-	fastkan_layer_forward(
+	fastkan_layer_forward<base_weight1_shape1, rbf_grid1_shape0>(
 		layer0_out, base_weight1_shape1, // 5
 		layer1_out, base_weight1_shape0, // 5
 		rbf_grid1, rbf_denom_inv1[0],
@@ -101,7 +104,7 @@ void BRDFKAN(in float input[6], out float output[3]) {
 		rbf_grid1_shape0);
 
 	// Layer 2: [5] -> [3]
-	fastkan_layer_forward(
+	fastkan_layer_forward<base_weight2_shape1, rbf_grid2_shape0>(
 		layer1_out, base_weight2_shape1, // 5
 		layer2_out, base_weight2_shape0, // 3
 		rbf_grid2, rbf_denom_inv2[0],

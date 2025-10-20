@@ -14,7 +14,6 @@ import Utils; // rusinkiewicz_transform
 // #include "BRDFMLP-alum-bronze.h"
 // #include "BRDFMLP-aventurnine.h"
 // #include "BRDFMLP-orange-paint.h"
-#include "BRDFKAN-alum-bronze_6_5_5_3.h"
 
 
 // #define _TY half
