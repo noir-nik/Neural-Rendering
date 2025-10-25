@@ -61,7 +61,7 @@ function(generate_spv_shader_slang input_file output_file)
 		list(APPEND command_options ${ARG_OPTIONS})
 	endif()
 
-	message(STATUS "Compile command: ${command_options}")
+	# message(STATUS "Compile command: ${SLANGC_EXECUTABLE} ${input_file} -target spirv -o ${output_file} -depfile ${output_file}.d  ${command_options}")
 
 	set(SLANGC_EXECUTABLE slangc)
 

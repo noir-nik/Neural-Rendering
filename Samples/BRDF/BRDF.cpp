@@ -757,7 +757,7 @@ auto main(int argc, char const* argv[]) -> int {
 	if (sample.IsTestMode()) {
 		for (int i = 0; i < res_count; ++i) {
 			options.resolution = res_arr[i];
-			std::printf("resolution: %d x %d\n", res_arr[i].x, res_arr[i].y);
+			// std::printf("resolution: %d x %d\n", res_arr[i].x, res_arr[i].y);
 			sample.RunBenchmark(options);
 		}
 	} else {

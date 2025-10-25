@@ -137,7 +137,8 @@ func ps_main(VSOutput vs_input)->float4 {
 		inputf = { half.x, half.y, half.z, diff.x, diff.y, diff.z };
 
 		// BRDFKAN(inputf, outputf);
-		BRDFSINEKAN(inputf, outputf);
+		// BRDFSINEKAN2(inputf, outputf);
+		BRDFSINEKAN3(inputf, outputf);
 		// BRDFMLP(inputf, outputf);
 
 	} else {
