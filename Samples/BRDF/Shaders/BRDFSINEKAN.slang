@@ -2,47 +2,47 @@
 #include "BRDFSINEKAN.h"
 
 void BRDFSINEKAN(in float input[6], out float output[3]) {
-	float layer_0_out[layer_0_bias_shape0];
-	float layer_1_out[layer_1_bias_shape0];
+	float output0[bias0_shape0];
+	float output1[bias1_shape0];
 
 	// Layer 0
-	for (int j = 0; j < layer_0_bias_shape0; j++) {
-		layer_0_out[j] = layer_0_bias[j];
+	for (int j = 0; j < bias0_shape0; j++) {
+		output0[j] = bias0[j];
 	}
 
-	for (int j = 0; j < layer_0_amplitudes_shape0; j++) {
-		for (int k = 0; k < layer_0_amplitudes_shape1; k++) {
-			for (int l = 0; l < layer_0_amplitudes_shape2; l++) {
-				float s = sin(input[k] * layer_0_freq[l] + layer_0_phase[k][l]);
-				layer_0_out[j] += s * layer_0_amplitudes[j][k][l];
+	for (int j = 0; j < amplitudes0_shape0; j++) {
+		for (int k = 0; k < amplitudes0_shape1; k++) {
+			for (int l = 0; l < amplitudes0_shape2; l++) {
+				float s = sin(input[k] * freq0[l] + phase0[k][l]);
+				output0[j] += s * amplitudes0[j][k][l];
 			}
 		}
 	}
 
 	// Layer 1
-	for (int j = 0; j < layer_1_bias_shape0; j++) {
-		layer_1_out[j] = layer_1_bias[j];
+	for (int j = 0; j < bias1_shape0; j++) {
+		output1[j] = bias1[j];
 	}
 
-	for (int j = 0; j < layer_1_amplitudes_shape0; j++) {
-		for (int k = 0; k < layer_1_amplitudes_shape1; k++) {
-			for (int l = 0; l < layer_1_amplitudes_shape2; l++) {
-				float s = sin(layer_0_out[k] * layer_1_freq[l] + layer_1_phase[k][l]);
-				layer_1_out[j] += s * layer_1_amplitudes[j][k][l];
+	for (int j = 0; j < amplitudes1_shape0; j++) {
+		for (int k = 0; k < amplitudes1_shape1; k++) {
+			for (int l = 0; l < amplitudes1_shape2; l++) {
+				float s = sin(output0[k] * freq1[l] + phase1[k][l]);
+				output1[j] += s * amplitudes1[j][k][l];
 			}
 		}
 	}
 
 	// Layer 2
-	for (int j = 0; j < layer_2_bias_shape0; j++) {
-		output[j] = layer_2_bias[j];
+	for (int j = 0; j < bias2_shape0; j++) {
+		output[j] = bias2[j];
 	}
 
-	for (int j = 0; j < layer_2_amplitudes_shape0; j++) {
-		for (int k = 0; k < layer_2_amplitudes_shape1; k++) {
-			for (int l = 0; l < layer_2_amplitudes_shape2; l++) {
-				float s = sin(layer_1_out[k] * layer_2_freq[l] + layer_2_phase[k][l]);
-				output[j] += s * layer_2_amplitudes[j][k][l];
+	for (int j = 0; j < amplitudes2_shape0; j++) {
+		for (int k = 0; k < amplitudes2_shape1; k++) {
+			for (int l = 0; l < amplitudes2_shape2; l++) {
+				float s = sin(output1[k] * freq2[l] + phase2[k][l]);
+				output[j] += s * amplitudes2[j][k][l];
 			}
 		}
 	}
