@@ -4,8 +4,12 @@
 import INC;
 #endif
 
+#ifndef LAYERS
+#define LAYERS 3
+#endif
 
-/* void BRDFSINEKAN2(in float input[6], out float output[3]) {
+#if LAYERS == 2
+void BRDFSINEKAN2(in float input[6], out float output[3]) {
 	float output0[bias0_shape0];
 
 	// Layer 0
@@ -39,8 +43,10 @@ import INC;
 	for (int i = 0; i < 3; i++) {
 		output[i] = max(0.0, exp(output[i]) - 1.0);
 	}
-} */
+}
+#endif
 
+#if LAYERS == 3
 void BRDFSINEKAN3(in float input[6], out float output[3]) {
 	float output0[bias0_shape0];
 	float output1[bias1_shape0];
@@ -91,3 +97,4 @@ void BRDFSINEKAN3(in float input[6], out float output[3]) {
 		output[i] = max(0.0, exp(output[i]) - 1.0);
 	}
 }
+#endif
