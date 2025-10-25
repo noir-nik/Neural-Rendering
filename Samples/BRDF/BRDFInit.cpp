@@ -114,7 +114,7 @@ void BRDFSample::Init() {
 	int x, y, width, height;
 	window.GetFullScreenRect(x, y, width, height);
 
-	camera.fov    = 35.0f;
+	camera.fov = 35.0f;
 	camera.updateProjection(initial_width, initial_height);
 
 	window.GetInputCallbacks().cursorPosCallback   = CursorPosCallback;
@@ -458,12 +458,68 @@ void BRDFSample::CreatePipelineLayout() {
 
 void BRDFSample::CreatePipelines() {
 
+	auto error_read_file = [] {
+		std::printf("Failed to read shader file!\n");
+		std::exit(1);
+		return std::optional<std::vector<std::byte>>{};
+	};
+
+	std::optional<std::vector<std::byte>> shader_codes_main[] = {
+		Utils::ReadBinaryFile("Shaders/BRDFMain.slang.spv").or_else(error_read_file),
+	};
+
 	std::optional<std::vector<std::byte>> shader_codes[] = {
-		Utils::ReadBinaryFile("Shaders/BRDFMain.slang.spv").or_else([] {
-			std::printf("Failed to read shader file!\n");
-			std::exit(1);
-			return std::optional<std::vector<std::byte>>{};
-		}),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_2_3_65_89.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_2_4_85_117.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_2_6_125_173.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_2_8_165_229.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_2_12_245_341.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_3_3_93_120.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_3_4_122_158.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_3_6_180_234.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_3_8_238_310.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_3_12_354_462.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_4_3_121_151.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_4_4_159_199.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_4_6_235_295.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_4_8_311_391.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_4_12_463_583.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_5_3_149_182.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_5_4_196_240.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_5_6_290_356.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_5_8_384_472.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_5_12_572_704.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_6_3_177_213.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_6_4_233_281.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_6_6_345_417.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_6_8_457_553.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_1_6_12_681_825.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_2_3_82_112.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_2_4_107_147.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_2_6_157_217.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_2_8_207_287.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_2_12_307_427.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_3_3_126_162.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_3_4_165_213.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_3_6_243_315.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_3_8_321_417.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_3_12_477_621.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_4_3_176_218.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_4_4_231_287.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_4_6_341_425.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_4_8_451_563.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_4_12_671_839.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_5_3_232_280.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_5_4_305_369.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_5_6_451_547.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_5_8_597_725.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_5_12_889_1081.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_6_3_294_348.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_6_4_387_459.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_6_6_573_681.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_6_8_759_903.slang.spv").or_else(error_read_file),
+		Utils::ReadBinaryFile("Shaders/SINEKAN_2_6_12_1131_1347.slang.spv").or_else(error_read_file),
+		// Utils::ReadBinaryFile("Shaders/BRDFMain.slang.spv").or_else(error_read_file),
 	};
 
 	vk::ShaderModuleCreateInfo shader_module_infos[std::size(shader_codes)];
@@ -474,13 +530,18 @@ void BRDFSample::CreatePipelines() {
 		shader_module_infos[i].pCode    = reinterpret_cast<const u32*>((*shader_codes[i]).data());
 		CHECK_VULKAN_RESULT(device.createShaderModule(&shader_module_infos[i], GetAllocator(), &shader_modules[i]));
 	}
+	vk::ShaderModuleCreateInfo shader_module_info_main;
+	vk::ShaderModule           shader_module_main;
+	shader_module_info_main.codeSize = ((*shader_codes_main[0]).size());
+	shader_module_info_main.pCode    = reinterpret_cast<const u32*>((*shader_codes_main[0]).data());
+	CHECK_VULKAN_RESULT(device.createShaderModule(&shader_module_info_main, GetAllocator(), &shader_module_main));
 
 	for (auto i = 0u; i < std::size(pipelines); ++i) {
-		pipelines[i] = CreatePipeline(shader_modules[0], {.function_type = static_cast<BrdfFunctionType>(i)});
+		pipelines[i] = CreatePipeline(shader_module_main, {.function_type = static_cast<BrdfFunctionType>(i)});
 	}
 
 	for (auto i = 0u; i < kTestFunctionsCount; ++i) {
-		pipelines_header[i] = CreatePipeline(shader_modules[0], {.function_type = function_type, .function_id = i});
+		pipelines_header[i] = CreatePipeline(shader_modules[i], {.function_type = function_type, .function_id = i});
 	}
 
 	for (auto& shader_module : shader_modules) {

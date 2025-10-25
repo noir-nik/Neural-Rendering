@@ -158,7 +158,7 @@ public:
 
 	std::array<vk::Pipeline, u32(BrdfFunctionType::eCount)> pipelines;
 
-	static constexpr int kTestFunctionsCount = 6;
+	static constexpr int kTestFunctionsCount = 50;
 
 	std::array<vk::Pipeline, kTestFunctionsCount> pipelines_header;
 
