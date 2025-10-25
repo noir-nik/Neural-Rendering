@@ -1,11 +1,4 @@
-
-// #include "BRDFSINEKAN.h"
-// #include "SINEKAN_2_2_3_82_112.h"
-
-// import SINEKAN_2_2_3_82_112;
-
 #ifndef INC
-// #define INC SINEKAN_2_2_3_82_112
 #include "BRDFSINEKAN.h"
 #else
 import INC;

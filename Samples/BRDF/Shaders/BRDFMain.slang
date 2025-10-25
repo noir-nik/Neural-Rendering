@@ -6,8 +6,8 @@ import BRDFClassic;
 import BRDFWeightsInBuffer;
 import BRDFWeightsInHeader;
 
-import BRDFKAN;
-import BRDFSINEKAN;
+import BRDFFASTKAN;
+// import BRDFSINEKAN;
 import Utils; // rusinkiewicz_transform
 
 // #include "BRDFMLP.h"
@@ -15,7 +15,6 @@ import Utils; // rusinkiewicz_transform
 // #include "BRDFMLP-alum-bronze.h"
 // #include "BRDFMLP-aventurnine.h"
 // #include "BRDFMLP-orange-paint.h"
-
 
 // #define _TY half
 // #define _TY int
@@ -56,6 +55,10 @@ VSOutput vs_main(VSInput in_vertex) {
 	output.normal    = normalize(in_vertex.normal.xyz);
 	return output;
 }
+
+#ifndef LAYERS
+#define LAYERS 3
+#endif
 
 [[shader("fragment")]]
 func ps_main(VSOutput vs_input)->float4 {
@@ -136,9 +139,14 @@ func ps_main(VSOutput vs_input)->float4 {
 		RusinkiewiczTransform(wi, wo, &half, &diff);
 		inputf = { half.x, half.y, half.z, diff.x, diff.y, diff.z };
 
-		// BRDFKAN(inputf, outputf);
+#if LAYERS == 2
+		BRDFFASTKAN2(inputf, outputf);
+#elif LAYERS == 3
+		BRDFFASTKAN3(inputf, outputf);
+#endif
+
 		// BRDFSINEKAN2(inputf, outputf);
-		BRDFSINEKAN3(inputf, outputf);
+		// BRDFSINEKAN3(inputf, outputf);
 		// BRDFMLP(inputf, outputf);
 
 	} else {
@@ -171,5 +179,7 @@ func ps_main(VSOutput vs_input)->float4 {
 	// color = color * attenuation;
 	return float4(color, 1.0);
 }
+
+
 
 
