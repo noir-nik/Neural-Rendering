@@ -471,7 +471,8 @@ void BRDFSample::CreatePipelines() {
 	std::optional<std::vector<std::byte>> shader_codes[] = {
 #define BRDF_NAME(x) \
 	Utils::ReadBinaryFile("Shaders/" #x ".slang.spv").or_else(error_read_file),
-#include "SINEKAN_HeaderNames.def"
+// #include "SINEKAN_HeaderNames.def"
+#include "FASTKAN_HeaderNames.def"
 		// Utils::ReadBinaryFile("Shaders/BRDFMain.slang.spv").or_else(error_read_file),
 	};
 
