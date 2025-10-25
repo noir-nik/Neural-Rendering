@@ -7,6 +7,7 @@ import BRDFWeightsInBuffer;
 import BRDFWeightsInHeader;
 
 import BRDFKAN;
+import BRDFSINEKAN;
 import Utils; // rusinkiewicz_transform
 
 // #include "BRDFMLP.h"
@@ -134,8 +135,9 @@ func ps_main(VSOutput vs_input)->float4 {
 
 		RusinkiewiczTransform(wi, wo, &half, &diff);
 		inputf = { half.x, half.y, half.z, diff.x, diff.y, diff.z };
-		
-		BRDFKAN(inputf, outputf);
+
+		// BRDFKAN(inputf, outputf);
+		BRDFSINEKAN(inputf, outputf);
 		// BRDFMLP(inputf, outputf);
 
 	} else {
@@ -160,11 +162,11 @@ func ps_main(VSOutput vs_input)->float4 {
 	// color = pow(color, 1.0 / 2.2);
 
 	// Final color with Lambert cosine term
-	// float3 brdf_color = float3(outputf[0], outputf[1], outputf[2]) * attenuation;
+	// float3 brdf_color = float3(outputf[0], outputf[1], outputf[2]);
 	// float  n_dot_l    = max(0.0, dot(normal, light_dir));
 	// color             = brdf_color * n_dot_l;
 
-	color = float3(color.z, color.y, color.x);
+	// color = float3(color.z, color.y, color.x);
 	// color = color * attenuation;
 	return float4(color, 1.0);
 }

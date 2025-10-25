@@ -8,7 +8,7 @@
 // #include "BRDFKAN-alum-bronze_6_5_5_3_grid_16.h"
 #include "BRDFKAN.h"
 
-void rbf_forward(in float x, in float grid[], in float denom_inv, out float basis[], int grid_size) {
+inline void rbf_forward(in float x, in float grid[], in float denom_inv, out float basis[], int grid_size) {
 	for (int i = 0; i < grid_size; i++) {
 		float diff = (x - grid[i]) * denom_inv;
 		basis[i]   = exp(-diff * diff);
