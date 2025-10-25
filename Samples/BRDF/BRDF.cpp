@@ -571,7 +571,7 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 	// constexpr u32 kMaxTestKinds = std::to_underlying(BrdfFunctionType::eCount);
 	constexpr u32 kMaxTestKinds = kTestFunctionsCount;
 
-	constexpr u32 kMaxTests = 32;
+	constexpr u32 kMaxTests = 64;
 	// std::vector<std::array<u64, kMaxTestKinds>> test_times(kTestRunsCount);
 	std::array<std::array<u64, kMaxTests>, kTestRunsCount> test_times;
 
@@ -585,10 +585,11 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 		last_test  = first_test + 1;
 	}
 
-	auto is_header = false;
+	auto is_header = true;
 	if (is_header) {
 		first_test = 0;
 		last_test  = kTestFunctionsCount;
+		// last_test  = 5;
 	}
 
 	// std::printf("Running %d tests\n", last_test - first_test);
@@ -634,10 +635,16 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 	// Print csv
 	// std::printf("Print csv\n");
 	// std::printf("Classic,CoopVec,WeightsInBuffer,WeightsInBufferFloat16,WeightsInHeader\n");
+
+	char const* header_names[] = {
+#define BRDF_NAME(x) #x,
+#include "SINEKAN_HeaderNames.def"
+	};
+
 	for (u32 t_i = first_test; t_i < last_test; ++t_i) {
 		if (contains(skip, BrdfFunctionType(t_i))) continue;
 		if (is_header) {
-			std::printf("WeightsInHeader_%u", t_i);
+			std::printf("%s", header_names[t_i]);
 		} else {
 			// std::printf("t_i %u", t_i);
 			std::printf("%s", names[t_i]);
