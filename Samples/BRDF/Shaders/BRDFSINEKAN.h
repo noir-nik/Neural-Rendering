@@ -4,7 +4,19 @@
 // grid_size = 8
 // dims = [6, 5, 5, 3]
 
-static const float layer_0_amplitudes[5][6][8] = {
+#ifndef _T
+#define _T float
+#endif
+
+#ifndef WEIGHTS_SIZE_TY
+#define WEIGHTS_SIZE_TY int
+#endif
+
+#ifndef WEIGHTS_ATTR
+#define WEIGHTS_ATTR static const
+#endif
+
+WEIGHTS_ATTR _T layer_0_amplitudes[5][6][8] = {
 	{
 		{3.2508e-02, -1.3124e-01, -3.7053e-01, -4.3033e-01, -8.5599e-02, 2.0090e-01, 4.1955e-01, 4.6349e-01},
 		{-3.7129e-02, -5.9121e-02, -4.8427e-02, -4.3079e-02, -3.9871e-02, 1.6344e-02, 1.7871e-02, 1.9017e-02},
@@ -46,9 +58,18 @@ static const float layer_0_amplitudes[5][6][8] = {
 		{-4.7865e-02, 8.1933e-02, 1.8300e-01, 4.4244e-02, -1.7065e-01, -1.0808e-01, -2.0005e-01, -6.9146e-02},
 	},
 };
-static const float layer_0_freq[8]     = {1.0989, 2.4252, 3.1558, 3.7660, 5.0709, 5.9410, 7.5291, 8.4025};
-static const float layer_0_bias[5]     = {0.1730, 0.1427, 0.2209, 0.1623, 0.1193};
-static const float layer_0_phase[6][8] = {
+
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_0_amplitudes_shape0 = 5;
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_0_amplitudes_shape1 = 6;
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_0_amplitudes_shape2 = 8;
+
+WEIGHTS_ATTR _T              layer_0_freq[8]     = {1.0989, 2.4252, 3.1558, 3.7660, 5.0709, 5.9410, 7.5291, 8.4025};
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_0_freq_shape0 = 8;
+
+WEIGHTS_ATTR _T              layer_0_bias[5]     = {0.1730, 0.1427, 0.2209, 0.1623, 0.1193};
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_0_bias_shape0 = 5;
+
+WEIGHTS_ATTR _T layer_0_phase[6][8] = {
 	{0.8601, 1.7203, 2.5804, 3.4406, 4.3007, 5.1609, 6.0210, 6.8812},
 	{5.7242, 6.5843, 7.4444, 8.3046, 9.1647, 10.0249, 10.8850, 11.7452},
 	{10.5882, 11.4483, 12.3085, 13.1686, 14.0287, 14.8889, 15.7490, 16.6092},
@@ -56,7 +77,10 @@ static const float layer_0_phase[6][8] = {
 	{20.3162, 21.1763, 22.0365, 22.8966, 23.7568, 24.6169, 25.4771, 26.3372},
 	{25.1802, 26.0403, 26.9005, 27.7606, 28.6208, 29.4809, 30.3411, 31.2012},
 };
-static const float layer_1_amplitudes[5][5][8] = {
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_0_phase_shape0 = 6;
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_0_phase_shape1 = 8;
+
+WEIGHTS_ATTR _T layer_1_amplitudes[5][5][8] = {
 	{
 		{-0.0555, -0.0078, 0.1537, 0.4963, 0.2368, 0.0775, -0.4554, -0.4198},
 		{-0.0978, -0.0740, -0.1345, -0.1255, 0.0168, 0.0014, 0.1315, -0.0388},
@@ -93,16 +117,27 @@ static const float layer_1_amplitudes[5][5][8] = {
 		{-0.0192, 0.0243, -0.0184, -0.1380, -0.1353, 0.0194, 0.1119, 0.1913},
 	},
 };
-static const float layer_1_freq[8]     = {0.5714, 0.1381, 0.5371, 0.9302, 0.8295, 1.2217, 1.3342, 1.2496};
-static const float layer_1_bias[5]     = {0.1476, 0.1497, 0.2777, 0.1152, 0.3050};
-static const float layer_1_phase[5][8] = {
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_1_amplitudes_shape0 = 5;
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_1_amplitudes_shape1 = 5;
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_1_amplitudes_shape2 = 8;
+
+WEIGHTS_ATTR _T              layer_1_freq[8]     = {0.5714, 0.1381, 0.5371, 0.9302, 0.8295, 1.2217, 1.3342, 1.2496};
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_1_freq_shape0 = 8;
+
+WEIGHTS_ATTR _T              layer_1_bias[5]     = {0.1476, 0.1497, 0.2777, 0.1152, 0.3050};
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_1_bias_shape0 = 5;
+
+WEIGHTS_ATTR _T layer_1_phase[5][8] = {
 	{0.8601, 1.7203, 2.5804, 3.4406, 4.3007, 5.1609, 6.0210, 6.8812},
 	{6.9402, 7.8003, 8.6605, 9.5206, 10.3807, 11.2409, 12.1010, 12.9612},
 	{13.0202, 13.8803, 14.7405, 15.6006, 16.4608, 17.3209, 18.1810, 19.0412},
 	{19.1002, 19.9603, 20.8205, 21.6806, 22.5408, 23.4009, 24.2611, 25.1212},
 	{25.1802, 26.0403, 26.9005, 27.7606, 28.6208, 29.4809, 30.3411, 31.2012},
 };
-static const float layer_2_amplitudes[3][5][8] = {
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_1_phase_shape0 = 5;
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_1_phase_shape1 = 8;
+
+WEIGHTS_ATTR _T layer_2_amplitudes[3][5][8] = {
 	{
 		{0.5187, 0.2080, 0.1221, -0.0440, 0.0923, 0.1538, 0.4984, 0.0878},
 		{0.1346, 0.1561, 0.1690, 0.2338, 0.0996, 0.2616, -0.0440, -0.1096},
@@ -125,16 +160,24 @@ static const float layer_2_amplitudes[3][5][8] = {
 		{0.8496, 0.2116, 0.1493, -0.1469, 0.0955, 0.1276, 0.1366, 0.3180},
 	},
 };
-static const float layer_2_freq[8] = {0.3219, 0.0631, 0.0268, 0.5727, 1.1086, 1.1023, 0.8913, 0.6310};
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_2_amplitudes_shape0 = 3;
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_2_amplitudes_shape1 = 5;
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_2_amplitudes_shape2 = 8;
 
-static const float layer_2_bias[3] = {0.4338, 0.3823, 0.4274};
+WEIGHTS_ATTR _T              layer_2_freq[8]     = {0.3219, 0.0631, 0.0268, 0.5727, 1.1086, 1.1023, 0.8913, 0.6310};
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_2_freq_shape0 = 8;
 
-static const float layer_2_phase[5][8] = {
+WEIGHTS_ATTR _T              layer_2_bias[3]     = {0.4338, 0.3823, 0.4274};
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_2_bias_shape0 = 3;
+
+WEIGHTS_ATTR _T layer_2_phase[5][8] = {
 	{0.8601, 1.7203, 2.5804, 3.4406, 4.3007, 5.1609, 6.0210, 6.8812},
 	{6.9402, 7.8003, 8.6605, 9.5206, 10.3807, 11.2409, 12.1010, 12.9612},
 	{13.0202, 13.8803, 14.7405, 15.6006, 16.4608, 17.3209, 18.1810, 19.0412},
 	{19.1002, 19.9603, 20.8205, 21.6806, 22.5408, 23.4009, 24.2611, 25.1212},
 	{25.1802, 26.0403, 26.9005, 27.7606, 28.6208, 29.4809, 30.3411, 31.2012},
 };
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_2_phase_shape0 = 5;
+WEIGHTS_ATTR WEIGHTS_SIZE_TY layer_2_phase_shape1 = 8;
 
 #endif // SINEKAN_WEIGHTS_H
