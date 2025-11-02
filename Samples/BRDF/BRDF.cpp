@@ -585,7 +585,8 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 		last_test  = first_test + 1;
 	}
 
-	auto is_header = true;
+	// bool is_header = true;
+	bool is_header = false;
 	if (is_header) {
 		first_test = 0;
 		last_test  = kTestFunctionsCount;
