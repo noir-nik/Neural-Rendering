@@ -6,25 +6,17 @@ import BRDFClassic;
 import BRDFWeightsInBuffer;
 import BRDFWeightsInHeader;
 
-import BRDFFASTKAN;
+// import NBRDF_6_8_8_3_155_155;
+// import NBRDF_6_16_16_3_435_435;
+// import NBRDF_6_21_21_3_675_675;
+// import NBRDF_6_32_32_3_1379_1379;
+// import NBRDF_6_64_64_3_4803_4803;
+
+// import BRDFFASTKAN;
 // import BRDFSINEKAN;
+import BRDFCHEBYKAN;
+
 import Utils; // rusinkiewicz_transform
-
-// #include "BRDFMLP.h"
-// #include "BRDFMLP2.h"
-// #include "BRDFMLP-alum-bronze.h"
-// #include "BRDFMLP-aventurnine.h"
-// #include "BRDFMLP-orange-paint.h"
-
-// #define _TY half
-// #define _TY int
-
-// import BRDFWeights_6_8_8_8_6_3_275;
-// import BRDFWeights_6_16_16_16_6_3_779;
-// import BRDFWeights_6_32_32_32_6_3_2555;
-// import BRDFWeights_6_64_48_6_3_3883;
-// import BRDFWeights_6_48_48_48_6_3_5355;
-// import BRDFWeights_6_64_64_64_6_3_9179;
 
 // clang-format off
 [[vk::binding(0, 0)]] StructuredBuffer<float> gWeights;
@@ -140,14 +132,24 @@ func ps_main(VSOutput vs_input)->float4 {
 		inputf = { half.x, half.y, half.z, diff.x, diff.y, diff.z };
 
 #if LAYERS == 2
-		BRDFFASTKAN2(inputf, outputf);
+		// BRDFFASTKAN2(inputf, outputf);
+		// BRDFSINEKAN2(inputf, outputf);
 #elif LAYERS == 3
-		BRDFFASTKAN3(inputf, outputf);
+		// BRDFFASTKAN3(inputf, outputf);
+		// BRDFSINEKAN3(inputf, outputf);
+		BRDFCHEBYKAN3(inputf, outputf);
 #endif
 
-		// BRDFSINEKAN2(inputf, outputf);
-		// BRDFSINEKAN3(inputf, outputf);
 		// BRDFMLP(inputf, outputf);
+
+		// NBRDF_6_8_8_3_155_155(inputf, outputf);
+		// NBRDF_6_16_16_3_435_435(inputf, outputf);
+		// NBRDF_6_21_21_3_675_675(inputf, outputf);
+		// NBRDF_6_32_32_3_1379_1379(inputf, outputf);
+		// NBRDF_6_64_64_3_4803_4803(inputf, outputf);
+		
+		// NBRDF_6_64_64_3_4803_4803(input, output);
+		// NBRDF_6_21_21_3_675_675(input, output);
 
 	} else {
 		FTy inputc[6] = { view_dir.x, view_dir.y, view_dir.z, light_dir.x, light_dir.y, light_dir.z };
@@ -161,6 +163,8 @@ func ps_main(VSOutput vs_input)->float4 {
 	} else {
 		color = float3(output[0], output[1], output[2]);
 	}
+	// color = float3(output[0], output[1], output[2]);
+
 	float attenuation = 1.0 / (dist * dist);
 	// float attenuation = 1.0;
 
