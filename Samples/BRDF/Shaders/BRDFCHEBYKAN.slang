@@ -37,7 +37,7 @@ void BRDFCHEBYKAN2(in float input[6], out float output[3]) {
 				sum += cheby_val * cheby_coeffs2[i][o][d];
 			}
 		}
-		output[o] = sum;
+		output[o] = max(0.0, exp(sum) - 1.0);
 	}
 }
 
@@ -86,7 +86,9 @@ void BRDFCHEBYKAN3(in float input[6], out float output[3]) {
 				sum += cheby_val * cheby_coeffs2[i][o][d];
 			}
 		}
-		output[o] = sum;
+		output[o] = max(0.0, exp(sum) - 1.0);
 	}
 }
 #endif
+
+
