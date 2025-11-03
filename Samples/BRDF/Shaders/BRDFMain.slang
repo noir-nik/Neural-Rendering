@@ -14,7 +14,8 @@ import BRDFWeightsInHeader;
 
 // import BRDFFASTKAN;
 // import BRDFSINEKAN;
-import BRDFCHEBYKAN;
+// import BRDFCHEBYKAN;
+import BRDFRELUKAN;
 
 import Utils; // rusinkiewicz_transform
 
@@ -137,7 +138,8 @@ func ps_main(VSOutput vs_input)->float4 {
 #elif LAYERS == 3
 		// BRDFFASTKAN3(inputf, outputf);
 		// BRDFSINEKAN3(inputf, outputf);
-		BRDFCHEBYKAN3(inputf, outputf);
+		// BRDFCHEBYKAN3(inputf, outputf);
+		BRDFRELUKAN3(inputf, outputf);
 #endif
 
 		// BRDFMLP(inputf, outputf);
