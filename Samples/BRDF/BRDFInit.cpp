@@ -472,7 +472,9 @@ void BRDFSample::CreatePipelines() {
 #define BRDF_NAME(x) \
 	Utils::ReadBinaryFile("Shaders/" #x ".slang.spv").or_else(error_read_file),
 // #include "SINEKAN_HeaderNames.def"
-#include "FASTKAN_HeaderNames.def"
+// #include "FASTKAN_HeaderNames.def"
+#include "CHEBYKAN_HeaderNames.def"
+// #include "RELUKAN_HeaderNames.def"
 		// Utils::ReadBinaryFile("Shaders/BRDFMain.slang.spv").or_else(error_read_file),
 	};
 

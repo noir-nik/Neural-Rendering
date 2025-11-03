@@ -14,8 +14,8 @@ import BRDFWeightsInHeader;
 
 // import BRDFFASTKAN;
 // import BRDFSINEKAN;
-// import BRDFCHEBYKAN;
-import BRDFRELUKAN;
+import BRDFCHEBYKAN;
+// import BRDFRELUKAN;
 
 import Utils; // rusinkiewicz_transform
 
@@ -135,11 +135,13 @@ func ps_main(VSOutput vs_input)->float4 {
 #if LAYERS == 2
 		// BRDFFASTKAN2(inputf, outputf);
 		// BRDFSINEKAN2(inputf, outputf);
+		BRDFCHEBYKAN2(inputf, outputf);
+		// BRDFRELUKAN2(inputf, outputf);
 #elif LAYERS == 3
 		// BRDFFASTKAN3(inputf, outputf);
 		// BRDFSINEKAN3(inputf, outputf);
-		// BRDFCHEBYKAN3(inputf, outputf);
-		BRDFRELUKAN3(inputf, outputf);
+		BRDFCHEBYKAN3(inputf, outputf);
+		// BRDFRELUKAN3(inputf, outputf);
 #endif
 
 		// BRDFMLP(inputf, outputf);
@@ -149,7 +151,7 @@ func ps_main(VSOutput vs_input)->float4 {
 		// NBRDF_6_21_21_3_675_675(inputf, outputf);
 		// NBRDF_6_32_32_3_1379_1379(inputf, outputf);
 		// NBRDF_6_64_64_3_4803_4803(inputf, outputf);
-		
+
 		// NBRDF_6_64_64_3_4803_4803(input, output);
 		// NBRDF_6_21_21_3_675_675(input, output);
 
@@ -185,7 +187,5 @@ func ps_main(VSOutput vs_input)->float4 {
 	// color = color * attenuation;
 	return float4(color, 1.0);
 }
-
-
 
 
