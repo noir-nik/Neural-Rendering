@@ -1,5 +1,6 @@
 #ifndef INC
 #include "BRDFCHEBYKAN.h"
+// import CHEBYKAN_2_6_12_1170_1209;
 #else
 import INC;
 #endif
@@ -33,8 +34,8 @@ void BRDFCHEBYKAN2(in float input[6], out float output[3]) {
 			float x = tanh(layer0_out[i]);
 
 			for (int d = 0; d <= arange1_shape0; d++) {
-				float cheby_val = cos(arange2[d] * acos(x));
-				sum += cheby_val * cheby_coeffs2[i][o][d];
+				float cheby_val = cos(arange1[d] * acos(x));
+				sum += cheby_val * cheby_coeffs1[i][o][d];
 			}
 		}
 		output[o] = max(0.0, exp(sum) - 1.0);

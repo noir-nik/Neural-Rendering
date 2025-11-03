@@ -583,10 +583,10 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 	} else {
 		first_test = *function_id;
 		last_test  = first_test + 1;
-	}
+}
 
-	// bool is_header = true;
-	bool is_header = false;
+	bool is_header = true;
+	// bool is_header = false;
 	if (is_header) {
 		first_test = 0;
 		last_test  = kTestFunctionsCount;
@@ -640,7 +640,9 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 	char const* header_names[] = {
 #define BRDF_NAME(x) #x,
 // #include "SINEKAN_HeaderNames.def"
-#include "FASTKAN_HeaderNames.def"
+// #include "FASTKAN_HeaderNames.def"
+#include "CHEBYKAN_HeaderNames.def"
+// #include "RELUKAN_HeaderNames.def"
 	};
 
 	for (u32 t_i = first_test; t_i < last_test; ++t_i) {
