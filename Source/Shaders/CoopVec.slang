@@ -74,6 +74,10 @@ void f() {
 	v1.add(v2);
 }
 
+func silu<T : __BuiltinFloatingPointType, let N : int>(CoopVec<T, N> input)->CoopVec<T, N> {
+	return input / (CoopVec<T, N>(T(1.)) + exp(-input));
+}
+
 // func relu<T : __BuiltinFloatingPointType, let N : int>(CoopVec<T, N> input)->CoopVec<T, N> {
 // 	CoopVec<T, N> output;
 // 	[ForceUnroll]

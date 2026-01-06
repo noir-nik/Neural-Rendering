@@ -5,6 +5,7 @@ import BRDFCoopVec;
 import BRDFClassic;
 import BRDFWeightsInBuffer;
 import BRDFWeightsInHeader;
+import BRDFFastKanCoopVec;
 
 // import NBRDF_6_8_8_3_155_155;
 // import NBRDF_6_16_16_3_435_435;
@@ -142,6 +143,7 @@ func ps_main(VSOutput vs_input)->float4 {
 		// BRDFSINEKAN3(inputf, outputf);
 		BRDFCHEBYKAN3(inputf, outputf);
 		// BRDFRELUKAN3(inputf, outputf);
+		BRDFFastKanCoopVec(inputf, outputf, gWeights);
 #endif
 
 		// BRDFMLP(inputf, outputf);
