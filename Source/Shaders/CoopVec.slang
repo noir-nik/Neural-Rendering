@@ -67,9 +67,11 @@ func cos<T : __BuiltinFloatingPointType, let N : int>(CoopVec<T, N> input)->Coop
 	}
 	return output;
 }
-
-func relu<T : __BuiltinFloatingPointType>(T x)->T {
-	return max(x, T(0.));
+void f() {
+	CoopVec<float, 3> v1;
+	CoopVec<float, 3> v2;
+	// let v3 = v1 + v2;
+	v1.add(v2);
 }
 
 // func relu<T : __BuiltinFloatingPointType, let N : int>(CoopVec<T, N> input)->CoopVec<T, N> {

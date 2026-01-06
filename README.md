@@ -2,10 +2,10 @@
 
 ## Requirements
 
-- Vukan SDK >= 1.4.309
-- Compiler with C++23 support
-- Toolchain with C++23 import std
-- CMake with Ninja build system
+- Vukan SDK 1.4.313
+- Compiler with C++23 support (clang version 20.1.8)
+- Toolchain with C++23 import std (libc++)
+- CMake with Ninja build system (cmake version 3.31.6)
 
 ## Installation
 

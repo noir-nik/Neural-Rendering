@@ -1,4 +1,4 @@
-import CoopVec;
+import Utils;
 
 void BRDFWeightsInBuffer<T : __BuiltinFloatingPointType>(in T input[6], out T output[3], StructuredBuffer<T> weights, uint32_t weights_offsets[5], uint32_t bias_offsets[5]) {
  

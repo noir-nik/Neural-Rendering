@@ -63,7 +63,10 @@ function(generate_spv_shader_slang input_file output_file)
 
 	# message(STATUS "Compile command: ${SLANGC_EXECUTABLE} ${input_file} -target spirv -o ${output_file} -depfile ${output_file}.d  ${command_options}")
 
-	set(SLANGC_EXECUTABLE slangc)
+	if (NOT EXISTS ${SLANGC_EXECUTABLE})
+		# message(FATAL_ERROR "SLANGC_EXECUTABLE not found")
+		set(SLANGC_EXECUTABLE slangc)
+	endif()
 
 	add_custom_command(
 		OUTPUT ${output_file}

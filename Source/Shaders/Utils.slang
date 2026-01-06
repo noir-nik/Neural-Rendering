@@ -94,3 +94,7 @@ static inline void RusinkiewiczTransform(float3 wi, float3 wo, float3 *half, flo
 	(*diff) = normalize(*diff);
 	return;
 }
+
+func relu<T : __BuiltinFloatingPointType>(T x)->T {
+	return max(x, T(0.));
+}

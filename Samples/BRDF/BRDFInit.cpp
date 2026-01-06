@@ -457,24 +457,27 @@ void BRDFSample::CreatePipelineLayout() {
 }
 
 void BRDFSample::CreatePipelines() {
+	using CodeType = std::optional<std::vector<std::byte>>;
 
-	auto error_read_file = [] {
-		std::printf("Failed to read shader file!\n");
+#define LF(fn) [&](auto&&... args) { return fn; }
+
+	auto error_read_file = [](std::string_view name) -> CodeType {
+		std::printf("Failed to read shader file: %s\n", name.data());
 		std::exit(1);
-		return std::optional<std::vector<std::byte>>{};
+		return {};
 	};
 
-	std::optional<std::vector<std::byte>> shader_codes_main[] = {
-		Utils::ReadBinaryFile("Shaders/BRDFMain.slang.spv").or_else(error_read_file),
+	CodeType shader_codes_main[] = {
+		Utils::ReadBinaryFile("Shaders/BRDFMain.slang.spv").or_else(LF(error_read_file("BRDFMain.slang.spv"))),
 	};
 
-	std::optional<std::vector<std::byte>> shader_codes[] = {
+	CodeType shader_codes[] = {
 #define BRDF_NAME(x) \
-	Utils::ReadBinaryFile("Shaders/" #x ".slang.spv").or_else(error_read_file),
+	Utils::ReadBinaryFile("Shaders/" #x ".slang.spv").or_else(LF(error_read_file(#x ".slang.spv"))),
 // #include "SINEKAN_HeaderNames.def"
 // #include "FASTKAN_HeaderNames.def"
 #include "CHEBYKAN_HeaderNames.def"
-// #include "RELUKAN_HeaderNames.def"
+		// #include "RELUKAN_HeaderNames.def"
 		// Utils::ReadBinaryFile("Shaders/BRDFMain.slang.spv").or_else(error_read_file),
 	};
 

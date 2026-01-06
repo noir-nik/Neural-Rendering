@@ -56,10 +56,10 @@ void fastkan_layer_forward<int IN, int GRID>(
 	// input[1] -> basis_flat[8, 9, 10, 11, 12, 13, 14, 15]
 	for (int i = 0; i < input_dim; i++) {
 		// constexpr const int grid_size = sizeof(rbf_grid) / sizeof(rbf_grid[0]);
-		float basis[GRID]; // grid_size = 8
-		rbf_forward(input[i], rbf_grid, rbf_denom_inv, basis, grid_size);
+		// rbf_forward(input[i], rbf_grid, rbf_denom_inv, basis, grid_size);
 		for (int j = 0; j < grid_size; j++) {
-			basis_flat[basis_idx++] = basis[j];
+			float diff              = (input[i] - rbf_grid[j]) * rbf_denom_inv;
+			basis_flat[basis_idx++] = exp(-diff * diff);
 		}
 	}
 
@@ -104,7 +104,7 @@ void BRDFFASTKAN2(in float input[6], out float output[3]) {
 	// Layer 1: [5] -> [3]
 	fastkan_layer_forward<base_weight1_shape1, rbf_grid1_shape0>(
 		layer0_out, base_weight1_shape1, // 5
-		output, base_weight1_shape0, // 5
+		output, base_weight1_shape0,     // 5
 		rbf_grid1, rbf_denom_inv1[0],
 		spline_weight1, base_weight1, base_bias1,
 		spline_weight1_shape1, // 5 * 8 = 40
@@ -142,7 +142,7 @@ void BRDFFASTKAN3(in float input[6], out float output[3]) {
 	// Layer 2: [5] -> [3]
 	fastkan_layer_forward<base_weight2_shape1, rbf_grid2_shape0>(
 		layer1_out, base_weight2_shape1, // 5
-		output, base_weight2_shape0, // 3
+		output, base_weight2_shape0,     // 3
 		rbf_grid2, rbf_denom_inv2[0],
 		spline_weight2, base_weight2, base_bias2,
 		spline_weight2_shape1, // 5 * 8 = 40
@@ -154,4 +154,5 @@ void BRDFFASTKAN3(in float input[6], out float output[3]) {
 	}
 }
 #endif
+
 
