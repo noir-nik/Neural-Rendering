@@ -14,6 +14,12 @@ target_sources(${SAMPLE_NAME} PUBLIC
 
 target_link_libraries(${SAMPLE_NAME} PRIVATE ${PROJECT_NAME}::${PROJECT_NAME})
 
+
+set(NLOHMANN_JSON_BUILD_MODULES ON)
+add_subdirectory(${NLOHMANN_JSON_DIR} ${PROJECT_SOURCE_DIR}/build/json ${CMAKE_CURRENT_BINARY_DIR}/External/json)
+target_link_libraries(${PROJECT_NAME} PUBLIC nlohmann_json)
+target_link_libraries(${PROJECT_NAME} PUBLIC nlohmann_json_modules)
+
 set(INCLUDE_DIRS
 )
 
@@ -66,3 +72,5 @@ add_custom_target(${SAMPLE_NAME}_copy_assets ALL DEPENDS
 )
 
 add_dependencies(${SAMPLE_NAME} ${SAMPLE_NAME}_copy_assets)
+
+

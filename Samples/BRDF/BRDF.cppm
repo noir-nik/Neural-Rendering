@@ -94,6 +94,7 @@ public:
 		std::string_view header;
 	};
 	void CreateAndUploadBuffers(NetworkBufferInfo const& info);
+	void ReadKANWeights(NetworkBufferInfo const& info);
 
 	// Return time in nanoseconds
 	auto GetQueryResult() -> u64;
@@ -115,6 +116,7 @@ public:
 	BrdfFunctionType function_type = BrdfFunctionType::eCoopVec;
 	// std::optional<BrdfFunctionType> function_type = std::nullopt;
 	std::string_view weights_file_name;
+	std::string_view kan_weights_file_name;
 
 	bool benchmark_single = false;
 

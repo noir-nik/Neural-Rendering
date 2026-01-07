@@ -68,8 +68,93 @@ auto PrintLayerBiases(Linear layer, std::byte const* parameters) -> void {
 	std::printf("\n");
 }
 
+// void BRDFSample::ReadKANWeights(NetworkBufferInfo const& network_info) {}
+
+// std::pair<nlohmann::json, std::vector<std::map<std::string, std::vector<float>>>> 
+
+void BRDFSample::ReadKANWeights(NetworkBufferInfo const& network_info) {
+	using namespace nlohmann;
+
+	std::string prefix = std::string(network_info.file_name);
+	// std::string prefix = (network_info.file_name);
+	if (prefix.ends_with(".json")) {
+		prefix = prefix.substr(0, prefix.size() - 5);
+	} else if (prefix.ends_with(".bin")) {
+		prefix = prefix.substr(0, prefix.size() - 4);
+	}
+
+	std::ifstream json_file(prefix + ".json");
+	if (!json_file.is_open()) {
+		std::cerr << "Error: Could not open " << prefix << ".json" << std::endl;
+		std::exit(1);
+	}
+
+	json json_manifest;
+	json_file >> json_manifest;
+
+	std::string dtype_str = json_manifest["dtype"];
+	enum class DataType {
+		Float32,
+		Float16,
+	};
+	DataType dtype;
+	if (dtype_str == "float32") {
+		dtype = DataType::Float32;
+	} else {
+		std::cerr << "Error: Unsupported data type " << dtype_str << std::endl;
+		std::exit(1);
+	}
+
+	std::ifstream bin_file(prefix + ".bin", std::ios::binary);
+	if (!bin_file.is_open()) {
+		std::cerr << "Error: Could not open " << prefix << ".bin" << std::endl;
+		std::exit(1);
+	}
+
+	std::vector<char> bin_data;//((std::istreambuf_iterator<std::streambuf>(bin_file)), std::istreambuf_iterator<std::streambuf>());
+	bin_file.seekg(0, std::ios::end);
+	bin_data.resize(std::streamsize(bin_file.tellg()));
+	bin_file.seekg(0);
+	bin_file.read(bin_data.data(), bin_data.size());
+	bin_file.close();
+
+	std::vector<float> arr;
+	if (target_dtype == "float32" && dtype != DataType::Float32) {
+		arr.resize(bin_data.size() / sizeof(float16_t));
+		for (u32 i = 0; i < arr.size(); ++i) {
+			arr[i] = std::bit_cast<float16_t, float>(*(reinterpret_cast<float16_t const*>(&bin_data[i * sizeof(float16_t)])));
+		}
+	} else if (target_dtype == "float16" && dtype != DataType::Float16) {
+		arr.resize(bin_data.size() / sizeof(float));
+		for (u32 i = 0; i < arr.size(); ++i) {
+			arr[i] = std::bit_cast<float, float16_t>(*(reinterpret_cast<float16_t const*>(&bin_data[i * sizeof(float)])));
+		}
+	} else {
+		arr.resize(bin_data.size() / sizeof(float));
+		std::copy(bin_data.begin(), bin_data.end(), arr.begin());
+	}
+
+	std::vector < std::map < std::string, std::vector < float >>>> layers;
+	for (const auto& layer : json_manifest["layers"]) {
+		std::map<std::string, std::vector<float>> params;
+		for (const auto& param : layer["params"].items()) {
+			std::string        name   = param.first;
+			auto               info   = param.second;
+			u32                offset = info["offset"];
+			u32                size   = info["size"];
+			auto               shape  = info["shape"];
+			std::vector<float> data(arr.begin() + offset, arr.begin() + offset + size);
+			params[name] = data;
+		}
+		layers.push_back(std::move(params));
+	}
+
+	// return {std::move(json_manifest), std::move(layers)};
+}
+
 void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
-	sphere                            = UVSphere(1.0f, 32 * 2, 16 * 2);
+	sphere = UVSphere(1.0f, 32 * 2, 16 * 2);
+
 	std::size_t vertices_size_bytes   = sphere.GetVertexCount() * sizeof(UVSphere::Vertex);
 	std::size_t indices_size_bytes    = sphere.GetIndexCount() * sizeof(UVSphere::IndexType);
 	std::size_t alignment             = sizeof(float) * 4;
@@ -88,23 +173,25 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	// 	std::printf("Error loading weights : wrong number of layers\n");
 	// 	std::exit(1);
 	// }
+
+	// Get total size for buffer
 	networks[u32(BrdfFunctionType::eWeightsInBuffer)].Init(layers);
 	networks[u32(BrdfFunctionType::eWeightsInBufferF16)].Init(layers);
 	networks[u32(BrdfFunctionType::eCoopVec)].Init(layers);
-
 	CHECK_VULKAN_RESULT(networks[u32(BrdfFunctionType::eWeightsInBuffer)].UpdateOffsetsAndSize(device, Layout::eRowMajor, Component::eFloat32, Component::eFloat32));
 	CHECK_VULKAN_RESULT(networks[u32(BrdfFunctionType::eWeightsInBufferF16)].UpdateOffsetsAndSize(device, Layout::eRowMajor, Component::eFloat16, Component::eFloat16));
 	CHECK_VULKAN_RESULT(networks[u32(BrdfFunctionType::eCoopVec)].UpdateOffsetsAndSize(device, Layout::eInferencingOptimal, Component::eFloat16, Component::eFloat16));
 
-	vk::DeviceSize const kMinSize = 256 * 1024;
+	vk::DeviceSize const kMinBufferSize = 256 * 1024;
 
 	std::size_t total_size_bytes = std::max(
-		kMinSize,
+		kMinBufferSize,
 		vertices_size_aligned + indices_size_aligned
 			+ networks[u32(BrdfFunctionType::eCoopVec)].GetParametersSize()
 			+ networks[u32(BrdfFunctionType::eWeightsInBuffer)].GetParametersSize()
 			+ networks[u32(BrdfFunctionType::eWeightsInBufferF16)].GetParametersSize());
 
+	// Create buffers
 	// clang-format off
 	CHECK_VULKAN_RESULT(device_buffer.Create(device, vma_allocator, {
 		.size   = total_size_bytes,
@@ -124,27 +211,25 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	// clang-format on
 
 	// Update descriptor set
-	vk::DescriptorBufferInfo buffer_infos[] = {{.buffer = device_buffer, .offset = 0, .range = device_buffer.GetSize()}};
+	{
+		vk::DescriptorBufferInfo buffer_infos[] = {{.buffer = device_buffer, .offset = 0, .range = device_buffer.GetSize()}};
 
-	vk::WriteDescriptorSet writes[] = {{
-		.dstSet          = descriptor_set,
-		.dstBinding      = 0,
-		.dstArrayElement = 0,
-		.descriptorCount = static_cast<u32>(std::size(buffer_infos)),
-		.descriptorType  = vk::DescriptorType::eStorageBuffer,
-		.pBufferInfo     = buffer_infos,
-	}};
+		vk::WriteDescriptorSet writes[] = {{
+			.dstSet          = descriptor_set,
+			.dstBinding      = 0,
+			.dstArrayElement = 0,
+			.descriptorCount = static_cast<u32>(std::size(buffer_infos)),
+			.descriptorType  = vk::DescriptorType::eStorageBuffer,
+			.pBufferInfo     = buffer_infos,
+		}};
 
-	auto descriptor_copy_count = 0u;
-	auto copy_descriptor_sets  = nullptr;
-	device.updateDescriptorSets(std::size(writes), writes, descriptor_copy_count, copy_descriptor_sets);
+		auto descriptor_copy_count = 0u;
+		auto copy_descriptor_sets  = nullptr;
+		device.updateDescriptorSets(std::size(writes), writes, descriptor_copy_count, copy_descriptor_sets);
+	}
 
 	this->vertices_offset = 0;
 	this->indices_offset  = this->vertices_offset + vertices_size_aligned;
-
-	// this->linear_weights_offset     = this->indices_offset + AlignUpPowerOfTwo(indices_size_bytes, CoopVecUtils::GetMatrixAlignment());
-	// this->linear_weights_offset_f16 = this->linear_weights_offset + AlignUpPowerOfTwo(networks[u32(BrdfFunctionType::eScalarBuffer)].GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
-	// this->optimal_weights_offset    = this->linear_weights_offset_f16 + AlignUpPowerOfTwo(networks[u32(BrdfFunctionType::eScalarBufferF16)].GetParametersSize(), CoopVecUtils::GetMatrixAlignment());
 
 	auto offset = this->indices_offset + indices_size_bytes;
 	for (auto i = 1u; i < std::size(networks); ++i) {
@@ -586,7 +671,7 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 	} else {
 		first_test = *function_id;
 		last_test  = first_test + 1;
-}
+	}
 
 	bool is_header = true;
 	// bool is_header = false;
@@ -645,7 +730,7 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 // #include "SINEKAN_HeaderNames.def"
 // #include "FASTKAN_HeaderNames.def"
 #include "CHEBYKAN_HeaderNames.def"
-// #include "RELUKAN_HeaderNames.def"
+		// #include "RELUKAN_HeaderNames.def"
 	};
 
 	for (u32 t_i = first_test; t_i < last_test; ++t_i) {
@@ -708,6 +793,12 @@ auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 			auto str = std::string_view(*(it + 1));
 			// if (!std::filesystem::exists(str)) return *(it + 1);
 			weights_file_name = str;
+			++it;
+		} else if (arg == "-kw") { // input weights file
+			if ((it + 1) == args_range.end()) return "expected <file>";
+			auto str = std::string_view(*(it + 1));
+
+			kan_weights_file_name = str;
 			++it;
 		} else return *it;
 	}
