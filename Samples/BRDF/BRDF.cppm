@@ -156,11 +156,11 @@ public:
 	// vk::Pipeline scalar_buffer_pipeline;
 	// vk::Pipeline vec4_pipeline;
 
-	std::array<vk::Pipeline, u32(BrdfFunctionType::eCount)> pipelines;
+	std::array<vk::Pipeline, u32(BrdfFunctionType::eCount)> pipelines = {};
 
 	static constexpr int kTestFunctionsCount = 50;
 
-	std::array<vk::Pipeline, kTestFunctionsCount> pipelines_header;
+	std::array<vk::Pipeline, kTestFunctionsCount> pipelines_header = {};
 
 	// vk::Pipeline getpipeline
 

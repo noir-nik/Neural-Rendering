@@ -471,40 +471,47 @@ void BRDFSample::CreatePipelines() {
 		Utils::ReadBinaryFile("Shaders/BRDFMain.slang.spv").or_else(LF(error_read_file("BRDFMain.slang.spv"))),
 	};
 
-	CodeType shader_codes[] = {
+	bool constexpr kCreateGenerated = false;
+	if constexpr (kCreateGenerated) {
+		CodeType shader_codes[] = {
 #define BRDF_NAME(x) \
 	Utils::ReadBinaryFile("Shaders/" #x ".slang.spv").or_else(LF(error_read_file(#x ".slang.spv"))),
 // #include "SINEKAN_HeaderNames.def"
 // #include "FASTKAN_HeaderNames.def"
 #include "CHEBYKAN_HeaderNames.def"
-		// #include "RELUKAN_HeaderNames.def"
-		// Utils::ReadBinaryFile("Shaders/BRDFMain.slang.spv").or_else(error_read_file),
-	};
+			// #include "RELUKAN_HeaderNames.def"
+			// Utils::ReadBinaryFile("Shaders/BRDFMain.slang.spv").or_else(error_read_file),
+		};
 
-	vk::ShaderModuleCreateInfo shader_module_infos[std::size(shader_codes)];
-	vk::ShaderModule           shader_modules[std::size(shader_codes)];
+		vk::ShaderModuleCreateInfo shader_module_infos[std::size(shader_codes)];
+		vk::ShaderModule           shader_modules[std::size(shader_codes)];
 
-	for (u32 i = 0; i < std::size(shader_codes); ++i) {
-		shader_module_infos[i].codeSize = (*shader_codes[i]).size();
-		shader_module_infos[i].pCode    = reinterpret_cast<const u32*>((*shader_codes[i]).data());
-		CHECK_VULKAN_RESULT(device.createShaderModule(&shader_module_infos[i], GetAllocator(), &shader_modules[i]));
-	}
-	vk::ShaderModuleCreateInfo shader_module_info_main;
-	vk::ShaderModule           shader_module_main;
-	shader_module_info_main.codeSize = ((*shader_codes_main[0]).size());
-	shader_module_info_main.pCode    = reinterpret_cast<const u32*>((*shader_codes_main[0]).data());
-	CHECK_VULKAN_RESULT(device.createShaderModule(&shader_module_info_main, GetAllocator(), &shader_module_main));
+		for (u32 i = 0; i < std::size(shader_codes); ++i) {
+			shader_module_infos[i].codeSize = (*shader_codes[i]).size();
+			shader_module_infos[i].pCode    = reinterpret_cast<const u32*>((*shader_codes[i]).data());
+			CHECK_VULKAN_RESULT(device.createShaderModule(&shader_module_infos[i], GetAllocator(), &shader_modules[i]));
+		}
 
-	for (auto i = 0u; i < std::size(pipelines); ++i) {
-		pipelines[i] = CreatePipeline(shader_module_main, {.function_type = static_cast<BrdfFunctionType>(i)});
-	}
+		for (auto i = 0u; i < kTestFunctionsCount; ++i) {
+			pipelines_header[i] = CreatePipeline(shader_modules[i], {.function_type = function_type, .function_id = i});
+		}
 
-	for (auto i = 0u; i < kTestFunctionsCount; ++i) {
-		pipelines_header[i] = CreatePipeline(shader_modules[i], {.function_type = function_type, .function_id = i});
+		for (auto& shader_module : shader_modules) {
+			device.destroyShaderModule(shader_module, GetAllocator());
+		}
 	}
 
-	for (auto& shader_module : shader_modules) {
-		device.destroyShaderModule(shader_module, GetAllocator());
+	{
+		vk::ShaderModuleCreateInfo shader_module_info_main;
+		vk::ShaderModule           shader_module_main;
+		shader_module_info_main.codeSize = ((*shader_codes_main[0]).size());
+		shader_module_info_main.pCode    = reinterpret_cast<const u32*>((*shader_codes_main[0]).data());
+		CHECK_VULKAN_RESULT(device.createShaderModule(&shader_module_info_main, GetAllocator(), &shader_module_main));
+
+		for (auto i = 0u; i < std::size(pipelines); ++i) {
+			pipelines[i] = CreatePipeline(shader_module_main, {.function_type = static_cast<BrdfFunctionType>(i)});
+		}
+		device.destroyShaderModule(shader_module_main, GetAllocator());
 	}
 }
 

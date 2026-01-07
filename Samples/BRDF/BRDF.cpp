@@ -19,6 +19,9 @@ import SamplesCommon;
 import Math;
 import std;
 
+import nlohmann.json;
+using json = nlohmann::json;
+
 using numeric::float16_t;
 
 #ifdef COOPVEC_TYPE
