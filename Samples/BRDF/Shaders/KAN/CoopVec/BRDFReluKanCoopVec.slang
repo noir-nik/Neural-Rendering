@@ -8,28 +8,28 @@ struct LayerBufferOffsetsRelu {
 };
 
 #define relu_input_idx(idx) \
-	CoopVec<T, 11> phase_low_##idx, phase_height_##idx; \
+	CoopVec<T, num_basis> phase_low_##idx, phase_height_##idx; \
 	phase_low_##idx.load(weights, offs.phase_low_offset + idx * num_basis * sizeof(T)); \
 	phase_height_##idx.load(weights, offs.phase_height_offset + idx * num_basis * sizeof(T)); \
-	CoopVec<T, 11> input_elem_vec##idx = CoopVec<T, 11>(x_input[idx]); \
-	CoopVec<T, 11> x1_##idx            = max(CoopVec<T, 11>(0.0), input_elem_vec##idx - phase_low_##idx); \
-	CoopVec<T, 11> x2_##idx            = max(CoopVec<T, 11>(0.0), phase_height_##idx - input_elem_vec##idx); \
-	CoopVec<T, 11> act_##idx           = x1_##idx * x2_##idx * r; \
-	act_##idx                          = act_##idx * act_##idx
+	CoopVec<T, num_basis> input_elem_vec##idx = CoopVec<T, num_basis>(x_input[idx]); \
+	CoopVec<T, num_basis> x1_##idx            = max(CoopVec<T, num_basis>(0.0), input_elem_vec##idx - phase_low_##idx); \
+	CoopVec<T, num_basis> x2_##idx            = max(CoopVec<T, num_basis>(0.0), phase_height_##idx - input_elem_vec##idx); \
+	CoopVec<T, num_basis> act_##idx           = x1_##idx * x2_##idx * r; \
+	act_##idx                                 = act_##idx * act_##idx
 
 void BRDFReluKanCoopVec<T : __BuiltinFloatingPointType>(in T input[6], out T output[3], StructuredBuffer<T> weights, LayerBufferOffsetsRelu offs) {
 	const T   k          = T(3.0);
-	const T   g          = T(8.0); // grid_size - k = 11 - 3
+	const T   g          = T(8.0); // grid_size - k = num_basis - 3
 	const T   r          = T(4.0) * g * g / ((k + T(1.0)) * (k + T(1.0)));
 	const int num_basis  = 11; // g + k
 	const int input_dim  = 6;
 	const int output_dim = 3;
 
-	CoopVec<T, 6> x_input = CoopVec<T, 6>(
+	CoopVec<T, input_dim> x_input = CoopVec<T, input_dim>(
 		input[0], input[1], input[2], input[3], input[4], input[5]);
 
 	// basis activations for each input dimension
-	// Result is [6, 11] flatten to [66]
+	// Result is [input_dim, num_basis] flatten to [66]
 
 	relu_input_idx(0);
 	relu_input_idx(1);
@@ -38,8 +38,10 @@ void BRDFReluKanCoopVec<T : __BuiltinFloatingPointType>(in T input[6], out T out
 	relu_input_idx(4);
 	relu_input_idx(5);
 
-	// Flatten [input_dim=6, num_basis=11]
-	CoopVec<T, 66> activation_map = CoopVec<T, 66>(
+	// Flatten [input_dim=input_dim, num_basis=num_basis]
+	const int flat_size = num_basis * input_dim;
+
+	CoopVec<T, flat_size> activation_map = CoopVec<T, flat_size>(
 		act_0[0], act_0[1], act_0[2], act_0[3], act_0[4], act_0[5], act_0[6], act_0[7], act_0[8], act_0[9], act_0[10],
 		act_1[0], act_1[1], act_1[2], act_1[3], act_1[4], act_1[5], act_1[6], act_1[7], act_1[8], act_1[9], act_1[10],
 		act_2[0], act_2[1], act_2[2], act_2[3], act_2[4], act_2[5], act_2[6], act_2[7], act_2[8], act_2[9], act_2[10],
@@ -48,11 +50,11 @@ void BRDFReluKanCoopVec<T : __BuiltinFloatingPointType>(in T input[6], out T out
 		act_5[0], act_5[1], act_5[2], act_5[3], act_5[4], act_5[5], act_5[6], act_5[7], act_5[8], act_5[9], act_5[10]);
 
 	// Conv2d as matrix multiply
-	// Conv2d(1, output_size=3, kernel=(11, 6)) with input shape [1, 11, 6]
-	// Weight shape: [3, 1, 11, 6] -> flattened to [3, 66]
+	// Conv2d(1, output_size=3, kernel=(num_basis, input_dim)) with input shape [1, num_basis, input_dim]
+	// Weight shape: [output_dim, 1, num_basis, input_dim] -> flattened to [output_dim, flat_size]
 	// output = activation_map @ weight.T + bias
-	CoopVec<T, 3> result;
-	result = coopVecMatMulAdd<T, 3, 66>(
+	CoopVec<T, output_dim> result;
+	result = coopVecMatMulAdd<T, 3, flat_size>(
 		activation_map,
 		CoopVecComponentType::Float32,
 		weights,
@@ -63,11 +65,11 @@ void BRDFReluKanCoopVec<T : __BuiltinFloatingPointType>(in T input[6], out T out
 		CoopVecComponentType::Float32,
 		CoopVecMatrixLayout::InferencingOptimal,
 		false,
-		66 * sizeof(T) // stride in bytes
+		flat_size * sizeof(T) // stride in bytes
 	);
 
 	// max exp
-	result = max(CoopVec<T, 3>(0.0f), exp(result) - CoopVec<T, 3>(1.0f));
+	result = max(CoopVec<T, output_dim>(0.0f), exp(result) - CoopVec<T, output_dim>(1.0f));
 
 	output[0] = result[0];
 	output[1] = result[1];

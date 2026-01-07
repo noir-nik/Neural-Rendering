@@ -95,7 +95,7 @@ func ps_main(VSOutput vs_input)->float4 {
 	typealias Ty  = half;
 	typealias FTy = float;
 
-	Ty input[6] = { view_tbn.x, view_tbn.y, view_tbn.z, light_tbn.x, light_tbn.y, light_tbn.z };
+	Ty input[6] = { Ty(view_tbn.x), Ty(view_tbn.y), Ty(view_tbn.z), Ty(light_tbn.x), Ty(light_tbn.y), Ty(light_tbn.z) };
 	Ty output[3];
 
 	FTy inputf[6] = { view_tbn.x, view_tbn.y, view_tbn.z, light_tbn.x, light_tbn.y, light_tbn.z };

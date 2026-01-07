@@ -18,13 +18,21 @@ struct PushConstants {
 [[vk::push_constant]]
 PushConstants pc;
 
-
+static const CoopVecComponentType component_type = CoopVecComponentType::Float32;
+static const CoopVecMatrixLayout  matrix_layout  = CoopVecMatrixLayout::InferencingOptimal;
 
 #define rbfidx(input, grid, idx) \
-	let                     tmp##idx = (CoopVec<T, NUM_GRIDS>(input[idx]) - grid) * RBF_DENOM_INV; \
+	let                   tmp##idx = (CoopVec<T, NUM_GRIDS>(input[idx]) - grid) * RBF_DENOM_INV; \
 	CoopVec<T, NUM_GRIDS> rbf##idx = exp(-(tmp##idx * tmp##idx));
 
-void BRDFFastKanCoopVec<T : __BuiltinFloatingPointType>(in T input[6], out T output[3], StructuredBuffer<T> weights) {
+// typedef float T;
+// typedef half T;
+
+void BRDFFastKanCoopVec
+	//
+	<T : __BuiltinFloatingPointType>
+	//
+	(in T input[6], out T output[3], StructuredBuffer<T> weights) {
 	static const T RBF_DENOM_INV = T(3.5);
 
 	CoopVec<T, 6> input0 = CoopVec<T, 6>(input[0], input[1], input[2], input[3], input[4], input[5]);
@@ -32,7 +40,7 @@ void BRDFFastKanCoopVec<T : __BuiltinFloatingPointType>(in T input[6], out T out
 	CoopVec<T, 5> output1;
 	CoopVec<T, 3> output2;
 
-	const int layer_dims[4] = int[4](6, 5, 5, 3);
+	constexpr const int layer_dims[4] = int[4](6, 5, 5, 3);
 
 	// ========== LAYER 0: 6 -> 5 ==========
 	{
@@ -63,19 +71,19 @@ void BRDFFastKanCoopVec<T : __BuiltinFloatingPointType>(in T input[6], out T out
 		// Spline linear: 48 -> 5
 		CoopVec<T, 5> spline_out;
 		spline_out = coopVecMatMul<T, 5, 48>(
-			spline_basis, CoopVecComponentType::Float32,
-			weights, offs.spline_weight_offset, CoopVecComponentType::Float32,
-			CoopVecMatrixLayout::InferencingOptimal, false, 0);
+			spline_basis, component_type,
+			weights, offs.spline_weight_offset, component_type,
+			matrix_layout, false, 0);
 
 		// Base
 		CoopVec<T, 6> base_in = tanh(input0);
 		CoopVec<T, 5> base_out;
-		base_out = coopVecMatMulAdd<T, 5, 6>(base_in, CoopVecComponentType::Float32,
-											   weights, offs.base_weight_offset, CoopVecComponentType::Float32,
-											   weights, offs.base_bias_offset, CoopVecComponentType::Float32,
-											   CoopVecMatrixLayout::InferencingOptimal, false, 0);
+		base_out = coopVecMatMulAdd<T, 5, 6>(base_in, component_type,
+											 weights, offs.base_weight_offset, component_type,
+											 weights, offs.base_bias_offset, component_type,
+											 matrix_layout, false, 0);
 
-		// base_out = LinearForward<T, 5, 6>(base_in, weights, offs.base_weight_offset, offs.base_bias_offset, CoopVecMatrixLayout::InferencingOptimal, CoopVecComponentType::Float32);
+		// base_out = LinearForward<T, 5, 6>(base_in, weights, offs.base_weight_offset, offs.base_bias_offset, matrix_layout, component_type);
 
 		// Sum
 		output0 = spline_out + base_out;
@@ -89,7 +97,7 @@ void BRDFFastKanCoopVec<T : __BuiltinFloatingPointType>(in T input[6], out T out
 		CoopVec<T, 8> grid;
 		grid.load(weights, offs.rbf_grid_offset);
 
-		// RBF basis 
+		// RBF basis
 		rbfidx(input0, grid, 0);
 		rbfidx(input0, grid, 1);
 		rbfidx(input0, grid, 2);
@@ -106,18 +114,18 @@ void BRDFFastKanCoopVec<T : __BuiltinFloatingPointType>(in T input[6], out T out
 
 		// Spline linear: 40 -> 5
 		CoopVec<T, 5> spline_out;
-		spline_out = coopVecMatMul<T, 5, 40>(spline_basis, CoopVecComponentType::Float32,
-											   weights, offs.spline_weight_offset, CoopVecComponentType::Float32,
-											   CoopVecMatrixLayout::InferencingOptimal, false, 0);
+		spline_out = coopVecMatMul<T, 5, 40>(spline_basis, component_type,
+											 weights, offs.spline_weight_offset, component_type,
+											 matrix_layout, false, 0);
 
 		// Base
 		CoopVec<T, 5> base_in = tanh(output0);
 		CoopVec<T, 5> base_out;
 		base_out = coopVecMatMulAdd<T, 5, 5>(
-			base_in, CoopVecComponentType::Float32,
-			weights, offs.base_weight_offset, CoopVecComponentType::Float32,
-			weights, offs.base_bias_offset, CoopVecComponentType::Float32,
-			CoopVecMatrixLayout::InferencingOptimal, false, 5 * sizeof(T));
+			base_in, component_type,
+			weights, offs.base_weight_offset, component_type,
+			weights, offs.base_bias_offset, component_type,
+			matrix_layout, false, 5 * sizeof(T));
 
 		// Sum
 		output1 = spline_out + base_out;
@@ -131,7 +139,7 @@ void BRDFFastKanCoopVec<T : __BuiltinFloatingPointType>(in T input[6], out T out
 		CoopVec<T, 8> grid;
 		grid.load(weights, offs.rbf_grid_offset);
 
-		// RBF basis 
+		// RBF basis
 		rbfidx(input0, grid, 0);
 		rbfidx(input0, grid, 1);
 		rbfidx(input0, grid, 2);
@@ -149,26 +157,27 @@ void BRDFFastKanCoopVec<T : __BuiltinFloatingPointType>(in T input[6], out T out
 		// Spline linear: 40 -> 3
 		CoopVec<T, 3> spline_out;
 		spline_out = coopVecMatMul<T, 3, 40>(
-			spline_basis, CoopVecComponentType::Float32,
-			weights, offs.spline_weight_offset, CoopVecComponentType::Float32,
-			CoopVecMatrixLayout::InferencingOptimal, false, 40 * sizeof(T));
+			spline_basis, component_type,
+			weights, offs.spline_weight_offset, component_type,
+			matrix_layout, false, 40 * sizeof(T));
 
 		// Base
 		CoopVec<T, 5> base_in = tanh(output1);
 		CoopVec<T, 3> base_out;
 		base_out = coopVecMatMulAdd<T, 3, 5>(
-			base_in, CoopVecComponentType::Float32,
-			weights, offs.base_weight_offset, CoopVecComponentType::Float32,
-			weights, offs.base_bias_offset, CoopVecComponentType::Float32,
-			CoopVecMatrixLayout::InferencingOptimal, false, 5 * sizeof(T));
+			base_in, component_type,
+			weights, offs.base_weight_offset, component_type,
+			weights, offs.base_bias_offset, component_type,
+			matrix_layout, false, 5 * sizeof(T));
+
+		// base_out = LinearForward<T, 3, 5>(base_in, weights, offs.base_weight_offset, offs.base_bias_offset, matrix_layout, component_type);
 
 		// Sum
 		output2 = spline_out + base_out;
 	}
 
-	
 	// max exp
-	output2 = max(CoopVec<T, 3>(0.0f), exp(output2) - CoopVec<T, 3>(1.0f));
+	output2 = max(CoopVec<T, 3>(T(0.0)), exp(output2) - CoopVec<T, 3>(T(1.0)));
 
 	// Final output
 	output[0] = output2[0];
