@@ -16,7 +16,7 @@ target_link_libraries(${SAMPLE_NAME} PRIVATE ${PROJECT_NAME}::${PROJECT_NAME})
 
 
 set(NLOHMANN_JSON_BUILD_MODULES ON)
-add_subdirectory(${NLOHMANN_JSON_DIR} ${PROJECT_SOURCE_DIR}/build/json ${CMAKE_CURRENT_BINARY_DIR}/External/json)
+add_subdirectory(${NLOHMANN_JSON_DIR} ${PROJECT_SOURCE_DIR}/External/nlohmann_json ${CMAKE_CURRENT_BINARY_DIR}/External/json)
 target_link_libraries(${PROJECT_NAME} PUBLIC nlohmann_json)
 target_link_libraries(${PROJECT_NAME} PUBLIC nlohmann_json_modules)
 

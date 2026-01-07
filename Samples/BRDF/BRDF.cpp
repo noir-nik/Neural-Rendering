@@ -148,7 +148,7 @@ using ReadKANResult = std::expected<FastKan, std::string>;
 	FastKan kan;
 
 	auto const& json_layers = json_manifest["layers"];
-	kan.layers.reserve(json_layers.size());
+	kan.layers_.reserve(json_layers.size());
 
 	for (const auto& json_layer : json_layers) {
 		FastKanLayer kan_layer;
@@ -175,9 +175,9 @@ using ReadKANResult = std::expected<FastKan, std::string>;
 				kan_layer.get_base_bias() = ldata;
 			}
 		}
-		kan.layers.push_back(kan_layer);
+		kan.layers_.push_back(kan_layer);
 	}
-	kan.buffer = std::move(bin_data);
+	kan.buffer_ = std::move(bin_data);
 
 	// return {std::move(json_manifest), std::move(layers)};
 	return kan;
@@ -202,9 +202,8 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	// 	std::exit(1);
 	// }
 	kan.repr();
-	for (auto const& layer : kan.layers) {
-		layer.repr_buffer(kan.buffer);
-	}
+	 
+	std::printf("Total size: %zu\n", kan.size());
 
 	// auto weights_path = "Assets/simple_brdf_weights.bin";
 
