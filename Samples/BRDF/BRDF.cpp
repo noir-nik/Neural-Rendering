@@ -19,6 +19,8 @@ import SamplesCommon;
 import Math;
 import std;
 
+import FastKan;
+
 import nlohmann.json;
 using json = nlohmann::json;
 
@@ -70,12 +72,31 @@ auto PrintLayerBiases(Linear layer, std::byte const* parameters) -> void {
 
 // void BRDFSample::ReadKANWeights(NetworkBufferInfo const& network_info) {}
 
-// std::pair<nlohmann::json, std::vector<std::map<std::string, std::vector<float>>>> 
+// std::pair<nlohmann::json, std::vector<std::map<std::string, std::vector<float>>>>
 
-void BRDFSample::ReadKANWeights(NetworkBufferInfo const& network_info) {
+template <typename... Args>
+auto make_string(Args&&... args)
+	requires(std::is_convertible_v<Args, std::string_view> && ...)
+{
+	using SV = std::string_view;
+
+	// std::tuple const t(SV(std::forward<Args>(args))...);
+
+	std::size_t total_size = 0;
+	((total_size += SV(std::forward<Args>(args)).size()), ...);
+	std::string result;
+	result.resize(total_size);
+
+	std::size_t offset = 0;
+	((std::copy(SV(std::forward<Args>(args)).cbegin(), SV(std::forward<Args>(args)).cend(), result.begin() + offset), offset += SV(std::forward<Args>(args)).size()), ...);
+	return result;
+}
+
+using ReadKANResult = std::expected<FastKan, std::string>;
+[[nodiscard]] auto ReadKANWeights(std::string_view file_name) -> ReadKANResult {
 	using namespace nlohmann;
 
-	std::string prefix = std::string(network_info.file_name);
+	std::string prefix = std::string(file_name);
 	// std::string prefix = (network_info.file_name);
 	if (prefix.ends_with(".json")) {
 		prefix = prefix.substr(0, prefix.size() - 5);
@@ -83,10 +104,13 @@ void BRDFSample::ReadKANWeights(NetworkBufferInfo const& network_info) {
 		prefix = prefix.substr(0, prefix.size() - 4);
 	}
 
-	std::ifstream json_file(prefix + ".json");
+	auto json_name = prefix + ".json";
+
+	std::ifstream json_file(json_name);
 	if (!json_file.is_open()) {
-		std::cerr << "Error: Could not open " << prefix << ".json" << std::endl;
-		std::exit(1);
+		// std::cerr << "Error: Could not open " << prefix << ".json" << std::endl;
+		// std::exit(1);
+		return std::unexpected(make_string("Could not open ", json_name));
 	}
 
 	json json_manifest;
@@ -101,55 +125,62 @@ void BRDFSample::ReadKANWeights(NetworkBufferInfo const& network_info) {
 	if (dtype_str == "float32") {
 		dtype = DataType::Float32;
 	} else {
-		std::cerr << "Error: Unsupported data type " << dtype_str << std::endl;
-		std::exit(1);
+		// std::cerr << "Error: Unsupported data type " << dtype_str << std::endl;
+		// std::exit(1);
+		// return std::unexpected(std::string("Unsupported data type ") + dtype_str);
+		return std::unexpected(make_string("Unsupported data type ", dtype_str));
 	}
 
 	std::ifstream bin_file(prefix + ".bin", std::ios::binary);
 	if (!bin_file.is_open()) {
-		std::cerr << "Error: Could not open " << prefix << ".bin" << std::endl;
-		std::exit(1);
+		// std::cerr << "Error: Could not open " << prefix << ".bin" << std::endl;
+		// std::exit(1);
+		return std::unexpected(make_string("Could not open ", prefix, ".bin"));
 	}
 
-	std::vector<char> bin_data;//((std::istreambuf_iterator<std::streambuf>(bin_file)), std::istreambuf_iterator<std::streambuf>());
+	std::vector<float> bin_data; //((std::istreambuf_iterator<std::streambuf>(bin_file)), std::istreambuf_iterator<std::streambuf>());
 	bin_file.seekg(0, std::ios::end);
 	bin_data.resize(std::streamsize(bin_file.tellg()));
 	bin_file.seekg(0);
-	bin_file.read(bin_data.data(), bin_data.size());
+	bin_file.read(reinterpret_cast<char*>(bin_data.data()), bin_data.size());
 	bin_file.close();
 
-	std::vector<float> arr;
-	if (target_dtype == "float32" && dtype != DataType::Float32) {
-		arr.resize(bin_data.size() / sizeof(float16_t));
-		for (u32 i = 0; i < arr.size(); ++i) {
-			arr[i] = std::bit_cast<float16_t, float>(*(reinterpret_cast<float16_t const*>(&bin_data[i * sizeof(float16_t)])));
-		}
-	} else if (target_dtype == "float16" && dtype != DataType::Float16) {
-		arr.resize(bin_data.size() / sizeof(float));
-		for (u32 i = 0; i < arr.size(); ++i) {
-			arr[i] = std::bit_cast<float, float16_t>(*(reinterpret_cast<float16_t const*>(&bin_data[i * sizeof(float)])));
-		}
-	} else {
-		arr.resize(bin_data.size() / sizeof(float));
-		std::copy(bin_data.begin(), bin_data.end(), arr.begin());
-	}
+	FastKan kan;
 
-	std::vector < std::map < std::string, std::vector < float >>>> layers;
-	for (const auto& layer : json_manifest["layers"]) {
-		std::map<std::string, std::vector<float>> params;
-		for (const auto& param : layer["params"].items()) {
-			std::string        name   = param.first;
-			auto               info   = param.second;
-			u32                offset = info["offset"];
-			u32                size   = info["size"];
-			auto               shape  = info["shape"];
-			std::vector<float> data(arr.begin() + offset, arr.begin() + offset + size);
-			params[name] = data;
+	auto const& json_layers = json_manifest["layers"];
+	kan.layers.reserve(json_layers.size());
+
+	for (const auto& json_layer : json_layers) {
+		FastKanLayer kan_layer;
+		for (const auto& param : json_layer["params"].items()) {
+			auto const& name   = param.key(); // param.first;
+			auto const& info   = param.value();
+			u32         offset = info["offset"];
+			u32         size   = info["size"];
+			auto        shape  = info["shape"];
+
+			// auto start = bin_data.data() + offset;
+
+			auto ldata = KANBuffer(offset, size);
+
+			if (name == "rbf_grid") {
+				kan_layer.get_rbf_grid() = ldata;
+			} else if (name == "rbf_denom_inv") {
+				kan_layer.get_rbf_denom_inv() = ldata;
+			} else if (name == "spline_weight") {
+				kan_layer.get_spline_weight() = ldata;
+			} else if (name == "base_weight") {
+				kan_layer.get_base_weight() = ldata;
+			} else if (name == "base_bias") {
+				kan_layer.get_base_bias() = ldata;
+			}
 		}
-		layers.push_back(std::move(params));
+		kan.layers.push_back(kan_layer);
 	}
+	kan.buffer = std::move(bin_data);
 
 	// return {std::move(json_manifest), std::move(layers)};
+	return kan;
 }
 
 void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
@@ -160,6 +191,20 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	std::size_t alignment             = sizeof(float) * 4;
 	std::size_t vertices_size_aligned = AlignUpPowerOfTwo(vertices_size_bytes, alignment);
 	std::size_t indices_size_aligned  = AlignUpPowerOfTwo(indices_size_bytes, alignment);
+
+	auto const kan = *ReadKANWeights(kan_weights_file_name).or_else([](auto&& error) -> ReadKANResult {
+		std::cerr << error << std::endl;
+		std::exit(1);
+		return {};
+	});
+	// if (!kan) {
+	// 	std::cerr << kan.error() << std::endl;
+	// 	std::exit(1);
+	// }
+	kan.repr();
+	for (auto const& layer : kan.layers) {
+		layer.repr_buffer(kan.buffer);
+	}
 
 	// auto weights_path = "Assets/simple_brdf_weights.bin";
 

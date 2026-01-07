@@ -94,7 +94,7 @@ public:
 		std::string_view header;
 	};
 	void CreateAndUploadBuffers(NetworkBufferInfo const& info);
-	void ReadKANWeights(NetworkBufferInfo const& info);
+	// void ReadKANWeights(NetworkBufferInfo const& info);
 
 	// Return time in nanoseconds
 	auto GetQueryResult() -> u64;
