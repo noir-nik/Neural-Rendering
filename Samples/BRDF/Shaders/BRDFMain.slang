@@ -96,22 +96,22 @@ func ps_main(VSOutput vs_input)->float4 {
 	typealias FTy = float;
 
 	Ty input[6] = { Ty(view_tbn.x), Ty(view_tbn.y), Ty(view_tbn.z), Ty(light_tbn.x), Ty(light_tbn.y), Ty(light_tbn.z) };
-	Ty output[3];
+	Ty output[3] = { 1, 0, 1 };
 
 	FTy inputf[6] = { view_tbn.x, view_tbn.y, view_tbn.z, light_tbn.x, light_tbn.y, light_tbn.z };
 	FTy outputf[3];
 
-	uint wo4[4] = { ctx.weights_offsets[0], ctx.weights_offsets[1], ctx.weights_offsets[2], ctx.weights_offsets[3] };
-	uint bo4[4] = { ctx.bias_offsets[0], ctx.bias_offsets[1], ctx.bias_offsets[2], ctx.bias_offsets[3] };
+	// uint wo4[4] = { ctx.weights_offsets[0], ctx.weights_offsets[1], ctx.weights_offsets[2], ctx.weights_offsets[3] };
+	// uint bo4[4] = { ctx.bias_offsets[0], ctx.bias_offsets[1], ctx.bias_offsets[2], ctx.bias_offsets[3] };
 
 	if (shader_type == BrdfFunctionType::eCoopVec) {
-		BRDFCoopVec<COOPVEC_TYPE>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
+		// BRDFCoopVec<COOPVEC_TYPE>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
 
 	} else if (shader_type == BrdfFunctionType::eWeightsInBuffer) {
-		BRDFWeightsInBuffer<float>(inputf, outputf, gWeights, ctx.weights_offsets, ctx.bias_offsets);
+		// BRDFWeightsInBuffer<float>(inputf, outputf, gWeights, ctx.weights_offsets, ctx.bias_offsets);
 
 	} else if (shader_type == BrdfFunctionType::eWeightsInBufferF16) {
-		BRDFWeightsInBuffer<half>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
+		// BRDFWeightsInBuffer<half>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
 	} else if (shader_type == BrdfFunctionType::eWeightsInHeader) {
 		// BRDFWeightsInHeader<float>(inputf, outputf);
 		// BRDFCoopVec<COOPVEC_TYPE>(input, output, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);

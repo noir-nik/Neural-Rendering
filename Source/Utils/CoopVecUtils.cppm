@@ -14,10 +14,10 @@ public:
 		vk::CooperativeVectorMatrixLayoutNV const layout,
 		vk::ComponentTypeKHR const                type) -> std::pair<vk::Result, std::size_t>;
 
-	static auto GetMatrixAlignment() -> std::size_t { return kMatrixAlignment; }
-	static auto GetVectorAlignment() -> std::size_t { return kBiasAlignment; }
+	static constexpr auto GetMatrixAlignment() -> std::size_t { return kMatrixAlignment; }
+	static constexpr auto GetVectorAlignment() -> std::size_t { return kBiasAlignment; }
 
 private:
-	static const std::size_t kMatrixAlignment = 64;
-	static const std::size_t kBiasAlignment   = 16;
+	static constexpr std::size_t kMatrixAlignment = 64;
+	static constexpr std::size_t kBiasAlignment   = 16;
 };

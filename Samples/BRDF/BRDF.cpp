@@ -36,6 +36,8 @@ using namespace Utils;
 using VulkanRHI::Buffer;
 using VulkanRHI::Image;
 
+static_assert(sizeof(BRDFConstants) <= 256);
+
 void PrintMat4(float4x4 const& mat, int precision = 5, int digits = 2) {
 
 	auto d = digits + precision + 1;
@@ -163,6 +165,11 @@ using ReadKANResult = std::expected<FastKan, std::string>;
 
 			auto ldata = KANBuffer(offset, size);
 
+			// shape
+			for (u32 i = 0; i < shape.size(); ++i) {
+				ldata.shape[ldata.shape_size++] = shape[i];
+			}
+
 			if (name == "rbf_grid") {
 				kan_layer.get_rbf_grid() = ldata;
 			} else if (name == "rbf_denom_inv") {
@@ -254,14 +261,103 @@ void write_network(
 	}
 };
 
+// std::vector<FastKanLayer> layers_;
+// auto constexpr kVectorAlignment = std::size_t{sizeof(float) * 4};
+auto constexpr kVectorAlignment = CoopVecUtils::GetVectorAlignment();
+
+void write_fast_kan_buffer(
+	KANBuffer const& buffer,
+	std::span<float> src_buffer,
+	std::byte*       dst) {
+
+	auto sspan = buffer.span(src_buffer.data());
+	if (buffer.offset() + buffer.size() < src_buffer.size()) {
+		std::printf("Buffer size too small\n");
+		std::exit(1);
+	}
+	std::memcpy(dst, sspan.data(), sspan.size_bytes());
+}
+
+using FastKanLayerOffsets = FastKanLayerBase<u64>;
+
+void write_fast_kan_layer(
+	vk::Device          device,
+	FastKanLayer const& layer,
+	std::span<float>    src_buffer,
+	std::byte*          dst_parameters,
+	LayoutTy            dst_layout,
+	ComponentTy         src_component_type,
+	ComponentTy         dst_matrix_type) {
+
+	auto offset = std::size_t{0}; // in bytes
+
+	FastKanLayerOffsets ret;
+
+	auto write_fast_kan_buffer = [&](KANBuffer const& buffer, std::byte* dst) {
+		auto sspan = buffer.span(src_buffer.data());
+		if (buffer.offset() + buffer.size() < src_buffer.size()) {
+			std::printf("Buffer size too small\n");
+			std::exit(1);
+		}
+		std::memcpy(dst, sspan.data(), sspan.size_bytes());
+	};
+	auto wrt = [&](KANBuffer const& buffer) {
+		auto sspan = buffer.span(src_buffer.data());
+		std::printf("Writing buffer %td/%zu, offset: %zu, size: %zu\n", std::distance(&layer.get_buffers()[0], &buffer), layer.get_buffers().size(), offset, sspan.size_bytes());
+		// write_fast_kan_buffer(buffer, dst_parameters + offset);
+		{
+			if (buffer.offset() + buffer.size() < src_buffer.size()) {
+				std::printf("Buffer size too small\n");
+				std::exit(1);
+			}
+			auto dst = dst_parameters + offset;
+			std::memcpy(dst, sspan.data(), sspan.size_bytes());
+		}
+		offset += AlignUpPowerOfTwo(sspan.size_bytes(), kVectorAlignment);
+		return offset;
+	};
+
+	ret.get_rbf_grid()      = wrt(layer.get_rbf_grid());
+	ret.get_rbf_denom_inv() = wrt(layer.get_rbf_denom_inv());
+	ret.get_base_bias()     = wrt(layer.get_base_bias());
+
+
+	// ret.get_spline_weight() = wrt(layer.get_spline_weight());
+	// ret.get_base_weight()   = wrt(layer.get_base_weight());
+	// for (u32 i = 0; auto const& buffer : {layer.get_rbf_grid(), layer.get_rbf_denom_inv(), layer.get_base_bias()})
+
+	// Write 2 matrices: [spline_weight base_weight]
+	// Linear spline_weight = Linear(layer.get_);
+	// std::size_t const src_weights_size_bytes = spline_weight.GetWeightsCount() * GetVulkanComponentSize(src_component_type);
+	// auto const* src_weights = src_buffer.data() + ret.get_spline_weight();
+	// write_weights(device, src_weights, src_weights_size_bytes, dst_parameters, dst_layout, src_component_type, dst_matrix_type, layer);
+
+}
+
+void write_fast_kan(
+	vk::Device     device,
+	FastKan const& kan,
+	std::byte*     src_parameters,
+	std::byte*     dst_parameters,
+	LayoutTy       dst_layout,
+	ComponentTy    src_component_type,
+	ComponentTy    dst_matrix_type) {
+
+	auto src_offset = std::size_t{0};
+	auto layers     = kan.layers();
+	for (u32 i = 0; i < layers.size(); ++i) {
+		auto& layer = layers[i];
+	}
+}
+
 void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	sphere = UVSphere(1.0f, 32 * 2, 16 * 2);
 
-	std::size_t vertices_size_bytes   = sphere.GetVertexCount() * sizeof(UVSphere::Vertex);
-	std::size_t indices_size_bytes    = sphere.GetIndexCount() * sizeof(UVSphere::IndexType);
-	std::size_t alignment             = sizeof(float) * 4;
-	std::size_t vertices_size_aligned = AlignUpPowerOfTwo(vertices_size_bytes, alignment);
-	std::size_t indices_size_aligned  = AlignUpPowerOfTwo(indices_size_bytes, alignment);
+	std::size_t vertices_size_bytes = sphere.GetVertexCount() * sizeof(UVSphere::Vertex);
+	std::size_t indices_size_bytes  = sphere.GetIndexCount() * sizeof(UVSphere::IndexType);
+	// std::size_t alignment             = kVectorAlignment;
+	std::size_t vertices_size_aligned = AlignUpPowerOfTwo(vertices_size_bytes, kVectorAlignment);
+	std::size_t indices_size_aligned  = AlignUpPowerOfTwo(indices_size_bytes, kVectorAlignment);
 
 	auto const kan = *ReadKANWeights(kan_weights_file_name).or_else([](auto&& error) -> ReadKANResult {
 		std::cerr << error << std::endl;
@@ -299,7 +395,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 				+ networks[u32(BrdfFunctionType::eCoopVec)].GetParametersSize()
 				+ networks[u32(BrdfFunctionType::eWeightsInBuffer)].GetParametersSize()
 				+ networks[u32(BrdfFunctionType::eWeightsInBufferF16)].GetParametersSize()
-				+ kan.size_bytes() * 2);
+				+ kan.size_bytes() * 5);
 
 	// Create buffers
 	// clang-format off
@@ -559,10 +655,13 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	// Update weight offsets in push constants
 	auto network = networks[u32(function_type)];
 	for (int i = 0; i < network.GetLayers().size(); ++i) {
-		auto layer                   = network.GetLayer<Linear>(i);
-		auto offset_base             = weights_offsets[u32(function_type)];
-		constants.weights_offsets[i] = offset_base + layer.GetWeightsOffset();
-		constants.bias_offsets[i]    = offset_base + layer.GetBiasesOffset();
+		auto layer       = network.GetLayer<Linear>(i);
+		auto offset_base = weights_offsets[u32(function_type)];
+
+		// ENABLE_MLP
+		// constants.weights_offsets[i] = offset_base + layer.GetWeightsOffset();
+		// constants.bias_offsets[i]    = offset_base + layer.GetBiasesOffset();
+
 		// std::printf("Layer %d weights_offset %d bias_offset %d\n", i, constants.weights_offsets[i], constants.bias_offsets[i]);
 	}
 

@@ -11,51 +11,68 @@ export struct KANBuffer {
 	u64 offset_; // in elements
 	u64 size_;   // in elements
 
+	static constexpr u32 kMaxShapeSize = 4;
+	std::array<u32, 4>   shape;
+	u32                  shape_size = 0;
+
 	auto offset() const -> u64 { return offset_; }
 	auto size() const -> u64 { return size_; }
 
-	auto span(std::byte const* p) const -> std::span<float const> { return {reinterpret_cast<float const*>(p + offset()), size()}; }
-	auto span(float const* p) const -> std::span<float const> { return {reinterpret_cast<float const*>(p + offset()), size()}; }
+	auto span(std::byte const* p) const -> std::span<float const> { return {reinterpret_cast<float const*>(p) + offset(), size()}; }
+	auto span(float const* p) const -> std::span<float const> { return {p + offset(), size()}; }
+
+	auto size_bytes() const -> std::size_t { return size() * sizeof(float); }
 };
 
 // using KANBuffer = std::span<float const>;
 
-export class FastKanLayer {
-	// rbf_grid
-	// rbf_denom_inv
-	// spline_weight
-	// base_weight
-	// base_bias
-
-	// KANBuffer buffers[5];
-	std::array<KANBuffer, 5> buffers;
+class KanLayerBaseBase {
 
 public:
+	// auto get_buffer_name(u32 index) const -> std::string_view;
+};
+
+export template <typename T, std::size_t N>
+class KanLayerBase : public KanLayerBaseBase {
+	// KANBuffer buffers[5];
+	std::array<T, N> buffers_;
+
+public:
+	using value_type = T;
+	auto get_buffers() const -> std::span<T const> { return buffers_; }
+	auto get_buffer(u32 index) const -> T const& { return buffers_[index]; }
+
+	auto get_buffers() -> std::span<T> { return buffers_; }
+	auto get_buffer(u32 index) -> T& { return buffers_[index]; }
+};
+
+export template <typename T>
+class FastKanLayerBase : public KanLayerBase<T, 5> {
+	using Base = KanLayerBase<T, 5>;
+
+public:
+	auto get_rbf_grid() const -> T const& { return Base::get_buffer(0); }
+	auto get_rbf_denom_inv() const -> T const& { return Base::get_buffer(1); }
+	auto get_spline_weight() const -> T const& { return Base::get_buffer(2); }
+	auto get_base_weight() const -> T const& { return Base::get_buffer(3); }
+	auto get_base_bias() const -> T const& { return Base::get_buffer(4); }
+
+	auto get_rbf_grid() -> T& { return Base::get_buffer(0); }
+	auto get_rbf_denom_inv() -> T& { return Base::get_buffer(1); }
+	auto get_spline_weight() -> T& { return Base::get_buffer(2); }
+	auto get_base_weight() -> T& { return Base::get_buffer(3); }
+	auto get_base_bias() -> T& { return Base::get_buffer(4); }
+};
+
+export class FastKanLayer : public FastKanLayerBase<KANBuffer> {
+public:
+	auto get_buffer_name(u32 index) const -> std::string_view;
 	auto size() const -> std::size_t;
 	auto size_bytes() const -> std::size_t { return size() * sizeof(float); }
-
-	auto get_buffers() const -> std::span<KANBuffer const> { return buffers; }
-	auto get_buffer(u32 index) const -> KANBuffer const& { return buffers[index]; }
-	auto get_rbf_grid() const -> KANBuffer const& { return buffers[0]; }
-	auto get_rbf_denom_inv() const -> KANBuffer const& { return buffers[1]; }
-	auto get_spline_weight() const -> KANBuffer const& { return buffers[2]; }
-	auto get_base_weight() const -> KANBuffer const& { return buffers[3]; }
-	auto get_base_bias() const -> KANBuffer const& { return buffers[4]; }
-
-	auto get_buffer(u32 index) -> KANBuffer& { return buffers[index]; }
-	auto get_rbf_grid() -> KANBuffer& { return buffers[0]; }
-	auto get_rbf_denom_inv() -> KANBuffer& { return buffers[1]; }
-	auto get_spline_weight() -> KANBuffer& { return buffers[2]; }
-	auto get_base_weight() -> KANBuffer& { return buffers[3]; }
-	auto get_base_bias() -> KANBuffer& { return buffers[4]; }
-
-	auto get_buffer_name(u32 index) -> std::string_view;
-
 	void repr() const;
 
 	void repr_buffer(std::span<float const> buffer) const;
 };
-
 
 export struct FastKan {
 	std::vector<FastKanLayer> layers_;
