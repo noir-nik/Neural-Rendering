@@ -13,7 +13,7 @@ auto FastKanLayer::size() const -> std::size_t {
 
 void FastKanLayer::repr() const {
 #define _rpr(name) \
-	std::printf(#name ": %6zu, size: %6zu\n", get_##name().offset(), get_##name().size());
+	std::printf("    %-16s offset: %-6zu size: %-6zu\n", #name, get_##name().offset(), get_##name().size());
 
 	_rpr(rbf_grid);
 	_rpr(rbf_denom_inv);
@@ -61,4 +61,14 @@ auto FastKan::size() const -> std::size_t {
 	return std::ranges::fold_left(layers_, std::size_t(0), [](auto acc, auto&& x) -> std::size_t {
 		return acc + x.size();
 	});
+}
+
+void FastKan::repr() const {
+	std::printf("FastKan {\n");
+	for (u32 i = 0; i < layers().size(); ++i) {
+		std::printf("  layer[%u] = {\n", i);
+		layers()[i].repr();
+		std::printf("  }\n");
+	}
+	std::printf("}\n");
 }

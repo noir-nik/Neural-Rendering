@@ -66,15 +66,7 @@ export struct FastKan {
 	auto buffer() const -> std::span<float const> { return buffer_; }
 	auto buffer() -> std::span<float> { return buffer_; }
 
-	void repr() const {
-		std::printf("FastKan {\n");
-		for (u32 i = 0; i < layers().size(); ++i) {
-			std::printf("  layer[%u] = {\n", i);
-			layers()[i].repr();
-			std::printf("  }\n");
-		}
-		std::printf("}\n");
-	}
+	void repr() const;
 
 	auto size() const -> std::size_t;
 	auto size_bytes() const -> std::size_t { return size() * sizeof(float); }
