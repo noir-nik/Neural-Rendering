@@ -1,5 +1,5 @@
 #define MAX_LAYERS 4
-#define NUM_GRIDS 8
+#define NUM_GRIDS 9
 
 import CoopVec;
 
@@ -40,15 +40,18 @@ void BRDFFastKanCoopVec
 	CoopVec<T, 5> output1;
 	CoopVec<T, 3> output2;
 
-	constexpr const int layer_dims[4] = int[4](6, 5, 5, 3);
+	constexpr const int dims[4] = int[4](6, 5, 5, 3);
 
 	// ========== LAYER 0: 6 -> 5 ==========
 	{
-		const int          layer_idx = 0;
-		LayerBufferOffsets offs      = pc.offsets[0];
+		const int layer_idx = 0;
+		const int inputs    = dims[layer_idx];
+		const int outputs   = dims[layer_idx + 1];
+
+		LayerBufferOffsets offs = pc.offsets[layer_idx];
 
 		// Load RBF grid
-		CoopVec<T, 8> grid;
+		CoopVec<T, NUM_GRIDS> grid;
 		grid.load(weights, offs.rbf_grid_offset);
 
 		// RBF basis: exp(-((x - grid) * denom_inv)^2)
@@ -60,28 +63,33 @@ void BRDFFastKanCoopVec
 		rbfidx(input0, grid, 5);
 
 		// Flatten
-		CoopVec<T, 48> spline_basis = CoopVec<T, 48>(
-			rbf0[0], rbf0[1], rbf0[2], rbf0[3], rbf0[4], rbf0[5], rbf0[6], rbf0[7],
-			rbf1[0], rbf1[1], rbf1[2], rbf1[3], rbf1[4], rbf1[5], rbf1[6], rbf1[7],
-			rbf2[0], rbf2[1], rbf2[2], rbf2[3], rbf2[4], rbf2[5], rbf2[6], rbf2[7],
-			rbf3[0], rbf3[1], rbf3[2], rbf3[3], rbf3[4], rbf3[5], rbf3[6], rbf3[7],
-			rbf4[0], rbf4[1], rbf4[2], rbf4[3], rbf4[4], rbf4[5], rbf4[6], rbf4[7],
-			rbf5[0], rbf5[1], rbf5[2], rbf5[3], rbf5[4], rbf5[5], rbf5[6], rbf5[7]);
+		const int spline_in_size = inputs * NUM_GRIDS;
+
+		CoopVec<T, spline_in_size> spline_in = CoopVec<T, spline_in_size>(
+			rbf0[0], rbf0[1], rbf0[2], rbf0[3], rbf0[4], rbf0[5], rbf0[6], rbf0[7], rbf0[8],
+			rbf1[0], rbf1[1], rbf1[2], rbf1[3], rbf1[4], rbf1[5], rbf1[6], rbf1[7], rbf1[8],
+			rbf2[0], rbf2[1], rbf2[2], rbf2[3], rbf2[4], rbf2[5], rbf2[6], rbf2[7], rbf2[8],
+			rbf3[0], rbf3[1], rbf3[2], rbf3[3], rbf3[4], rbf3[5], rbf3[6], rbf3[7], rbf3[8],
+			rbf4[0], rbf4[1], rbf4[2], rbf4[3], rbf4[4], rbf4[5], rbf4[6], rbf4[7], rbf4[8],
+			rbf5[0], rbf5[1], rbf5[2], rbf5[3], rbf5[4], rbf5[5], rbf5[6], rbf5[7], rbf5[8], );
 
 		// Spline linear: 48 -> 5
-		CoopVec<T, 5> spline_out;
-		spline_out = coopVecMatMul<T, 5, 48>(
-			spline_basis, component_type,
+		const int spline_out_size = outputs;
+
+		CoopVec<T, spline_out_size> spline_out;
+		spline_out = coopVecMatMul<T, spline_out_size, spline_in_size>(
+			spline_in, component_type,
 			weights, offs.spline_weight_offset, component_type,
-			matrix_layout, false, 0);
+			matrix_layout, false, spline_in_size * sizeof(T));
 
 		// Base
-		CoopVec<T, 6> base_in = tanh(input0);
-		CoopVec<T, 5> base_out;
-		base_out = coopVecMatMulAdd<T, 5, 6>(base_in, component_type,
-											 weights, offs.base_weight_offset, component_type,
-											 weights, offs.base_bias_offset, component_type,
-											 matrix_layout, false, 0);
+		CoopVec<T, inputs>  base_in = tanh(input0);
+		CoopVec<T, outputs> base_out;
+		base_out = coopVecMatMulAdd<T, outputs, inputs>(
+			base_in, component_type,
+			weights, offs.base_weight_offset, component_type,
+			weights, offs.base_bias_offset, component_type,
+			matrix_layout, false, inputs * sizeof(T));
 
 		// base_out = LinearForward<T, 5, 6>(base_in, weights, offs.base_weight_offset, offs.base_bias_offset, matrix_layout, component_type);
 
@@ -91,10 +99,14 @@ void BRDFFastKanCoopVec
 
 	// ========== LAYER 1: 5 -> 5 ==========
 	{
-		LayerBufferOffsets offs = pc.offsets[1];
+		const int layer_idx = 1;
+		const int inputs    = dims[layer_idx];
+		const int outputs   = dims[layer_idx + 1];
+
+		LayerBufferOffsets offs = pc.offsets[layer_idx];
 
 		// Load RBF grid
-		CoopVec<T, 8> grid;
+		CoopVec<T, NUM_GRIDS> grid;
 		grid.load(weights, offs.rbf_grid_offset);
 
 		// RBF basis
@@ -105,27 +117,32 @@ void BRDFFastKanCoopVec
 		rbfidx(input0, grid, 4);
 
 		// Flatten
-		CoopVec<T, 40> spline_basis = CoopVec<T, 40>(
-			rbf0[0], rbf0[1], rbf0[2], rbf0[3], rbf0[4], rbf0[5], rbf0[6], rbf0[7],
-			rbf1[0], rbf1[1], rbf1[2], rbf1[3], rbf1[4], rbf1[5], rbf1[6], rbf1[7],
-			rbf2[0], rbf2[1], rbf2[2], rbf2[3], rbf2[4], rbf2[5], rbf2[6], rbf2[7],
-			rbf3[0], rbf3[1], rbf3[2], rbf3[3], rbf3[4], rbf3[5], rbf3[6], rbf3[7],
-			rbf4[0], rbf4[1], rbf4[2], rbf4[3], rbf4[4], rbf4[5], rbf4[6], rbf4[7]);
+		const int spline_in_size = inputs * NUM_GRIDS;
+
+		CoopVec<T, spline_in_size> spline_in = CoopVec<T, spline_in_size>(
+			rbf0[0], rbf0[1], rbf0[2], rbf0[3], rbf0[4], rbf0[5], rbf0[6], rbf0[7], rbf0[8],
+			rbf1[0], rbf1[1], rbf1[2], rbf1[3], rbf1[4], rbf1[5], rbf1[6], rbf1[7], rbf1[8],
+			rbf2[0], rbf2[1], rbf2[2], rbf2[3], rbf2[4], rbf2[5], rbf2[6], rbf2[7], rbf2[8],
+			rbf3[0], rbf3[1], rbf3[2], rbf3[3], rbf3[4], rbf3[5], rbf3[6], rbf3[7], rbf3[8],
+			rbf4[0], rbf4[1], rbf4[2], rbf4[3], rbf4[4], rbf4[5], rbf4[6], rbf4[7], rbf4[8], );
 
 		// Spline linear: 40 -> 5
-		CoopVec<T, 5> spline_out;
-		spline_out = coopVecMatMul<T, 5, 40>(spline_basis, component_type,
-											 weights, offs.spline_weight_offset, component_type,
-											 matrix_layout, false, 0);
+		const int spline_out_size = outputs;
+
+		CoopVec<T, spline_out_size> spline_out;
+		spline_out = coopVecMatMul<T, spline_out_size, spline_in_size>(
+			spline_in, component_type,
+			weights, offs.spline_weight_offset, component_type,
+			matrix_layout, false, spline_in_size * sizeof(T));
 
 		// Base
-		CoopVec<T, 5> base_in = tanh(output0);
-		CoopVec<T, 5> base_out;
-		base_out = coopVecMatMulAdd<T, 5, 5>(
+		CoopVec<T, inputs>  base_in = tanh(output0);
+		CoopVec<T, outputs> base_out;
+		base_out = coopVecMatMulAdd<T, outputs, inputs>(
 			base_in, component_type,
 			weights, offs.base_weight_offset, component_type,
 			weights, offs.base_bias_offset, component_type,
-			matrix_layout, false, 5 * sizeof(T));
+			matrix_layout, false, inputs * sizeof(T));
 
 		// Sum
 		output1 = spline_out + base_out;
@@ -133,10 +150,13 @@ void BRDFFastKanCoopVec
 
 	// ========== LAYER 2: 5 -> 3 ==========
 	{
-		LayerBufferOffsets offs = pc.offsets[2];
+		const int          layer_idx = 2;
+		const int          inputs    = dims[layer_idx];
+		const int          outputs   = dims[layer_idx + 1];
+		LayerBufferOffsets offs      = pc.offsets[layer_idx];
 
 		// Load RBF grid
-		CoopVec<T, 8> grid;
+		CoopVec<T, NUM_GRIDS> grid;
 		grid.load(weights, offs.rbf_grid_offset);
 
 		// RBF basis
@@ -147,28 +167,32 @@ void BRDFFastKanCoopVec
 		rbfidx(input0, grid, 4);
 
 		// Flatten
-		CoopVec<T, 40> spline_basis = CoopVec<T, 40>(
-			rbf0[0], rbf0[1], rbf0[2], rbf0[3], rbf0[4], rbf0[5], rbf0[6], rbf0[7],
-			rbf1[0], rbf1[1], rbf1[2], rbf1[3], rbf1[4], rbf1[5], rbf1[6], rbf1[7],
-			rbf2[0], rbf2[1], rbf2[2], rbf2[3], rbf2[4], rbf2[5], rbf2[6], rbf2[7],
-			rbf3[0], rbf3[1], rbf3[2], rbf3[3], rbf3[4], rbf3[5], rbf3[6], rbf3[7],
-			rbf4[0], rbf4[1], rbf4[2], rbf4[3], rbf4[4], rbf4[5], rbf4[6], rbf4[7]);
+		const int spline_in_size = inputs * NUM_GRIDS;
+
+		CoopVec<T, spline_in_size> spline_in = CoopVec<T, spline_in_size>(
+			rbf0[0], rbf0[1], rbf0[2], rbf0[3], rbf0[4], rbf0[5], rbf0[6], rbf0[7], rbf0[8],
+			rbf1[0], rbf1[1], rbf1[2], rbf1[3], rbf1[4], rbf1[5], rbf1[6], rbf1[7], rbf1[8],
+			rbf2[0], rbf2[1], rbf2[2], rbf2[3], rbf2[4], rbf2[5], rbf2[6], rbf2[7], rbf2[8],
+			rbf3[0], rbf3[1], rbf3[2], rbf3[3], rbf3[4], rbf3[5], rbf3[6], rbf3[7], rbf3[8],
+			rbf4[0], rbf4[1], rbf4[2], rbf4[3], rbf4[4], rbf4[5], rbf4[6], rbf4[7], rbf4[8], );
 
 		// Spline linear: 40 -> 3
-		CoopVec<T, 3> spline_out;
-		spline_out = coopVecMatMul<T, 3, 40>(
-			spline_basis, component_type,
+		const int spline_out_size = outputs;
+
+		CoopVec<T, spline_out_size> spline_out;
+		spline_out = coopVecMatMul<T, spline_out_size, spline_in_size>(
+			spline_in, component_type,
 			weights, offs.spline_weight_offset, component_type,
-			matrix_layout, false, 40 * sizeof(T));
+			matrix_layout, false, spline_in_size * sizeof(T));
 
 		// Base
-		CoopVec<T, 5> base_in = tanh(output1);
-		CoopVec<T, 3> base_out;
-		base_out = coopVecMatMulAdd<T, 3, 5>(
+		CoopVec<T, inputs>  base_in = tanh(output1);
+		CoopVec<T, outputs> base_out;
+		base_out = coopVecMatMulAdd<T, outputs, inputs>(
 			base_in, component_type,
 			weights, offs.base_weight_offset, component_type,
 			weights, offs.base_bias_offset, component_type,
-			matrix_layout, false, 5 * sizeof(T));
+			matrix_layout, false, inputs * sizeof(T));
 
 		// base_out = LinearForward<T, 3, 5>(base_in, weights, offs.base_weight_offset, offs.base_bias_offset, matrix_layout, component_type);
 

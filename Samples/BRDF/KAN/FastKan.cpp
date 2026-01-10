@@ -26,36 +26,16 @@ auto FastKanLayer::size() const -> std::size_t {
 }
 
 void FastKanLayer::repr() const {
-#define _rpr(name) \
-	{ \
-		std::printf("    %-16s offset: %-6zu size: %-6zu shape: [", #name, get_##name().offset(), get_##name().size()); \
-		for (u32 i = 0; i < get_##name().shape_size; ++i) { \
-			if (i > 0) \
-				std::printf(", "); \
-			std::printf("%u", get_##name().shape[i]); \
-		} \
-		std::printf("]\n"); \
-	}
 
-	_rpr(rbf_grid);
-	_rpr(rbf_denom_inv);
-	_rpr(spline_weight);
-	_rpr(base_weight);
-	_rpr(base_bias);
-#undef _rpr
-
-	auto rpr = [this](u32 i) {
+	for (u32 i = 0; i < get_buffers().size(); ++i) {
 		auto const& buf = get_buffers()[i];
 		std::printf("    %-16s offset: %-6zu size: %-6zu shape: [", get_buffer_name(i).data(), buf.offset(), buf.size());
-		for (u32 i = 0; i < buf.shape_size; ++i) {
-			if (i > 0)
+		for (u32 j = 0; j < buf.shape_size_; ++j) {
+			if (j > 0)
 				std::printf(", ");
-			std::printf("%u", buf.shape[i]);
+			std::printf("%u", buf.shape()[j]);
 		}
 		std::printf("]\n");
-	};
-	for (u32 i = 0; i < get_buffers().size(); ++i) {
-		rpr(i);
 	}
 }
 
