@@ -196,6 +196,50 @@ using ReadKANResult = std::expected<FastKan, std::string>;
 using ComponentTy = vk::ComponentTypeKHR;
 using LayoutTy    = vk::CooperativeVectorMatrixLayoutNV;
 
+struct MatrixInfo {
+	vk::Device  device;
+	void const* src;
+	std::size_t src_size;
+	std::byte*  dst;
+	LayoutTy    dst_layout;
+	ComponentTy src_component_type;
+	ComponentTy dst_matrix_type;
+	u32         rows;
+	u32         cols;
+};
+
+auto write_matrix_kan(
+	MatrixInfo const& info
+	// Linear const& linear
+	) -> std::size_t {
+	// std::size_t expected_size = linear.GetWeightsSize();
+	// = expected_size;
+	std::size_t required_size;
+
+	auto const& [device, src, src_size, dst, dst_layout, src_component_type, dst_matrix_type, rows, cols] = info;
+
+	vk::ConvertCooperativeVectorMatrixInfoNV create_info{
+		.srcSize          = info.src_size,
+		.srcData          = {.hostAddress = info.src},
+		.pDstSize         = &required_size,
+		.dstData          = {.hostAddress = info.dst},
+		.srcComponentType = info.src_component_type,
+		.dstComponentType = info.dst_matrix_type,
+		.numRows          = info.rows,
+		.numColumns       = info.cols,
+		.srcLayout        = vk::CooperativeVectorMatrixLayoutNV::eRowMajor,
+		.srcStride        = info.cols * GetVulkanComponentSize(info.src_component_type),
+		.dstLayout        = info.dst_layout,
+		.dstStride        = info.cols * GetVulkanComponentSize(info.dst_matrix_type),
+	};
+
+	CHECK_VULKAN_RESULT(info.device.convertCooperativeVectorMatrixNV(&create_info));
+
+	std::printf("Src size: %zu, result size: %zu\n", info.src_size, required_size);
+
+	return required_size;
+};
+
 void write_weights(
 	vk::Device    device,
 	void const*   src,
@@ -234,41 +278,6 @@ void write_weights(
 };
 
 // struct
-void write_weights_kan(
-	vk::Device  device,
-	void const* src,
-	std::size_t src_size,
-	std::byte*  dst,
-	LayoutTy    dst_layout,
-	ComponentTy src_component_type,
-	ComponentTy dst_matrix_type,
-	u32         rows,
-	u32         cols
-	// Linear const& linear
-) {
-	// std::size_t expected_size = linear.GetWeightsSize();
-	// = expected_size;
-	std::size_t required_size;
-
-	vk::ConvertCooperativeVectorMatrixInfoNV info{
-		.srcSize          = src_size,
-		.srcData          = {.hostAddress = src},
-		.pDstSize         = &required_size,
-		.dstData          = {.hostAddress = dst},
-		.srcComponentType = src_component_type,
-		.dstComponentType = dst_matrix_type,
-		.numRows          = rows,
-		.numColumns       = cols,
-		.srcLayout        = vk::CooperativeVectorMatrixLayoutNV::eRowMajor,
-		.srcStride        = cols * GetVulkanComponentSize(src_component_type),
-		.dstLayout        = dst_layout,
-		.dstStride        = cols * GetVulkanComponentSize(dst_matrix_type),
-	};
-
-	CHECK_VULKAN_RESULT(device.convertCooperativeVectorMatrixNV(&info));
-
-	std::printf("Src size: %zu, actual size: %zu\n", src_size, required_size);
-};
 
 template <typename SrcBiasType, typename DstBiasType>
 void write_network(
@@ -366,18 +375,29 @@ void write_fast_kan_layer(
 	// for (u32 i = 0; auto const& buffer : {layer.get_rbf_grid(), layer.get_rbf_denom_inv(), layer.get_base_bias()})
 
 	// Write 2 matrices: [spline_weight base_weight]
-	auto const base_inputs = layer.get_base_weight().shape()[1];
-	auto const base_ouputs = layer.get_base_weight().shape()[0];
+
+	// auto const base_inputs = layer.get_base_weight().shape()[1];
+	// auto const base_ouputs = layer.get_base_weight().shape()[0];
+	// auto const base_cols   = base_inputs;
+	// auto const base_rows   = base_ouputs;
 
 	auto const spline_weight = layer.get_spline_weight();
 	auto const spline_shape  = spline_weight.shape();
 
-	Linear spline_weight_linear = Linear(spline_shape[1], spline_shape[0]);
+	std::size_t matrix_size;
 
-	std::size_t const src_weights_size_bytes = spline_weight.size_bytes();
-	auto const*       src_weights            = spline_weight.span(src_buffer.data()).data();
-	auto const*       src_weights1           = src_buffer.data() + spline_weight.offset();
-	assert(src_weights == src_weights1);
+	matrix_size = write_matrix_kan({
+		.device             = device,
+		.src                = spline_weight.span(src_buffer.data()).data(),
+		.src_size           = spline_weight.size_bytes(),
+		.dst                = dst_parameters + offset,
+		.dst_layout         = dst_layout,
+		.src_component_type = src_component_type,
+		.dst_matrix_type    = dst_matrix_type,
+		.rows               = layer.get_spline_weight().shape()[0],
+		.cols               = layer.get_spline_weight().shape()[1],
+	});
+	offset += AlignUpPowerOfTwo(offset + matrix_size, kVectorAlignment);
 
 	// write_weights(device, src_weights, src_weights_size_bytes, dst_parameters, dst_layout, src_component_type, dst_matrix_type, layer);
 }
