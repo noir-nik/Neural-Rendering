@@ -1,11 +1,14 @@
 #ifndef BRDFCONSTANTS_H
 #define BRDFCONSTANTS_H
 
-#define MAX_KAN_LAYERS 4
 
 #if defined(__cplusplus)
 using std::uint32_t;
+#include "KAN/CoopVec/BRDFFastKanCoopVecConstants.h"
+#else
+import BRDFFastKanCoopVecConstants;
 #endif
+
 
 struct Material {
 	float4 base_color;
@@ -21,19 +24,6 @@ struct Light {
 	float  intensity;
 	float3 ambient_color;
 	float  ambient_intensity;
-};
-
-struct FastKanLayerBufferOffsets {
-	uint32_t rbf_grid_offset;
-	uint32_t spline_weight_offset;
-	uint32_t base_weight_offset;
-	uint32_t base_bias_offset;
-};
-
-struct FastKanConstants {
-	int                       num_layers;
-	int                       pad[3];
-	FastKanLayerBufferOffsets offsets[MAX_KAN_LAYERS];
 };
 
 struct BRDFConstants {

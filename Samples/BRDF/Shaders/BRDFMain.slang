@@ -136,14 +136,14 @@ func ps_main(VSOutput vs_input)->float4 {
 #if LAYERS == 2
 		// BRDFFASTKAN2(inputf, outputf);
 		// BRDFSINEKAN2(inputf, outputf);
-		BRDFCHEBYKAN2(inputf, outputf);
+		// BRDFCHEBYKAN2(inputf, outputf);
 		// BRDFRELUKAN2(inputf, outputf);
 #elif LAYERS == 3
 		// BRDFFASTKAN3(inputf, outputf);
 		// BRDFSINEKAN3(inputf, outputf);
-		BRDFCHEBYKAN3(inputf, outputf);
+		// BRDFCHEBYKAN3(inputf, outputf);
 		// BRDFRELUKAN3(inputf, outputf);
-		BRDFFastKanCoopVec(inputf, outputf, gWeights);
+		BRDFFastKanCoopVec(input, output, gWeightsCoopVec, ctx.fast_kan.offsets);
 #endif
 
 		// BRDFMLP(inputf, outputf);
@@ -164,7 +164,9 @@ func ps_main(VSOutput vs_input)->float4 {
 
 	if (shader_type == BrdfFunctionType::eWeightsInBuffer
 		|| shader_type == BrdfFunctionType::eClassic
-		|| shader_type == BrdfFunctionType::eKan) {
+		// || shader_type == BrdfFunctionType::eKan
+		//
+	) {
 		color = float3(outputf[0], outputf[1], outputf[2]);
 	} else {
 		color = float3(output[0], output[1], output[2]);

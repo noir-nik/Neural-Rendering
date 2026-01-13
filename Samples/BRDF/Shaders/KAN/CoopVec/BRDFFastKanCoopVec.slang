@@ -2,21 +2,8 @@
 #define NUM_GRIDS 9
 
 import CoopVec;
-
-struct LayerBufferOffsets {
-	uint rbf_grid_offset;
-	uint spline_weight_offset;
-	uint base_weight_offset;
-	uint base_bias_offset;
-};
-
-struct PushConstants {
-	int                num_layers;
-	LayerBufferOffsets offsets[MAX_LAYERS];
-};
-
-[[vk::push_constant]]
-PushConstants pc;
+// #include "../../BRDFConstants.h"
+import BRDFFastKanCoopVecConstants;
 
 static const CoopVecComponentType component_type = CoopVecComponentType::Float32;
 static const CoopVecMatrixLayout  matrix_layout  = CoopVecMatrixLayout::InferencingOptimal;
@@ -32,7 +19,7 @@ void BRDFFastKanCoopVec
 	//
 	<T : __BuiltinFloatingPointType>
 	//
-	(in T input[6], out T output[3], StructuredBuffer<T> weights) {
+	(in T input[6], out T output[3], StructuredBuffer<T> weights, FastKanLayerBufferOffsets offsets[MAX_KAN_LAYERS]) {
 	static const T RBF_DENOM_INV = T(4.0);
 
 	CoopVec<T, 6> input0 = CoopVec<T, 6>(input[0], input[1], input[2], input[3], input[4], input[5]);
@@ -48,11 +35,11 @@ void BRDFFastKanCoopVec
 		const int inputs    = dims[layer_idx];
 		const int outputs   = dims[layer_idx + 1];
 
-		LayerBufferOffsets offs = pc.offsets[layer_idx];
+		FastKanLayerBufferOffsets offs = offsets[layer_idx];
 
 		// Load RBF grid
 		CoopVec<T, NUM_GRIDS> grid;
-		grid.load(weights, offs.rbf_grid_offset);
+		grid.load(weights, offs.rbf_grid);
 
 		// RBF basis: exp(-((x - grid) * denom_inv)^2)
 		rbfidx(input0, grid, 0);
@@ -79,7 +66,7 @@ void BRDFFastKanCoopVec
 		CoopVec<T, spline_out_size> spline_out;
 		spline_out = coopVecMatMul<T, spline_out_size, spline_in_size>(
 			spline_in, component_type,
-			weights, offs.spline_weight_offset, component_type,
+			weights, offs.spline_weight, component_type,
 			matrix_layout, false, spline_in_size * sizeof(T));
 
 		// Base
@@ -87,11 +74,11 @@ void BRDFFastKanCoopVec
 		CoopVec<T, outputs> base_out;
 		base_out = coopVecMatMulAdd<T, outputs, inputs>(
 			base_in, component_type,
-			weights, offs.base_weight_offset, component_type,
-			weights, offs.base_bias_offset, component_type,
+			weights, offs.base_weight, component_type,
+			weights, offs.base_bias, component_type,
 			matrix_layout, false, inputs * sizeof(T));
 
-		// base_out = LinearForward<T, 5, 6>(base_in, weights, offs.base_weight_offset, offs.base_bias_offset, matrix_layout, component_type);
+		// base_out = LinearForward<T, 5, 6>(base_in, weights, offs.base_weight, offs.base_bias, matrix_layout, component_type);
 
 		// Sum
 		output0 = spline_out + base_out;
@@ -103,11 +90,11 @@ void BRDFFastKanCoopVec
 		const int inputs    = dims[layer_idx];
 		const int outputs   = dims[layer_idx + 1];
 
-		LayerBufferOffsets offs = pc.offsets[layer_idx];
+		FastKanLayerBufferOffsets offs = offsets[layer_idx];
 
 		// Load RBF grid
 		CoopVec<T, NUM_GRIDS> grid;
-		grid.load(weights, offs.rbf_grid_offset);
+		grid.load(weights, offs.rbf_grid);
 
 		// RBF basis
 		rbfidx(input0, grid, 0);
@@ -132,7 +119,7 @@ void BRDFFastKanCoopVec
 		CoopVec<T, spline_out_size> spline_out;
 		spline_out = coopVecMatMul<T, spline_out_size, spline_in_size>(
 			spline_in, component_type,
-			weights, offs.spline_weight_offset, component_type,
+			weights, offs.spline_weight, component_type,
 			matrix_layout, false, spline_in_size * sizeof(T));
 
 		// Base
@@ -140,8 +127,8 @@ void BRDFFastKanCoopVec
 		CoopVec<T, outputs> base_out;
 		base_out = coopVecMatMulAdd<T, outputs, inputs>(
 			base_in, component_type,
-			weights, offs.base_weight_offset, component_type,
-			weights, offs.base_bias_offset, component_type,
+			weights, offs.base_weight, component_type,
+			weights, offs.base_bias, component_type,
 			matrix_layout, false, inputs * sizeof(T));
 
 		// Sum
@@ -150,14 +137,14 @@ void BRDFFastKanCoopVec
 
 	// ========== LAYER 2: 5 -> 3 ==========
 	{
-		const int          layer_idx = 2;
-		const int          inputs    = dims[layer_idx];
-		const int          outputs   = dims[layer_idx + 1];
-		LayerBufferOffsets offs      = pc.offsets[layer_idx];
+		const int                 layer_idx = 2;
+		const int                 inputs    = dims[layer_idx];
+		const int                 outputs   = dims[layer_idx + 1];
+		FastKanLayerBufferOffsets offs      = offsets[layer_idx];
 
 		// Load RBF grid
 		CoopVec<T, NUM_GRIDS> grid;
-		grid.load(weights, offs.rbf_grid_offset);
+		grid.load(weights, offs.rbf_grid);
 
 		// RBF basis
 		rbfidx(input0, grid, 0);
@@ -182,7 +169,7 @@ void BRDFFastKanCoopVec
 		CoopVec<T, spline_out_size> spline_out;
 		spline_out = coopVecMatMul<T, spline_out_size, spline_in_size>(
 			spline_in, component_type,
-			weights, offs.spline_weight_offset, component_type,
+			weights, offs.spline_weight, component_type,
 			matrix_layout, false, spline_in_size * sizeof(T));
 
 		// Base
@@ -190,11 +177,11 @@ void BRDFFastKanCoopVec
 		CoopVec<T, outputs> base_out;
 		base_out = coopVecMatMulAdd<T, outputs, inputs>(
 			base_in, component_type,
-			weights, offs.base_weight_offset, component_type,
-			weights, offs.base_bias_offset, component_type,
+			weights, offs.base_weight, component_type,
+			weights, offs.base_bias, component_type,
 			matrix_layout, false, inputs * sizeof(T));
 
-		// base_out = LinearForward<T, 3, 5>(base_in, weights, offs.base_weight_offset, offs.base_bias_offset, matrix_layout, component_type);
+		// base_out = LinearForward<T, 3, 5>(base_in, weights, offs.base_weight, offs.base_bias, matrix_layout, component_type);
 
 		// Sum
 		output2 = spline_out + base_out;

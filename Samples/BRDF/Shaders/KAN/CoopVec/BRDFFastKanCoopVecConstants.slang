@@ -1,0 +1,1 @@
+#include "BRDFFastKanCoopVecConstants.h"

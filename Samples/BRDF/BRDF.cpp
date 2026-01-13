@@ -553,7 +553,9 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	std::printf("offset: %zu\n", offset);
 	std::printf("weights_offsets: %zu\n", weights_offsets[u32(BrdfFunctionType::eWeightsInBufferF16)] + networks[u32(BrdfFunctionType::eWeightsInBufferF16)].GetParametersSize());
 
-	auto dst_layout = LayoutTy::eRowMajor;
+	auto const fastkan_offset = offset;
+
+	auto dst_layout = LayoutTy::eInferencingOptimal;
 	kan_offsets     = write_fast_kan(device, kan, p_staging + offset, dst_layout, ComponentTy::eFloat32, ComponentTy::eFloat16);
 
 	for (auto i = 0u; i < std::size(kan_offsets); ++i) {
@@ -563,35 +565,40 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 		offs.spline_weight() += offset;
 		offs.base_weight() += offset;
 		offs.base_bias() += offset;
-		std::printf("kan_offset[%u]:\n", i);
-		std::printf("rbf_grid: %zu\n", offs.rbf_grid());
-		std::printf("rbf_denom_inv: %zu\n", offs.rbf_denom_inv());
-		std::printf("spline_weight: %zu\n", offs.spline_weight());
-		std::printf("base_weight: %zu\n", offs.base_weight());
-		std::printf("base_bias: %zu\n", offs.base_bias());
+		if (0) {
+			std::printf("kan_offset[%u]:\n", i);
+			std::printf("rbf_grid: %zu\n", offs.rbf_grid());
+			std::printf("rbf_denom_inv: %zu\n", offs.rbf_denom_inv());
+			std::printf("spline_weight: %zu\n", offs.spline_weight());
+			std::printf("base_weight: %zu\n", offs.base_weight());
+			std::printf("base_bias: %zu\n", offs.base_bias());
+		}
 	}
 
-	// std::printf("RBF_denom_inv: %f\n", static_cast<float>(*reinterpret_cast<float16_t* const>(p_staging + kan_offsets[0].rbf_denom_inv())));
-	auto const src_val     = kan.layers()[0].base_bias().span(kan.buffer().data())[0];
-	auto const staging_val = static_cast<float>(*reinterpret_cast<float16_t const*>(p_staging + kan_offsets[0].base_bias()));
+	auto get_staging = [&](std::size_t offset) -> float { return static_cast<float const>(*reinterpret_cast<float16_t const*>(p_staging + offset)); };
 
-	auto get_staging = [&](std::size_t offset) -> float { return static_cast<float>(*reinterpret_cast<float16_t const*>(p_staging + offset)); };
-
-	auto verify_kan = [&](int layer_id, int buffer_id, int first_elem, int count) -> void {
+	auto verify_fastkan = [&](int layer_id, int buffer_id, int first_elem, int count) -> void {
 		std::printf("verify_kan: %-20s\n", (kan.layers()[layer_id]).get_buffer_name(buffer_id).data());
-		for (int i = first_elem; i < count; ++i) {
+		auto max_elems = kan.layers()[layer_id].get_buffer(buffer_id).size();
+		for (int i = first_elem; i < std::min(decltype(max_elems)(count), max_elems); ++i) {
 			auto const staging_val = get_staging((kan_offsets[layer_id]).get_buffer(buffer_id) + i * sizeof(float16_t));
 			auto const src_val     = (kan.layers()[layer_id]).get_buffer(buffer_id).span(kan.buffer().data())[first_elem + i];
-			std::printf("src_val: %f, staging_val: %f\n", src_val, staging_val);
+			auto const always_verify
+				// = true
+				= false;
+			auto const eps = 0.01f;
+			if ((std::abs(src_val - staging_val) > eps) || always_verify) {
+				std::printf("src_val: %f, staging_val: %f\n", src_val, staging_val);
+				// std::printf("Error in layer %d, buffer %d, elem %d\n", layer_id, buffer_id, i);
+				// std::exit(1);
+			}
 		}
 	};
 	for (int i = 0; i < kan.layers().size(); ++i) {
-		for (int j = 0; j < 5; ++j) {
-			verify_kan(i, j, 0, 5);
+		for (int j = 0; j < kan.layers()[i].get_buffers().size(); ++j) {
+			verify_fastkan(i, j, 0, 5);
 		}
 	}
-
-	std::printf("src_val: %f, staging_val: %f\n", src_val, staging_val);
 
 	if (verbose) {
 		// networks[u32(BrdfFunctionType::eScalarBuffer)].Print();
@@ -634,11 +641,11 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 			.size      = networks[u32(BrdfFunctionType::eCoopVec)].GetParametersSize(),
 		},
 		// Kan
-		// {
-		// 	.srcOffset = weights_offsets[u32(BrdfFunctionType::eKan)],
-		// 	.dstOffset = weights_offsets[u32(BrdfFunctionType::eKan)],
-		// 	.size      = networks[u32(BrdfFunctionType::eKan)].GetParametersSize(),
-		// },
+		{
+			.srcOffset = fastkan_offset,
+			.dstOffset = fastkan_offset,
+			.size      = kan.size_bytes() * 3,
+		},
 	};
 
 	cmd.copyBuffer(staging_buffer, device_buffer, std::size(regions), regions);
@@ -783,6 +790,16 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 
 	// PrintMat4(camera.getView());
 	// std::printf("\n");
+
+	// fastkan
+	constants.fast_kan.num_layers = kan_offsets.size();
+	for (int i = 0; i < kan_offsets.size(); ++i) {
+		// FastKanLayerBufferOffsets c 
+		constants.fast_kan.offsets[i].rbf_grid = kan_offsets[i].rbf_grid();
+		constants.fast_kan.offsets[i].spline_weight = kan_offsets[i].spline_weight();
+		constants.fast_kan.offsets[i].base_weight = kan_offsets[i].base_weight();
+		constants.fast_kan.offsets[i].base_bias = kan_offsets[i].base_bias();
+	}
 
 	// Update weight offsets in push constants
 	auto network = networks[u32(function_type)];
