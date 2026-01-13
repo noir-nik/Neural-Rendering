@@ -13,11 +13,15 @@ static const CoopVecMatrixLayout  matrix_layout  = CoopVecMatrixLayout::Inferenc
 	CoopVec<T, NUM_GRIDS> rbf##idx = exp(-(tmp##idx * tmp##idx));
 
 // typedef float T;
-// typedef half T;
+typedef half T;
+
+func AlignUpPowerOfTwo(uint value, uint alignment)->uint {
+	return (value + alignment - uint(1)) & ~(alignment - uint(1));
+}
 
 void BRDFFastKanCoopVec
 	//
-	<T : __BuiltinFloatingPointType>
+	// <T : __BuiltinFloatingPointType>
 	//
 	(in T input[6], out T output[3], StructuredBuffer<T> weights, FastKanLayerBufferOffsets offsets[MAX_KAN_LAYERS]) {
 	static const T RBF_DENOM_INV = T(4.0);
@@ -36,6 +40,10 @@ void BRDFFastKanCoopVec
 		const int outputs   = dims[layer_idx + 1];
 
 		FastKanLayerBufferOffsets offs = offsets[layer_idx];
+
+		// let of = offs.rbf_grid / sizeof(T);
+		// let w  = weights[AlignUpPowerOfTwo(of + 10, 16)];
+		// printf("weights0: %f\n", float(w));
 
 		// Load RBF grid
 		CoopVec<T, NUM_GRIDS> grid;
@@ -92,6 +100,11 @@ void BRDFFastKanCoopVec
 
 		FastKanLayerBufferOffsets offs = offsets[layer_idx];
 
+		// var of = AlignUpPowerOfTwo(offs.base_bias, 16) / sizeof(T);
+		// of = offs.base_bias / sizeof(T);
+		// let w = weights[of];
+		// printf("weights1: %f\n", (w));
+
 		// Load RBF grid
 		CoopVec<T, NUM_GRIDS> grid;
 		grid.load(weights, offs.rbf_grid);
@@ -141,6 +154,13 @@ void BRDFFastKanCoopVec
 		const int                 inputs    = dims[layer_idx];
 		const int                 outputs   = dims[layer_idx + 1];
 		FastKanLayerBufferOffsets offs      = offsets[layer_idx];
+
+		// var of = offs.spline_weight / sizeof(T);
+		// var of = AlignUpPowerOfTwo(offs.base_bias, 16) / sizeof(T);
+		// of = offs.base_weight / sizeof(T);
+		// of = AlignUpPowerOfTwo(of, 16);
+		// let w = weights[of];
+		// printf("weights2: %f\n", (w));
 
 		// Load RBF grid
 		CoopVec<T, NUM_GRIDS> grid;
