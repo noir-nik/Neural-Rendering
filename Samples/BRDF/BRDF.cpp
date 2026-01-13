@@ -430,7 +430,7 @@ auto write_fast_kan(
 
 	for (auto& layer : layers) {
 		std::printf("Writing layer, offset: %zu\n", base_offset);
-		auto buffer_offsets = write_fast_kan_layer(device, layer, kan.buffer(), dst_parameters, dst_layout, src_component_type, dst_matrix_type);
+		auto buffer_offsets = write_fast_kan_layer(device, layer, kan.buffer(), dst_parameters + base_offset, dst_layout, src_component_type, dst_matrix_type);
 		for (u32 i = 0; i < 5; ++i) {
 			buffer_offsets.offsets.get_buffer(i) += base_offset;
 		}
@@ -577,20 +577,19 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 
 	auto get_staging = [&](std::size_t offset) -> float { return static_cast<float>(*reinterpret_cast<float16_t const*>(p_staging + offset)); };
 
-	auto verify_kan = [&](int layer_id, auto proj) -> void {
-		auto const staging_val = get_staging(proj(kan_offsets[layer_id]));
-		auto const src_val =
-			// std::apply(proj, kan.layers()[layer_id])
-			proj(kan.layers()[layer_id])
-				.span(kan.buffer().data())[0];
-		std::printf("verify_kan: %-20s, src_val: %f, staging_val: %f\n", proj(kan.layers()[layer_id]).get_buffer_name().data(), src_val, staging_val);
+	auto verify_kan = [&](int layer_id, int buffer_id, int first_elem, int count) -> void {
+		std::printf("verify_kan: %-20s\n", (kan.layers()[layer_id]).get_buffer_name(buffer_id).data());
+		for (int i = first_elem; i < count; ++i) {
+			auto const staging_val = get_staging((kan_offsets[layer_id]).get_buffer(buffer_id) + i * sizeof(float16_t));
+			auto const src_val     = (kan.layers()[layer_id]).get_buffer(buffer_id).span(kan.buffer().data())[first_elem + i];
+			std::printf("src_val: %f, staging_val: %f\n", src_val, staging_val);
+		}
 	};
-
-	verify_kan(0, [&](auto l) { return l.rbf_grid(); });
-	verify_kan(0, [&](auto l) { return l.rbf_denom_inv(); });
-	verify_kan(0, [&](auto l) { return l.spline_weight(); });
-	verify_kan(0, [&](auto l) { return l.base_weight(); });
-	verify_kan(0, [&](auto l) { return l.base_bias(); });
+	for (int i = 0; i < kan.layers().size(); ++i) {
+		for (int j = 0; j < 5; ++j) {
+			verify_kan(i, j, 0, 5);
+		}
+	}
 
 	std::printf("src_val: %f, staging_val: %f\n", src_val, staging_val);
 

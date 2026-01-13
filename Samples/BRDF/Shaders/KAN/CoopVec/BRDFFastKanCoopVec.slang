@@ -33,7 +33,7 @@ void BRDFFastKanCoopVec
 	<T : __BuiltinFloatingPointType>
 	//
 	(in T input[6], out T output[3], StructuredBuffer<T> weights) {
-	static const T RBF_DENOM_INV = T(3.5);
+	static const T RBF_DENOM_INV = T(4.0);
 
 	CoopVec<T, 6> input0 = CoopVec<T, 6>(input[0], input[1], input[2], input[3], input[4], input[5]);
 	CoopVec<T, 5> output0;
