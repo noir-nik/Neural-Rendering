@@ -364,7 +364,7 @@ auto write_fast_kan_layer(
 	// std::printf("Writing base_bias, offset: %zu\n", offset);
 	buffer_offsets.base_bias() = offset;
 	offset                     = wrt(layer.base_bias());
-	offset = AlignUpPowerOfTwo(offset, CoopVecUtils::GetMatrixAlignment());
+	offset                     = AlignUpPowerOfTwo(offset, CoopVecUtils::GetMatrixAlignment());
 
 	// ret.get_spline_weight() = wrt(layer.get_spline_weight());
 	// ret.get_base_weight()   = wrt(layer.get_base_weight());
@@ -392,7 +392,7 @@ auto write_fast_kan_layer(
 	});
 
 	buffer_offsets.spline_weight() = offset;
-	offset = AlignUpPowerOfTwo(offset + matrix_size, CoopVecUtils::GetMatrixAlignment());
+	offset                         = AlignUpPowerOfTwo(offset + matrix_size, CoopVecUtils::GetMatrixAlignment());
 
 	std::printf("Writing base_weight, offset: %zu\n", offset);
 	matrix_size = write_matrix_kan({
@@ -408,7 +408,7 @@ auto write_fast_kan_layer(
 	});
 
 	buffer_offsets.base_weight() = offset;
-	offset = AlignUpPowerOfTwo(offset + matrix_size, CoopVecUtils::GetMatrixAlignment());
+	offset                       = AlignUpPowerOfTwo(offset + matrix_size, CoopVecUtils::GetMatrixAlignment());
 
 	return result;
 }
@@ -575,9 +575,23 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	auto const src_val     = kan.layers()[0].base_bias().span(kan.buffer().data())[0];
 	auto const staging_val = static_cast<float>(*reinterpret_cast<float16_t const*>(p_staging + kan_offsets[0].base_bias()));
 
-	auto get_staging = [&](auto offset) -> float { return static_cast<float>(*reinterpret_cast<float16_t const*>(p_staging + offset)); };
+	auto get_staging = [&](std::size_t offset) -> float { return static_cast<float>(*reinterpret_cast<float16_t const*>(p_staging + offset)); };
 
-	
+	auto verify_kan = [&](int layer_id, auto proj) -> void {
+		auto const staging_val = get_staging(proj(kan_offsets[layer_id]));
+		auto const src_val =
+			// std::apply(proj, kan.layers()[layer_id])
+			proj(kan.layers()[layer_id])
+				.span(kan.buffer().data())[0];
+		std::printf("verify_kan: %-20s, src_val: %f, staging_val: %f\n", proj(kan.layers()[layer_id]).get_buffer_name().data(), src_val, staging_val);
+	};
+
+	verify_kan(0, [&](auto l) { return l.rbf_grid(); });
+	verify_kan(0, [&](auto l) { return l.rbf_denom_inv(); });
+	verify_kan(0, [&](auto l) { return l.spline_weight(); });
+	verify_kan(0, [&](auto l) { return l.base_weight(); });
+	verify_kan(0, [&](auto l) { return l.base_bias(); });
+
 	std::printf("src_val: %f, staging_val: %f\n", src_val, staging_val);
 
 	if (verbose) {
