@@ -35,7 +35,6 @@ EXPORT struct KANBuffer {
 
 // using KANBuffer = std::span<float const>;
 
-
 EXPORT class KanLayerBaseBase {
 public:
 	// auto get_buffer_name(u32 index) const -> std::string_view;
@@ -55,27 +54,35 @@ public:
 	auto get_buffer(u32 index) -> T& { return buffers_[index]; }
 };
 
+EXPORT class FastKanLayerBaseStr {
+public:
+	auto get_buffer_name(u32 index) const -> std::string_view;
+	auto get_buffer_index(std::string_view name) const -> u32;
+};
+
 EXPORT template <typename T>
-class FastKanLayerBase : public KanLayerBase<T, 5> {
+class FastKanLayerBase : public KanLayerBase<T, 5>, public FastKanLayerBaseStr {
 	using Base = KanLayerBase<T, 5>;
 
 public:
-	auto get_rbf_grid() const -> T const& { return Base::get_buffer(0); }
-	auto get_rbf_denom_inv() const -> T const& { return Base::get_buffer(1); }
-	auto get_spline_weight() const -> T const& { return Base::get_buffer(2); }
-	auto get_base_weight() const -> T const& { return Base::get_buffer(3); }
-	auto get_base_bias() const -> T const& { return Base::get_buffer(4); }
+	auto get_buffer_by_name(std::string_view name) const -> T const& {
+		return Base::get_buffer(get_buffer_index(name));
+	}
+	auto rbf_grid() const -> T const& { return Base::get_buffer(0); }
+	auto rbf_denom_inv() const -> T const& { return Base::get_buffer(1); }
+	auto spline_weight() const -> T const& { return Base::get_buffer(2); }
+	auto base_weight() const -> T const& { return Base::get_buffer(3); }
+	auto base_bias() const -> T const& { return Base::get_buffer(4); }
 
-	auto get_rbf_grid() -> T& { return Base::get_buffer(0); }
-	auto get_rbf_denom_inv() -> T& { return Base::get_buffer(1); }
-	auto get_spline_weight() -> T& { return Base::get_buffer(2); }
-	auto get_base_weight() -> T& { return Base::get_buffer(3); }
-	auto get_base_bias() -> T& { return Base::get_buffer(4); }
+	auto rbf_grid() -> T& { return Base::get_buffer(0); }
+	auto rbf_denom_inv() -> T& { return Base::get_buffer(1); }
+	auto spline_weight() -> T& { return Base::get_buffer(2); }
+	auto base_weight() -> T& { return Base::get_buffer(3); }
+	auto base_bias() -> T& { return Base::get_buffer(4); }
 };
 
 EXPORT class FastKanLayer : public FastKanLayerBase<KANBuffer> {
 public:
-	auto get_buffer_name(u32 index) const -> std::string_view;
 	auto size() const -> std::size_t;
 	auto size_bytes() const -> std::size_t { return size() * sizeof(float); }
 	void repr() const;

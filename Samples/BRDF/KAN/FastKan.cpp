@@ -5,7 +5,7 @@ module FastKan;
 import NeuralGraphics;
 import std;
 
-auto FastKanLayer::get_buffer_name(u32 index) const -> std::string_view {
+auto FastKanLayerBaseStr::get_buffer_name(u32 index) const -> std::string_view {
 	switch (index) {
 	case 0:  return "rbf_grid";
 	case 1:  return "rbf_denom_inv";
@@ -15,8 +15,16 @@ auto FastKanLayer::get_buffer_name(u32 index) const -> std::string_view {
 	default: {
 		assert(false && "Invalid index");
 		return "";
-	};
 	}
+	}
+}
+auto FastKanLayerBaseStr::get_buffer_index(std::string_view name) const -> u32 {
+	if (name == "rbf_grid") return 0;
+	else if (name == "rbf_denom_inv") return 1;
+	else if (name == "spline_weight") return 2;
+	else if (name == "base_weight") return 3;
+	else if (name == "base_bias") return 4;
+	std::exit(1);
 }
 
 auto FastKanLayer::size() const -> std::size_t {

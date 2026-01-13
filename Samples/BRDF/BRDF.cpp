@@ -174,15 +174,15 @@ using ReadKANResult = std::expected<FastKan, std::string>;
 			ldata.set_shape(shape);
 
 			if (name == "rbf_grid") {
-				kan_layer.get_rbf_grid() = ldata;
+				kan_layer.rbf_grid() = ldata;
 			} else if (name == "rbf_denom_inv") {
-				kan_layer.get_rbf_denom_inv() = ldata;
+				kan_layer.rbf_denom_inv() = ldata;
 			} else if (name == "spline_weight") {
-				kan_layer.get_spline_weight() = ldata;
+				kan_layer.spline_weight() = ldata;
 			} else if (name == "base_weight") {
-				kan_layer.get_base_weight() = ldata;
+				kan_layer.base_weight() = ldata;
 			} else if (name == "base_bias") {
-				kan_layer.get_base_bias() = ldata;
+				kan_layer.base_bias() = ldata;
 			}
 		}
 		kan.layers_.push_back(kan_layer);
@@ -208,12 +208,7 @@ struct MatrixInfo {
 	u32         cols;
 };
 
-auto write_matrix_kan(
-	MatrixInfo const& info
-	// Linear const& linear
-	) -> std::size_t {
-	// std::size_t expected_size = linear.GetWeightsSize();
-	// = expected_size;
+auto write_matrix_kan(MatrixInfo const& info) -> std::size_t {
 	std::size_t required_size;
 
 	auto const& [device, src, src_size, dst, dst_layout, src_component_type, dst_matrix_type, rows, cols] = info;
@@ -240,7 +235,7 @@ auto write_matrix_kan(
 	return required_size;
 };
 
-void write_weights(
+void write_matrix_mlp(
 	vk::Device    device,
 	void const*   src,
 	std::size_t   src_size,
@@ -296,7 +291,7 @@ void write_network(
 		std::size_t const src_biases_size_bytes  = layer.GetBiasesCount() * GetVulkanComponentSize(src_component_type);
 
 		auto const* src_weights = src_parameters + src_offset;
-		write_weights(device, src_weights, src_weights_size_bytes, dst_parameters, dst_layout, src_component_type, dst_matrix_type, layer);
+		write_matrix_mlp(device, src_weights, src_weights_size_bytes, dst_parameters, dst_layout, src_component_type, dst_matrix_type, layer);
 		src_offset += src_weights_size_bytes;
 
 		auto const* src_bias = src_parameters + src_offset;
@@ -314,61 +309,62 @@ void write_network(
 // auto constexpr kVectorAlignment = std::size_t{sizeof(float) * 4};
 auto constexpr kVectorAlignment = CoopVecUtils::GetVectorAlignment();
 
-void write_fast_kan_buffer(
-	KANBuffer const& buffer,
-	std::span<float> src_buffer,
-	std::byte*       dst) {
+struct FastKanLayerOffsets {
+	FastKanLayerBase<u64> offsets;
+	std::size_t           total_size = 0;
+};
 
-	auto sspan = buffer.span(src_buffer.data());
-	if (buffer.offset() + buffer.size() < src_buffer.size()) {
-		std::printf("Buffer size too small\n");
-		std::exit(1);
-	}
-	std::memcpy(dst, sspan.data(), sspan.size_bytes());
-}
+// using FastKanLayerOffsets = FastKanLayerBase<u64>;
 
-using FastKanLayerOffsets = FastKanLayerBase<u64>;
+auto write_fast_kan_layer(
+	vk::Device             device,
+	FastKanLayer const&    layer,
+	std::span<float const> src_buffer,
+	std::byte*             dst_parameters,
+	LayoutTy               dst_layout,
+	ComponentTy            src_component_type,
+	ComponentTy            dst_matrix_type)
+	-> FastKanLayerOffsets {
 
-void write_fast_kan_layer(
-	vk::Device          device,
-	FastKanLayer const& layer,
-	std::span<float>    src_buffer,
-	std::byte*          dst_parameters,
-	LayoutTy            dst_layout,
-	ComponentTy         src_component_type,
-	ComponentTy         dst_matrix_type) {
+	FastKanLayerOffsets result;
 
-	auto offset = std::size_t{0}; // in bytes
+	auto& offset = result.total_size;
+	// auto offset = std::size_t{0};
 
-	FastKanLayerOffsets ret;
+	auto& buffer_offsets = result.offsets;
 
-	auto write_fast_kan_buffer = [&](KANBuffer const& buffer, std::byte* dst) {
-		auto sspan = buffer.span(src_buffer.data());
-		if (buffer.offset() + buffer.size() < src_buffer.size()) {
-			std::printf("Buffer size too small\n");
-			std::exit(1);
-		}
-		std::memcpy(dst, sspan.data(), sspan.size_bytes());
-	};
 	auto wrt = [&](KANBuffer const& buffer) {
-		auto sspan = buffer.span(src_buffer.data());
-		std::printf("Writing buffer %td/%zu, offset: %zu, size: %zu\n", std::distance(&layer.get_buffers()[0], &buffer), layer.get_buffers().size(), offset, sspan.size_bytes());
+		auto sspan    = buffer.span(src_buffer.data());
+		auto dstns    = std::distance(&layer.get_buffers()[0], &buffer);
+		auto dst_size = std::size_t{buffer.size() * sizeof(float16_t)};
+		std::printf("Writing buffer %s %td/%zu, offset: %zu, size: %zu, dst_size: %zu\n", layer.get_buffer_name(dstns).data(), dstns, layer.get_buffers().size(), offset, sspan.size_bytes(), dst_size);
 		// write_fast_kan_buffer(buffer, dst_parameters + offset);
 		{
-			if (buffer.offset() + buffer.size() < src_buffer.size()) {
-				std::printf("Buffer size too small\n");
+			if (buffer.offset() + buffer.size() > src_buffer.size()) {
+				std::printf("Buffer size too small 1\n");
+				std::printf("Buffer offset: %zu, buffer size: %zu, src_buffer size: %zu\n", buffer.offset(), buffer.size(), src_buffer.size());
 				std::exit(1);
 			}
-			auto dst = dst_parameters + offset;
-			std::memcpy(dst, sspan.data(), sspan.size_bytes());
+			std::byte* dst = dst_parameters + offset;
+			// std::memcpy(dst, sspan.data(), sspan.size_bytes());
+			// float -> float16
+			for (u32 i = 0; i < buffer.size(); ++i) {
+				*(reinterpret_cast<float16_t*>(dst) + i) = static_cast<float16_t>(sspan[i]);
+			}
 		}
-		offset += AlignUpPowerOfTwo(sspan.size_bytes(), kVectorAlignment);
-		return offset;
+		return AlignUpPowerOfTwo(offset + dst_size, kVectorAlignment);
 	};
 
-	ret.get_rbf_grid()      = wrt(layer.get_rbf_grid());
-	ret.get_rbf_denom_inv() = wrt(layer.get_rbf_denom_inv());
-	ret.get_base_bias()     = wrt(layer.get_base_bias());
+	// std::printf("Writing rbf_grid, offset: %zu\n", offset);
+	buffer_offsets.rbf_grid() = offset;
+	offset                    = wrt(layer.rbf_grid());
+	// std::printf("Writing rbf_denom_inv, offset: %zu\n", offset);
+	buffer_offsets.rbf_denom_inv() = offset;
+	offset                         = wrt(layer.rbf_denom_inv());
+	// std::printf("Writing base_bias, offset: %zu\n", offset);
+	buffer_offsets.base_bias() = offset;
+	offset                     = wrt(layer.base_bias());
+	offset = AlignUpPowerOfTwo(offset, CoopVecUtils::GetMatrixAlignment());
 
 	// ret.get_spline_weight() = wrt(layer.get_spline_weight());
 	// ret.get_base_weight()   = wrt(layer.get_base_weight());
@@ -381,41 +377,69 @@ void write_fast_kan_layer(
 	// auto const base_cols   = base_inputs;
 	// auto const base_rows   = base_ouputs;
 
-	auto const spline_weight = layer.get_spline_weight();
-	auto const spline_shape  = spline_weight.shape();
-
 	std::size_t matrix_size;
-
+	std::printf("Writing spline_weight, offset: %zu\n", offset);
 	matrix_size = write_matrix_kan({
 		.device             = device,
-		.src                = spline_weight.span(src_buffer.data()).data(),
-		.src_size           = spline_weight.size_bytes(),
+		.src                = layer.spline_weight().span(src_buffer.data()).data(),
+		.src_size           = layer.spline_weight().size_bytes(),
 		.dst                = dst_parameters + offset,
 		.dst_layout         = dst_layout,
 		.src_component_type = src_component_type,
 		.dst_matrix_type    = dst_matrix_type,
-		.rows               = layer.get_spline_weight().shape()[0],
-		.cols               = layer.get_spline_weight().shape()[1],
+		.rows               = layer.spline_weight().shape()[0],
+		.cols               = layer.spline_weight().shape()[1],
 	});
-	offset += AlignUpPowerOfTwo(offset + matrix_size, kVectorAlignment);
 
-	// write_weights(device, src_weights, src_weights_size_bytes, dst_parameters, dst_layout, src_component_type, dst_matrix_type, layer);
+	buffer_offsets.spline_weight() = offset;
+	offset = AlignUpPowerOfTwo(offset + matrix_size, CoopVecUtils::GetMatrixAlignment());
+
+	std::printf("Writing base_weight, offset: %zu\n", offset);
+	matrix_size = write_matrix_kan({
+		.device             = device,
+		.src                = layer.base_weight().span(src_buffer.data()).data(),
+		.src_size           = layer.base_weight().size_bytes(),
+		.dst                = dst_parameters + offset,
+		.dst_layout         = dst_layout,
+		.src_component_type = src_component_type,
+		.dst_matrix_type    = dst_matrix_type,
+		.rows               = layer.base_weight().shape()[0],
+		.cols               = layer.base_weight().shape()[1],
+	});
+
+	buffer_offsets.base_weight() = offset;
+	offset = AlignUpPowerOfTwo(offset + matrix_size, CoopVecUtils::GetMatrixAlignment());
+
+	return result;
 }
 
-void write_fast_kan(
+auto write_fast_kan(
 	vk::Device     device,
 	FastKan const& kan,
-	std::byte*     src_parameters,
 	std::byte*     dst_parameters,
 	LayoutTy       dst_layout,
 	ComponentTy    src_component_type,
-	ComponentTy    dst_matrix_type) {
+	ComponentTy    dst_matrix_type)
+	-> FastKanOffsets {
+	auto layers = kan.layers();
 
-	auto src_offset = std::size_t{0};
-	auto layers     = kan.layers();
-	for (u32 i = 0; i < layers.size(); ++i) {
-		auto& layer = layers[i];
+	auto base_offset = std::size_t{0};
+
+	FastKanOffsets result;
+	result.reserve(layers.size());
+
+	for (auto& layer : layers) {
+		std::printf("Writing layer, offset: %zu\n", base_offset);
+		auto buffer_offsets = write_fast_kan_layer(device, layer, kan.buffer(), dst_parameters, dst_layout, src_component_type, dst_matrix_type);
+		for (u32 i = 0; i < 5; ++i) {
+			buffer_offsets.offsets.get_buffer(i) += base_offset;
+		}
+
+		result.push_back(buffer_offsets.offsets);
+		base_offset += buffer_offsets.total_size;
 	}
+
+	return result;
 }
 
 void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
@@ -528,6 +552,33 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 
 	std::printf("offset: %zu\n", offset);
 	std::printf("weights_offsets: %zu\n", weights_offsets[u32(BrdfFunctionType::eWeightsInBufferF16)] + networks[u32(BrdfFunctionType::eWeightsInBufferF16)].GetParametersSize());
+
+	auto dst_layout = LayoutTy::eRowMajor;
+	kan_offsets     = write_fast_kan(device, kan, p_staging + offset, dst_layout, ComponentTy::eFloat32, ComponentTy::eFloat16);
+
+	for (auto i = 0u; i < std::size(kan_offsets); ++i) {
+		auto& offs = kan_offsets[i];
+		offs.rbf_grid() += offset;
+		offs.rbf_denom_inv() += offset;
+		offs.spline_weight() += offset;
+		offs.base_weight() += offset;
+		offs.base_bias() += offset;
+		std::printf("kan_offset[%u]:\n", i);
+		std::printf("rbf_grid: %zu\n", offs.rbf_grid());
+		std::printf("rbf_denom_inv: %zu\n", offs.rbf_denom_inv());
+		std::printf("spline_weight: %zu\n", offs.spline_weight());
+		std::printf("base_weight: %zu\n", offs.base_weight());
+		std::printf("base_bias: %zu\n", offs.base_bias());
+	}
+
+	// std::printf("RBF_denom_inv: %f\n", static_cast<float>(*reinterpret_cast<float16_t* const>(p_staging + kan_offsets[0].rbf_denom_inv())));
+	auto const src_val     = kan.layers()[0].base_bias().span(kan.buffer().data())[0];
+	auto const staging_val = static_cast<float>(*reinterpret_cast<float16_t const*>(p_staging + kan_offsets[0].base_bias()));
+
+	auto get_staging = [&](auto offset) -> float { return static_cast<float>(*reinterpret_cast<float16_t const*>(p_staging + offset)); };
+
+	
+	std::printf("src_val: %f, staging_val: %f\n", src_val, staging_val);
 
 	if (verbose) {
 		// networks[u32(BrdfFunctionType::eScalarBuffer)].Print();

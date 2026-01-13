@@ -19,6 +19,8 @@ import Math;
 import vulkan_hpp;
 import std;
 
+import FastKan;
+
 #ifdef COOPVEC_TYPE
 #undef COOPVEC_TYPE
 #endif
@@ -40,6 +42,8 @@ struct TestOptions {
 	// NetworkType network_type = NetworkType::eScalarInline;
 	int test_count = 1;
 };
+
+using FastKanOffsets = std::vector<FastKanLayerBase<u64>>;
 
 class BRDFSample {
 public:
@@ -108,8 +112,8 @@ public:
 
 	auto ParseArgs(int argc, char const* argv[]) -> char const*;
 
-	bool is_test_mode   = false;
-	bool verbose        = false;
+	bool is_test_mode = false;
+	bool verbose      = false;
 	// bool use_validation = true;
 	bool use_validation = false;
 
@@ -175,6 +179,8 @@ public:
 	// vk::DeviceSize optimal_weights_offset    = 0;
 
 	std::array<vk::DeviceSize, u32(BrdfFunctionType::eCount)> weights_offsets;
+
+	FastKanOffsets kan_offsets;
 
 	Buffer staging_buffer;
 
