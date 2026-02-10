@@ -458,6 +458,8 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	});
 
 	kan.repr();
+	// for (auto const& l : kan.layers())
+	// 	l.repr_buffer(kan.buffer());
 
 	std::printf("Total size: %zu\n", kan.size());
 
@@ -556,6 +558,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	auto const fastkan_offset = offset;
 
 	auto dst_layout = LayoutTy::eInferencingOptimal;
+	// auto dst_layout = LayoutTy::eRowMajor;
 	kan_offsets     = write_fast_kan(device, kan, p_staging + offset, dst_layout, ComponentTy::eFloat32, ComponentTy::eFloat16);
 
 	for (auto i = 0u; i < std::size(kan_offsets); ++i) {

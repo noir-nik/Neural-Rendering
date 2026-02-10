@@ -14,7 +14,7 @@
 
 # Build folders
 bin/
-build/
+build*/
 logs/*
 
 # Binary

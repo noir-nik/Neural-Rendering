@@ -7,6 +7,7 @@ import BRDFFastKanCoopVecConstants;
 
 static const CoopVecComponentType component_type = CoopVecComponentType::Float32;
 static const CoopVecMatrixLayout  matrix_layout  = CoopVecMatrixLayout::InferencingOptimal;
+// static const CoopVecMatrixLayout matrix_layout = CoopVecMatrixLayout::RowMajor;
 
 #define rbfidx(input, grid, idx) \
 	let                   tmp##idx = (CoopVec<T, NUM_GRIDS>(input[idx]) - grid) * RBF_DENOM_INV; \
@@ -17,6 +18,13 @@ typedef half T;
 
 func AlignUpPowerOfTwo(uint value, uint alignment)->uint {
 	return (value + alignment - uint(1)) & ~(alignment - uint(1));
+}
+
+CoopVec<T, N> pow<T : __BuiltinFloatingPointType, let N : int>(CoopVec<T, N> x, CoopVec<T, N> y) {
+	for (int i = 0; i < N; i++) {
+		x[i] = pow(x[i], y[i]);
+	}
+	return x;
 }
 
 void BRDFFastKanCoopVec
@@ -78,7 +86,9 @@ void BRDFFastKanCoopVec
 			matrix_layout, false, spline_in_size * sizeof(T));
 
 		// Base
-		CoopVec<T, inputs>  base_in = tanh(input0);
+		CoopVec<T, inputs> base_in = tanh(input0);
+		// CoopVec<T, inputs>  base_in = pow(CoopVec<T, inputs>(T(1.0)) + exp(CoopVec<T, inputs>(T(10.0)) * input0), CoopVec<T, inputs>(T(0.1))) - CoopVec<T, inputs>(T(1.0));
+		// CoopVec<T, inputs>  base_in = exp(input0) - CoopVec<T, inputs>(T(1.0));
 		CoopVec<T, outputs> base_out;
 		base_out = coopVecMatMulAdd<T, outputs, inputs>(
 			base_in, component_type,
@@ -136,7 +146,9 @@ void BRDFFastKanCoopVec
 			matrix_layout, false, spline_in_size * sizeof(T));
 
 		// Base
-		CoopVec<T, inputs>  base_in = tanh(output0);
+		CoopVec<T, inputs> base_in = tanh(output0);
+		// CoopVec<T, inputs>  base_in = pow(CoopVec<T, inputs>(T(1.0)) + exp(CoopVec<T, inputs>(T(10.0)) * output0), CoopVec<T, inputs>(T(0.1))) - CoopVec<T, inputs>(T(1.0));
+		// CoopVec<T, inputs>  base_in = exp(output0) - CoopVec<T, inputs>(T(1.0));
 		CoopVec<T, outputs> base_out;
 		base_out = coopVecMatMulAdd<T, outputs, inputs>(
 			base_in, component_type,
@@ -193,7 +205,9 @@ void BRDFFastKanCoopVec
 			matrix_layout, false, spline_in_size * sizeof(T));
 
 		// Base
-		CoopVec<T, inputs>  base_in = tanh(output1);
+		CoopVec<T, inputs> base_in = tanh(output1);
+		// CoopVec<T, inputs>  base_in = pow(CoopVec<T, inputs>(T(1.0)) + exp(CoopVec<T, inputs>(T(10.0)) * output1), CoopVec<T, inputs>(T(0.1))) - CoopVec<T, inputs>(T(1.0));
+		// CoopVec<T, inputs>  base_in = exp(output1) - CoopVec<T, inputs>(T(1.0));
 		CoopVec<T, outputs> base_out;
 		base_out = coopVecMatMulAdd<T, outputs, inputs>(
 			base_in, component_type,
