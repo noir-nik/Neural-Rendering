@@ -1058,7 +1058,7 @@ void SDFSample::RecordCommands(vk::Pipeline pipeline) {
 	// cmd.SetViewport({0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height), 0.0f, 1.0f});
 	cmd.SetViewport({0.0f, static_cast<float>(height), static_cast<float>(width), -static_cast<float>(height), 0.0f, 1.0f});
 	cmd.SetScissor(render_rect);
-	cmd.Barrier({
+	cmd.Barrier2({
 		.image         = swapchain_image,
 		.aspectMask    = vk::ImageAspectFlagBits::eColor,
 		.oldLayout     = vk::ImageLayout::eUndefined,
@@ -1129,7 +1129,7 @@ void SDFSample::RecordCommands(vk::Pipeline pipeline) {
 	cmd.draw(vertex_count, 1, 0, 0);
 	cmd.endRendering();
 
-	cmd.Barrier({
+	cmd.Barrier2({
 		.image         = swapchain_image,
 		.aspectMask    = vk::ImageAspectFlagBits::eColor,
 		.oldLayout     = vk::ImageLayout::eColorAttachmentOptimal,
@@ -1183,7 +1183,7 @@ void SDFSample::SaveSwapchainImageToFile(std::string_view filename) {
 	VulkanRHI::CommandBuffer cmd = swapchain.GetCurrentCommandBuffer();
 	CHECK_VULKAN_RESULT(cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit}));
 
-	cmd.Barrier({
+	cmd.Barrier2({
 		.image         = image,
 		.oldLayout     = vk::ImageLayout::ePresentSrcKHR,
 		.newLayout     = new_layout,

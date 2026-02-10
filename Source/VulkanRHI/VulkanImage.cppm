@@ -9,8 +9,8 @@ export namespace VulkanRHI {
 struct ImageInfo {
 	vk::ImageCreateInfo  image_info;
 	vk::ImageAspectFlags aspect;
-	std::uint32_t        mip_levels   = 1;
-	std::uint32_t        array_layers = 1;
+	std::uint32_t        mip_levels = 1;
+	// std::uint32_t        array_layers = 1;
 };
 
 class Image : public vk::Image {
@@ -36,7 +36,10 @@ public:
 	void Destroy();
 
 	// Do not call
-	inline void SetLayout(vk::ImageLayout const layout) { this->info.image_info.initialLayout = layout; }
+	inline auto SetLayout(vk::ImageLayout const layout) -> decltype(*this) {
+		this->info.image_info.initialLayout = layout;
+		return *this;
+	}
 
 	inline bool IsFromSwapchain() const { return from_swapchain; }
 
@@ -59,9 +62,10 @@ public:
 	inline auto GetView() const -> vk::ImageView { return view; }
 	inline auto GetAspect() const -> vk::ImageAspectFlags { return info.aspect; }
 	inline auto GetMipLevels() const -> std::uint32_t { return info.mip_levels; }
-	inline auto GetArrayLayers() const -> std::uint32_t { return info.array_layers; }
+	inline auto GetArrayLayers() const -> std::uint32_t { return info.image_info.arrayLayers; }
 
 	bool IsValid() const { return vk::Image::operator bool(); }
+	bool IsInitialized() const { return GetDevice() != vk::Device{} && vma_allocator != VmaAllocator {}; }
 
 private:
 	vk::Device                     device;

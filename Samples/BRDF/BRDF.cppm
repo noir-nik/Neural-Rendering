@@ -122,6 +122,16 @@ public:
 	std::string_view weights_file_name;
 	std::string_view kan_weights_file_name;
 
+	std::string_view      cubemap_folder_path;
+	static constexpr auto kCubeSideCount = 6;
+
+	// std::array<Image, kCubeSideCount> cubemap_images;
+	Image cubemap_image;
+	vk::Sampler cubemap_sampler{};
+
+	// auto hasattr0(auto proj) -> bool { return !std::invoke(proj, *this).empty(); }
+	auto hasattr(std::string_view BRDFSample::* arg) -> bool { return !(this->*arg).empty(); };
+
 	bool benchmark_single = false;
 
 	std::optional<u32> function_id = std::nullopt;

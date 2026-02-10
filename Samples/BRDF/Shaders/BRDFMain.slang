@@ -24,6 +24,10 @@ import Utils; // rusinkiewicz_transform
 [[vk::binding(0, 0)]] StructuredBuffer<float> gWeights;
 [[vk::binding(0, 0)]] StructuredBuffer<COOPVEC_TYPE> gWeightsCoopVec;
 
+// Cubemap texture
+// [[vk::com]]
+[[vk::binding(1, 0)]] SamplerCube gEnvMap;
+
 [[vk::push_constant]] BRDFConstants ctx;
 
 [SpecializationConstant] const int shader_type = 0;
@@ -189,7 +193,14 @@ func ps_main(VSOutput vs_input)->float4 {
 
 	// color = float3(color.z, color.y, color.x);
 	// color = color * attenuation;
-	return float4(color, 1.0);
+	// return float4(color, 1.0);
+
+	let R = reflect(-view_dir, normalize(normal));
+	let s = gEnvMap.Sample(R);
+	float4 FragColor = float4(s.x, s.y, s.z, 1.0);
+	return FragColor;
+
+	// gEnvMap.Sample
 }
 
 

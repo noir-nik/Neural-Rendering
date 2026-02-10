@@ -6,6 +6,7 @@ module;
 module BRDFSample;
 
 #include "CheckResult.h"
+#include "Shaders/BRDFBindings.h"
 #include "Shaders/BRDFConfig.h"
 
 import NeuralGraphics;
@@ -154,24 +155,24 @@ void BRDFSample::Init() {
 		}
 	// ReadKANWeights({.file_name = kan_weights_file_name, .header = ""});
 
-	CreateAndUploadBuffers({.file_name = weights_file_name.size() > 0 ? weights_file_name : "Assets/simple_brdf_weights.bin", .header = ""});
-
 	depth_image.Create(
 		device, vma_allocator, allocator,
 		{.image_info = {
-			 .flags         = {},
-			 .imageType     = vk::ImageType::e2D,
-			 .format        = vk::Format::eD16Unorm,
-			 .extent        = {static_cast<u32>(width), static_cast<u32>(height), 1},
-			 .mipLevels     = 1,
-			 .arrayLayers   = 1,
-			 .samples       = vk::SampleCountFlagBits::e1,
-			 .tiling        = vk::ImageTiling::eOptimal,
-			 .usage         = vk::ImageUsageFlagBits::eDepthStencilAttachment,
-			 .sharingMode   = vk::SharingMode::eExclusive,
-			 .initialLayout = vk::ImageLayout::eUndefined,
-		 },
-		 .aspect = vk::ImageAspectFlagBits::eDepth});
+				.flags         = {},
+				.imageType     = vk::ImageType::e2D,
+				.format        = vk::Format::eD16Unorm,
+				.extent        = {static_cast<u32>(width), static_cast<u32>(height), 1},
+				.mipLevels     = 1,
+				.arrayLayers   = 1,
+				.samples       = vk::SampleCountFlagBits::e1,
+				.tiling        = vk::ImageTiling::eOptimal,
+				.usage         = vk::ImageUsageFlagBits::eDepthStencilAttachment,
+				.sharingMode   = vk::SharingMode::eExclusive,
+				.initialLayout = vk::ImageLayout::eUndefined,
+			},
+			.aspect = vk::ImageAspectFlagBits::eDepth});
+
+	CreateAndUploadBuffers({.file_name = weights_file_name.size() > 0 ? weights_file_name : "Assets/simple_brdf_weights.bin", .header = ""});
 
 	// After depth, because depth format is need in rendering info
 	CreatePipelines();
@@ -219,6 +220,14 @@ void BRDFSample::Destroy() {
 		device_buffer.Destroy();
 
 		depth_image.Destroy();
+		// for (auto& im : cubemap_images) {
+		// }
+		cubemap_image.Destroy();
+
+		if (cubemap_sampler) {
+			device.destroySampler(cubemap_sampler, GetAllocator());
+			cubemap_sampler = nullptr;
+		}
 		// device_buffer.Destroy();
 		// brdf_weights_buffer.Destroy();
 
@@ -353,7 +362,9 @@ void BRDFSample::CreateDevice() {
 		}};
 
 	vk::StructureChain features{
-		vk::PhysicalDeviceFeatures2{},
+		vk::PhysicalDeviceFeatures2{.features = vk::PhysicalDeviceFeatures{
+			.samplerAnisotropy = physical_device.GetFeatures2().features.samplerAnisotropy,
+		}},
 		vk::PhysicalDeviceVulkan11Features{.storageBuffer16BitAccess = vk::True},
 		vk::PhysicalDeviceVulkan12Features{
 			.shaderFloat16       = vk::True,
@@ -396,19 +407,27 @@ void BRDFSample::CreateVmaAllocator() {
 }
 
 constexpr u32 kStorageBuffersCount = 1;
+constexpr u32 CombinedImageSamplerCount = 1;
 
 void BRDFSample::CreateDescriptorSetLayout() {
-	vk::DescriptorSetLayoutBinding descriptor_set_layout_binding{
-		.binding         = 0,
-		.descriptorType  = vk::DescriptorType::eStorageBuffer,
-		.descriptorCount = kStorageBuffersCount,
-		.stageFlags      = vk::ShaderStageFlagBits::eFragment,
-	};
+	vk::DescriptorSetLayoutBinding descriptor_set_layout_bindings[] = {
+		{
+			.binding         = BINDING_STORAGE_BUFFER,
+			.descriptorType  = vk::DescriptorType::eStorageBuffer,
+			.descriptorCount = kStorageBuffersCount,
+			.stageFlags      = vk::ShaderStageFlagBits::eFragment,
+		},
+		{
+			.binding         = BINDING_TEXTURE,
+			.descriptorType  = vk::DescriptorType::eCombinedImageSampler,
+			.descriptorCount = CombinedImageSamplerCount,
+			.stageFlags      = vk::ShaderStageFlagBits::eFragment,
+		}};
 
 	vk::DescriptorSetLayoutCreateInfo info{
 		.flags        = {},
-		.bindingCount = 1,
-		.pBindings    = &descriptor_set_layout_binding,
+		.bindingCount = static_cast<decltype(info.bindingCount)>(std::size(descriptor_set_layout_bindings)),
+		.pBindings    = descriptor_set_layout_bindings,
 	};
 
 	CHECK_VULKAN_RESULT(device.createDescriptorSetLayout(&info, GetAllocator(), &descriptor_set_layout));
@@ -417,12 +436,13 @@ void BRDFSample::CreateDescriptorSetLayout() {
 void BRDFSample::CreateDescriptorPool() {
 	vk::DescriptorPoolSize descriptor_pool_sizes[] = {
 		{.type = vk::DescriptorType::eStorageBuffer, .descriptorCount = kStorageBuffersCount},
+		{.type = vk::DescriptorType::eCombinedImageSampler, .descriptorCount = CombinedImageSamplerCount},
 	};
 
 	vk::DescriptorPoolCreateInfo info{
 		.flags         = {},
 		.maxSets       = 1,
-		.poolSizeCount = 1,
+		.poolSizeCount = static_cast<decltype(info.poolSizeCount)>(std::size(descriptor_pool_sizes)),
 		.pPoolSizes    = descriptor_pool_sizes,
 	};
 

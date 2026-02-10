@@ -20,7 +20,7 @@ struct BufferBarrier {
 	vk::DeviceSize          size                = vk::WholeSize;
 };
 
-struct ImageBarrier {
+struct ImageBarrier2 {
 	vk::Image               image;
 	vk::ImageAspectFlags    aspectMask          = vk::ImageAspectFlagBits::eColor;
 	vk::ImageLayout         oldLayout           = vk::ImageLayout::eUndefined;
@@ -29,6 +29,19 @@ struct ImageBarrier {
 	vk::AccessFlags2        srcAccessMask       = vk::AccessFlagBits2::eShaderWrite;
 	vk::PipelineStageFlags2 dstStageMask        = vk::PipelineStageFlagBits2::eAllCommands;
 	vk::AccessFlags2        dstAccessMask       = vk::AccessFlagBits2::eShaderRead;
+	u32                     srcQueueFamilyIndex = vk::QueueFamilyIgnored;
+	u32                     dstQueueFamilyIndex = vk::QueueFamilyIgnored;
+};
+
+struct ImageBarrier {
+	vk::Image               image;
+	vk::ImageAspectFlags    aspectMask          = vk::ImageAspectFlagBits::eColor;
+	vk::ImageLayout         oldLayout           = vk::ImageLayout::eUndefined;
+	vk::ImageLayout         newLayout           = vk::ImageLayout::eUndefined;
+	vk::PipelineStageFlags  srcStageMask        = vk::PipelineStageFlagBits::eAllCommands;
+	vk::AccessFlags         srcAccessMask       = vk::AccessFlagBits::eShaderWrite;
+	vk::PipelineStageFlags  dstStageMask        = vk::PipelineStageFlagBits::eAllCommands;
+	vk::AccessFlags         dstAccessMask       = vk::AccessFlagBits::eShaderRead;
 	u32                     srcQueueFamilyIndex = vk::QueueFamilyIgnored;
 	u32                     dstQueueFamilyIndex = vk::QueueFamilyIgnored;
 };
@@ -61,6 +74,7 @@ public:
 	void Barrier(vk::MemoryBarrier2 const& barrier = {});
 	void Barrier(BufferBarrier const& barrier);
 	void Barrier(ImageBarrier const& barrier);
+	void Barrier2(ImageBarrier2 const& barrier);
 	void Barrier(std::span<vk::MemoryBarrier2 const> const barriers);
 
 	void BeginRendering(RenderingInfo const& info);

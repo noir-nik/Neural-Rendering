@@ -51,6 +51,37 @@ void CommandBuffer::Barrier(ImageBarrier const& barrier) {
 		.layerCount     = vk::RemainingArrayLayers,
 	};
 
+	vk::ImageMemoryBarrier const barriers[] = {{
+		// .srcStageMask        = barrier.srcStageMask,
+		.srcAccessMask = barrier.srcAccessMask,
+		// .dstStageMask        = barrier.dstStageMask,
+		.dstAccessMask       = barrier.dstAccessMask,
+		.oldLayout           = barrier.oldLayout,
+		.newLayout           = barrier.newLayout,
+		.srcQueueFamilyIndex = barrier.srcQueueFamilyIndex,
+		.dstQueueFamilyIndex = barrier.dstQueueFamilyIndex,
+		.image               = barrier.image,
+		.subresourceRange    = range,
+	}};
+
+	pipelineBarrier(
+		barrier.srcStageMask,
+		barrier.dstStageMask,
+		{},
+		{}, nullptr,
+		{}, nullptr,
+		std::size(barriers), barriers);
+}
+
+void CommandBuffer::Barrier2(ImageBarrier2 const& barrier) {
+	vk::ImageSubresourceRange range{
+		.aspectMask     = barrier.aspectMask,
+		.baseMipLevel   = 0,
+		.levelCount     = vk::RemainingMipLevels,
+		.baseArrayLayer = 0,
+		.layerCount     = vk::RemainingArrayLayers,
+	};
+
 	vk::ImageMemoryBarrier2 const barrier2{
 		.pNext               = nullptr,
 		.srcStageMask        = barrier.srcStageMask,
@@ -97,7 +128,7 @@ void CommandBuffer::BeginRendering(RenderingInfo const& info) {
 }
 
 void CommandBuffer::SetViewport(Viewport const& viewport) {
-	vk::Viewport vkViewport {
+	vk::Viewport vkViewport{
 		.x        = viewport.x,
 		.y        = viewport.y,
 		.width    = viewport.width,
@@ -109,13 +140,11 @@ void CommandBuffer::SetViewport(Viewport const& viewport) {
 }
 
 void CommandBuffer::SetScissor(vk::Rect2D const& scissor) {
-	vk::Rect2D vkScissor {
-		.offset = { scissor.offset.x, scissor.offset.y },
+	vk::Rect2D vkScissor{
+		.offset = {scissor.offset.x, scissor.offset.y},
 		.extent = {
 			.width  = scissor.extent.width,
-			.height = scissor.extent.height
-		}
-	};
+			.height = scissor.extent.height}};
 	setScissor(0, 1, &vkScissor);
 }
 

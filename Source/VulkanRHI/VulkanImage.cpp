@@ -49,9 +49,17 @@ auto Image::Create(vk::Device device, VmaAllocator vma_allocator, vk::Allocation
 	return Recreate(info.image_info.extent);
 }
 
+// auto Image::Recreate(vk::Extent3D const& extent) -> vk::Result {
+// 	return Recreate(extent);
+// }
+
 auto Image::Recreate(vk::Extent3D const& extent) -> vk::Result {
-	if (!IsValid()) return vk::Result::eErrorInitializationFailed;
-	Destroy();
+	if (!IsInitialized()) {
+		return vk::Result::eErrorInitializationFailed;
+	}
+	if (!IsValid()) {
+		Destroy();
+	}
 	this->info.image_info.extent = extent;
 
 	VmaAllocationCreateInfo const allocInfo = {
@@ -80,7 +88,7 @@ auto Image::Recreate(vk::Extent3D const& extent) -> vk::Result {
 							  .layerCount     = GetArrayLayers()},
 		};
 
-		// Create image view 
+		// Create image view
 		result = device.createImageView(&viewInfo, vk_allocator, &view);
 		if (result != vk::Result::eSuccess) break;
 

@@ -1,0 +1,20 @@
+#ifndef BRDF_BINDINGS_H
+#define BRDF_BINDINGS_H
+
+#ifndef DESCRIPTOR_SET_INDEX
+#define DESCRIPTOR_SET_INDEX 0u
+#endif
+
+#ifndef BINDING_STORAGE_BUFFER
+#define BINDING_STORAGE_BUFFER 0u
+#endif
+
+#ifndef BINDING_TEXTURE
+#define BINDING_TEXTURE 1u
+#endif
+
+#ifndef BINDING_STORAGE_IMAGE
+#define BINDING_STORAGE_IMAGE 2u
+#endif
+
+#endif // BRDF_BINDINGS_H
