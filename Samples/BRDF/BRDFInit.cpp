@@ -142,13 +142,16 @@ void BRDFSample::Init() {
 	CreatePipelineLayout();
 
 	LoadInstanceCooperativeVectorFunctionsNV(instance);
-	if (kan_weights_file_name.size() == 0) {
-		std::printf("Enter the path to the kan weights file");
-		// char  buffer[256];
-		// char* result      = std::fgets(buffer, sizeof(buffer), stdin);
-		// kan_weights_file_name = buffer;
-		std::exit(1);
-	}
+
+	// ENABLE_FAST_KAN
+	if (0)
+		if (kan_weights_file_name.size() == 0) {
+			std::printf("Enter the path to the kan weights file");
+			// char  buffer[256];
+			// char* result      = std::fgets(buffer, sizeof(buffer), stdin);
+			// kan_weights_file_name = buffer;
+			std::exit(1);
+		}
 	// ReadKANWeights({.file_name = kan_weights_file_name, .header = ""});
 
 	CreateAndUploadBuffers({.file_name = weights_file_name.size() > 0 ? weights_file_name : "Assets/simple_brdf_weights.bin", .header = ""});

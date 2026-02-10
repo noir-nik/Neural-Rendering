@@ -34,11 +34,12 @@ struct BRDFConstants {
 	int      pad;
 
 	// ENABLE_MLP
-	// uint32_t weights_offsets[5];
-	// uint32_t bias_offsets[5];
-	// int      pad2[2];
+	uint32_t weights_offsets[5];
+	uint32_t bias_offsets[5];
+	int      pad2[2];
 
-	FastKanConstants fast_kan;
+	// ENABLE_FAST_KAN
+	// FastKanConstants fast_kan;
 };
 
 // constexpr auto s = sizeof(BRDFConstants);

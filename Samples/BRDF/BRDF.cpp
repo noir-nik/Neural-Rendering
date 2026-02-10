@@ -451,7 +451,8 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	std::size_t vertices_size_aligned = AlignUpPowerOfTwo(vertices_size_bytes, kVectorAlignment);
 	std::size_t indices_size_aligned  = AlignUpPowerOfTwo(indices_size_bytes, kVectorAlignment);
 
-	auto const kan = *ReadKANWeights(kan_weights_file_name).or_else([](auto&& error) -> ReadKANResult {
+	// ENABLE_FAST_KAN
+	FastKan const kan; /* = *ReadKANWeights(kan_weights_file_name).or_else([](auto&& error) -> ReadKANResult {
 		std::cerr << error << std::endl;
 		std::exit(1);
 		return {};
@@ -462,6 +463,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	// 	l.repr_buffer(kan.buffer());
 
 	std::printf("Total size: %zu\n", kan.size());
+ */
 
 	std::vector<float>        brdf_weights_vec;
 	std::vector<LayerVariant> layers;
@@ -552,57 +554,60 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	write_network<float, float>(device, networks[u32(BrdfFunctionType::eWeightsInBuffer)], brdf_weights_src.data(), p_staging + weights_offsets[u32(BrdfFunctionType::eWeightsInBuffer)], LayoutTy::eRowMajor, ComponentTy::eFloat32, ComponentTy::eFloat32);
 	write_network<float, numeric::float16_t>(device, networks[u32(BrdfFunctionType::eWeightsInBufferF16)], brdf_weights_src.data(), p_staging + weights_offsets[u32(BrdfFunctionType::eWeightsInBufferF16)], LayoutTy::eRowMajor, ComponentTy::eFloat32, ComponentTy::eFloat16);
 
-	std::printf("offset: %zu\n", offset);
-	std::printf("weights_offsets: %zu\n", weights_offsets[u32(BrdfFunctionType::eWeightsInBufferF16)] + networks[u32(BrdfFunctionType::eWeightsInBufferF16)].GetParametersSize());
+	// std::printf("offset: %zu\n", offset);
+	// std::printf("weights_offsets: %zu\n", weights_offsets[u32(BrdfFunctionType::eWeightsInBufferF16)] + networks[u32(BrdfFunctionType::eWeightsInBufferF16)].GetParametersSize());
 
 	auto const fastkan_offset = offset;
 
 	auto dst_layout = LayoutTy::eInferencingOptimal;
 	// auto dst_layout = LayoutTy::eRowMajor;
-	kan_offsets     = write_fast_kan(device, kan, p_staging + offset, dst_layout, ComponentTy::eFloat32, ComponentTy::eFloat16);
 
-	for (auto i = 0u; i < std::size(kan_offsets); ++i) {
-		auto& offs = kan_offsets[i];
-		offs.rbf_grid() += offset;
-		offs.rbf_denom_inv() += offset;
-		offs.spline_weight() += offset;
-		offs.base_weight() += offset;
-		offs.base_bias() += offset;
-		if (0) {
-			std::printf("kan_offset[%u]:\n", i);
-			std::printf("rbf_grid: %zu\n", offs.rbf_grid());
-			std::printf("rbf_denom_inv: %zu\n", offs.rbf_denom_inv());
-			std::printf("spline_weight: %zu\n", offs.spline_weight());
-			std::printf("base_weight: %zu\n", offs.base_weight());
-			std::printf("base_bias: %zu\n", offs.base_bias());
-		}
-	}
+	if (!kan_weights_file_name.empty()) {
 
-	auto get_staging = [&](std::size_t offset) -> float { return static_cast<float const>(*reinterpret_cast<float16_t const*>(p_staging + offset)); };
+		kan_offsets = write_fast_kan(device, kan, p_staging + offset, dst_layout, ComponentTy::eFloat32, ComponentTy::eFloat16);
 
-	auto verify_fastkan = [&](int layer_id, int buffer_id, int first_elem, int count) -> void {
-		std::printf("verify_kan: %-20s\n", (kan.layers()[layer_id]).get_buffer_name(buffer_id).data());
-		auto max_elems = kan.layers()[layer_id].get_buffer(buffer_id).size();
-		for (int i = first_elem; i < std::min(decltype(max_elems)(count), max_elems); ++i) {
-			auto const staging_val = get_staging((kan_offsets[layer_id]).get_buffer(buffer_id) + i * sizeof(float16_t));
-			auto const src_val     = (kan.layers()[layer_id]).get_buffer(buffer_id).span(kan.buffer().data())[first_elem + i];
-			auto const always_verify
-				// = true
-				= false;
-			auto const eps = 0.01f;
-			if ((std::abs(src_val - staging_val) > eps) || always_verify) {
-				std::printf("src_val: %f, staging_val: %f\n", src_val, staging_val);
-				// std::printf("Error in layer %d, buffer %d, elem %d\n", layer_id, buffer_id, i);
-				// std::exit(1);
+		for (auto i = 0u; i < std::size(kan_offsets); ++i) {
+			auto& offs = kan_offsets[i];
+			offs.rbf_grid() += offset;
+			offs.rbf_denom_inv() += offset;
+			offs.spline_weight() += offset;
+			offs.base_weight() += offset;
+			offs.base_bias() += offset;
+			if (0) {
+				std::printf("kan_offset[%u]:\n", i);
+				std::printf("rbf_grid: %zu\n", offs.rbf_grid());
+				std::printf("rbf_denom_inv: %zu\n", offs.rbf_denom_inv());
+				std::printf("spline_weight: %zu\n", offs.spline_weight());
+				std::printf("base_weight: %zu\n", offs.base_weight());
+				std::printf("base_bias: %zu\n", offs.base_bias());
 			}
 		}
-	};
-	for (int i = 0; i < kan.layers().size(); ++i) {
-		for (int j = 0; j < kan.layers()[i].get_buffers().size(); ++j) {
-			verify_fastkan(i, j, 0, 5);
+
+		auto get_staging_kan = [&](std::size_t offset) -> float { return static_cast<float const>(*reinterpret_cast<float16_t const*>(p_staging + offset)); };
+
+		auto verify_fastkan = [&](int layer_id, int buffer_id, int first_elem, int count) -> void {
+			std::printf("verify_kan: %-20s\n", (kan.layers()[layer_id]).get_buffer_name(buffer_id).data());
+			auto max_elems = kan.layers()[layer_id].get_buffer(buffer_id).size();
+			for (int i = first_elem; i < std::min(decltype(max_elems)(count), max_elems); ++i) {
+				auto const staging_val = get_staging_kan((kan_offsets[layer_id]).get_buffer(buffer_id) + i * sizeof(float16_t));
+				auto const src_val     = (kan.layers()[layer_id]).get_buffer(buffer_id).span(kan.buffer().data())[first_elem + i];
+				auto const always_verify
+					// = true
+					= false;
+				auto const eps = 0.01f;
+				if ((std::abs(src_val - staging_val) > eps) || always_verify) {
+					std::printf("src_val: %f, staging_val: %f\n", src_val, staging_val);
+					// std::printf("Error in layer %d, buffer %d, elem %d\n", layer_id, buffer_id, i);
+					// std::exit(1);
+				}
+			}
+		};
+		for (int i = 0; i < kan.layers().size(); ++i) {
+			for (int j = 0; j < kan.layers()[i].get_buffers().size(); ++j) {
+				verify_fastkan(i, j, 0, 5);
+			}
 		}
 	}
-
 	if (verbose) {
 		// networks[u32(BrdfFunctionType::eScalarBuffer)].Print();
 		// networks[u32(BrdfFunctionType::eCoopVec)].Print();
@@ -651,7 +656,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 		},
 	};
 
-	cmd.copyBuffer(staging_buffer, device_buffer, std::size(regions), regions);
+	cmd.copyBuffer(staging_buffer, device_buffer, std::size(regions) - (kan_weights_file_name.empty() ? 1 : 0), regions);
 
 	CHECK_VULKAN_RESULT(cmd.end());
 	CHECK_VULKAN_RESULT(queue.submit({{.commandBufferCount = 1, .pCommandBuffers = &cmd}}));
@@ -795,15 +800,17 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	// std::printf("\n");
 
 	// fastkan
+	// ENABLE_FAST_KAN
+	/*
 	constants.fast_kan.num_layers = kan_offsets.size();
 	for (int i = 0; i < kan_offsets.size(); ++i) {
-		// FastKanLayerBufferOffsets c 
-		constants.fast_kan.offsets[i].rbf_grid = kan_offsets[i].rbf_grid();
+		// FastKanLayerBufferOffsets c
+		constants.fast_kan.offsets[i].rbf_grid      = kan_offsets[i].rbf_grid();
 		constants.fast_kan.offsets[i].spline_weight = kan_offsets[i].spline_weight();
-		constants.fast_kan.offsets[i].base_weight = kan_offsets[i].base_weight();
-		constants.fast_kan.offsets[i].base_bias = kan_offsets[i].base_bias();
+		constants.fast_kan.offsets[i].base_weight   = kan_offsets[i].base_weight();
+		constants.fast_kan.offsets[i].base_bias     = kan_offsets[i].base_bias();
 	}
-
+ */
 	// Update weight offsets in push constants
 	auto network = networks[u32(function_type)];
 	for (int i = 0; i < network.GetLayers().size(); ++i) {
@@ -811,8 +818,8 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 		auto offset_base = weights_offsets[u32(function_type)];
 
 		// ENABLE_MLP
-		// constants.weights_offsets[i] = offset_base + layer.GetWeightsOffset();
-		// constants.bias_offsets[i]    = offset_base + layer.GetBiasesOffset();
+		constants.weights_offsets[i] = offset_base + layer.GetWeightsOffset();
+		constants.bias_offsets[i]    = offset_base + layer.GetBiasesOffset();
 
 		// std::printf("Layer %d weights_offset %d bias_offset %d\n", i, constants.weights_offsets[i], constants.bias_offsets[i]);
 	}

@@ -9,8 +9,8 @@ import std;
 
 EXPORT struct KANBuffer {
 	// u32 shape;
-	u64 offset_; // in elements
-	u64 size_;   // in elements
+	u64 offset_{}; // in elements
+	u64 size_{};   // in elements
 
 	static constexpr u32 kMaxShapeSize = 4;
 	std::array<u32, 4>   shape_;

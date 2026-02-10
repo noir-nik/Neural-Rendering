@@ -14,8 +14,8 @@ import BRDFFastKanCoopVec;
 // import NBRDF_6_64_64_3_4803_4803;
 
 // import BRDFFASTKAN;
-// import BRDFSINEKAN;
-import BRDFCHEBYKAN;
+import BRDFSINEKAN;
+// import BRDFCHEBYKAN;/
 // import BRDFRELUKAN;
 
 import Utils; // rusinkiewicz_transform
@@ -140,10 +140,10 @@ func ps_main(VSOutput vs_input)->float4 {
 		// BRDFRELUKAN2(inputf, outputf);
 #elif LAYERS == 3
 		// BRDFFASTKAN3(inputf, outputf);
-		// BRDFSINEKAN3(inputf, outputf);
+		BRDFSINEKAN3(inputf, outputf);
 		// BRDFCHEBYKAN3(inputf, outputf);
 		// BRDFRELUKAN3(inputf, outputf);
-		BRDFFastKanCoopVec(input, output, gWeightsCoopVec, ctx.fast_kan.offsets);
+		// BRDFFastKanCoopVec(input, output, gWeightsCoopVec, ctx.fast_kan.offsets);
 #endif
 
 		// BRDFMLP(inputf, outputf);
@@ -164,7 +164,7 @@ func ps_main(VSOutput vs_input)->float4 {
 
 	if (shader_type == BrdfFunctionType::eWeightsInBuffer
 		|| shader_type == BrdfFunctionType::eClassic
-		// || shader_type == BrdfFunctionType::eKan
+		|| shader_type == BrdfFunctionType::eKan
 		//
 	) {
 		color = float3(outputf[0], outputf[1], outputf[2]);
