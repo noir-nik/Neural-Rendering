@@ -47,17 +47,6 @@ using FastKanOffsets = std::vector<FastKanLayerBase<u64>>;
 
 class BRDFSample {
 public:
-	static constexpr u32 kApiVersion = vk::ApiVersion13;
-
-	static constexpr char const* kEnabledLayers[] = {
-		"VK_LAYER_KHRONOS_validation",
-	};
-	static constexpr char const* kEnabledDeviceExtensions[] = {
-		vk::KHRSwapchainExtensionName,
-		vk::NVCooperativeVectorExtensionName,
-		vk::NVCooperativeVectorExtensionName,
-		vk::EXTShaderReplicatedCompositesExtensionName,
-	};
 
 	static constexpr u32 kFramesInFlight = 3;
 
@@ -84,6 +73,8 @@ public:
 	void CreatePipelineLayout();
 
 	void CreatePipelines();
+
+	auto with_coop_vec() -> bool { return function_type == BrdfFunctionType::eCoopVec; }
 
 	struct SpecData {
 		BrdfFunctionType function_type = BrdfFunctionType::eCoopVec;
@@ -128,6 +119,8 @@ public:
 	// std::array<Image, kCubeSideCount> cubemap_images;
 	Image cubemap_image;
 	vk::Sampler cubemap_sampler{};
+
+	Image accumulator_image;
 
 	// auto hasattr0(auto proj) -> bool { return !std::invoke(proj, *this).empty(); }
 	auto hasattr(std::string_view BRDFSample::* arg) -> bool { return !(this->*arg).empty(); };

@@ -36,7 +36,10 @@ struct BRDFConstants {
 	// ENABLE_MLP
 	uint32_t weights_offsets[5];
 	uint32_t bias_offsets[5];
-	int      pad2[2];
+	// int      pad2[2];
+
+	uint32_t frame_count;           // Incremented each frame
+    int  reset_accumulation;    // Set to true when camera moves
 
 	// ENABLE_FAST_KAN
 	// FastKanConstants fast_kan;

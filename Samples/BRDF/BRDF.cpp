@@ -19,8 +19,6 @@ import SamplesCommon;
 import Math;
 import std;
 
-
-
 #ifdef COOPVEC_TYPE
 #undef COOPVEC_TYPE
 #endif
@@ -42,8 +40,6 @@ void PrintMat4(float4x4 const& mat, int precision = 5, int digits = 2) {
 		std::printf("%*.*f, %*.*f, %*.*f, %*.*f\n", d, precision, mat[i][0], d, precision, mat[i][1], d, precision, mat[i][2], d, precision, mat[i][3]);
 	}
 }
-
-
 
 auto BRDFSample::GetQueryResult() -> u64 {
 	vk::Result result =
@@ -104,14 +100,22 @@ auto BRDFSample::DrawWindow(vk::Pipeline pipeline) -> u64 {
 	swapchain.EndFrame();
 	return elapsed;
 }
+static u32    frame_count{};
+static float3 prev_camera_pos = {0.0f, 0.0f, 0.0f};
 
 void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	int x, y, width, height;
 	window.GetRect(x, y, width, height);
 
-	auto depth_extent = depth_image.GetExtent();
-	if (static_cast<u32>(width) > depth_extent.width || static_cast<u32>(height) > depth_extent.height) {
-		depth_image.Recreate({static_cast<u32>(width), static_cast<u32>(height), 1});
+	// auto depth_extent = depth_image.GetExtent();
+	// if (static_cast<u32>(width) > depth_extent.width || static_cast<u32>(height) > depth_extent.height) {
+	// 	depth_image.Recreate({static_cast<u32>(width), static_cast<u32>(height), 1});
+	// }
+
+	for (auto i : {&depth_image, &accumulator_image}) {
+		if (static_cast<u32>(width) > i->GetExtent().width || static_cast<u32>(height) > i->GetExtent().height) {
+			i->Recreate({static_cast<u32>(width), static_cast<u32>(height), 1});
+		}
 	}
 
 	vk::Rect2D               render_rect{{0, 0}, {static_cast<u32>(width), static_cast<u32>(height)}};
@@ -141,7 +145,8 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 			.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
 			.loadOp      = vk::AttachmentLoadOp::eClear,
 			.storeOp     = vk::AttachmentStoreOp::eStore,
-			.clearValue  = {{{{0.5f, 0.5f, 0.5f, 0.0f}}}},
+			// .clearValue  = {{{{0.5f, 0.5f, 0.5f, 0.0f}}}},
+			.clearValue = {{{{0.2f, 0.2f, 0.2f, 0.0f}}}},
 			// .clearValue = {{{{1.f, 1.f, 1.f, 1.0f}}}},
 			// .clearValue  = {{{{0.f, 0.f, 0.f, 1.0f}}}},
 		}}},
@@ -160,11 +165,19 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	camera.getForward() *= -1.0;
 	camera.updateProjectionViewInverse();
 	camera.getForward() *= -1.0;
+
+	int reset_accumulation = std::fabsf(length(prev_camera_pos - camera.getPosition())) > 0.001f;
+	prev_camera_pos        = camera.getPosition();
+	std::printf("prev_camera_pos: %f, %f, %f\n", prev_camera_pos.x, prev_camera_pos.y, prev_camera_pos.z);
+	std::printf("camera pos     : %f, %f, %f\n", camera.getPosition().x, camera.getPosition().y, camera.getPosition().z);
+	std::printf("reset_accumulation: %d\n", reset_accumulation);
+	std::printf("frame_count: %d\n", frame_count);
+
 	BRDFConstants constants{
 		.view_proj = camera.getProjViewInv(),
 		.material  = {
-			 .base_color = float4{0.1, 0.6, 0.8, 1.0} * 0.2,
-			 .metallic   = 0.0f,
+			 .base_color = float4{0.8, 0.8, 0.8, 1.0},
+			 .metallic   = 0.5f,
 			 .roughness  = 0.5f,
         },
 		.light = {
@@ -176,6 +189,9 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 			.ambient_intensity = 0.03,
 		},
 		.camera_pos = camera.getPosition(),
+
+		.frame_count        = frame_count++,
+		.reset_accumulation = reset_accumulation,
 	};
 
 	// PrintMat4(camera.getView());

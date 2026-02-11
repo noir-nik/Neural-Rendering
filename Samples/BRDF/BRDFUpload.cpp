@@ -507,12 +507,14 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	// }
 
 	// Get total size for buffer
-	networks[u32(BrdfFunctionType::eWeightsInBuffer)].Init(layers);
-	networks[u32(BrdfFunctionType::eWeightsInBufferF16)].Init(layers);
-	networks[u32(BrdfFunctionType::eCoopVec)].Init(layers);
-	CHECK_VULKAN_RESULT(networks[u32(BrdfFunctionType::eWeightsInBuffer)].UpdateOffsetsAndSize(device, LayoutTy::eRowMajor, ComponentTy::eFloat32, ComponentTy::eFloat32));
-	CHECK_VULKAN_RESULT(networks[u32(BrdfFunctionType::eWeightsInBufferF16)].UpdateOffsetsAndSize(device, LayoutTy::eRowMajor, ComponentTy::eFloat16, ComponentTy::eFloat16));
-	CHECK_VULKAN_RESULT(networks[u32(BrdfFunctionType::eCoopVec)].UpdateOffsetsAndSize(device, LayoutTy::eInferencingOptimal, ComponentTy::eFloat16, ComponentTy::eFloat16));
+	if (with_coop_vec()) {
+		networks[u32(BrdfFunctionType::eWeightsInBuffer)].Init(layers);
+		networks[u32(BrdfFunctionType::eWeightsInBufferF16)].Init(layers);
+		networks[u32(BrdfFunctionType::eCoopVec)].Init(layers);
+		CHECK_VULKAN_RESULT(networks[u32(BrdfFunctionType::eWeightsInBuffer)].UpdateOffsetsAndSize(device, LayoutTy::eRowMajor, ComponentTy::eFloat32, ComponentTy::eFloat32));
+		CHECK_VULKAN_RESULT(networks[u32(BrdfFunctionType::eWeightsInBufferF16)].UpdateOffsetsAndSize(device, LayoutTy::eRowMajor, ComponentTy::eFloat16, ComponentTy::eFloat16));
+		CHECK_VULKAN_RESULT(networks[u32(BrdfFunctionType::eCoopVec)].UpdateOffsetsAndSize(device, LayoutTy::eInferencingOptimal, ComponentTy::eFloat16, ComponentTy::eFloat16));
+	}
 
 	CubeMetadata cube_data;
 
@@ -544,9 +546,11 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 		std::max(
 			kMinBufferSize,
 			vertices_size_aligned + indices_size_aligned
-				+ networks[u32(BrdfFunctionType::eCoopVec)].GetParametersSize()
-				+ networks[u32(BrdfFunctionType::eWeightsInBuffer)].GetParametersSize()
-				+ networks[u32(BrdfFunctionType::eWeightsInBufferF16)].GetParametersSize()
+				+ (with_coop_vec()
+					   ? networks[u32(BrdfFunctionType::eCoopVec)].GetParametersSize()
+							 + networks[u32(BrdfFunctionType::eWeightsInBuffer)].GetParametersSize()
+							 + networks[u32(BrdfFunctionType::eWeightsInBufferF16)].GetParametersSize()
+					   : 0)
 				+ kan.size_bytes() * 5
 				+ cube_data.size_bytes() * 2);
 
@@ -570,31 +574,36 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	// clang-format on
 
 	vk::SamplerCreateInfo sampler_info{
-		.flags            = {},
-		.magFilter        = vk::Filter::eLinear,
-		.minFilter        = vk::Filter::eLinear,
-		.addressModeU     = vk::SamplerAddressMode::eClampToEdge,
-		.addressModeV     = vk::SamplerAddressMode::eClampToEdge,
-		.addressModeW     = vk::SamplerAddressMode::eClampToEdge,
-		.mipLodBias       = 0.0f,
+		.flags        = {},
+		.magFilter    = vk::Filter::eLinear,
+		.minFilter    = vk::Filter::eLinear,
+		.addressModeU = vk::SamplerAddressMode::eClampToEdge,
+		.addressModeV = vk::SamplerAddressMode::eClampToEdge,
+		.addressModeW = vk::SamplerAddressMode::eClampToEdge,
+		.mipLodBias   = 0.0f,
 		// .anisotropyEnable = vk::True,
-		.maxAnisotropy    = 16.0f,
-		.compareEnable    = vk::False,
-		.compareOp        = vk::CompareOp::eNever,
-		.minLod           = 0.0f,
-		.maxLod           = 1.0f,
-		.borderColor      = vk::BorderColor::eFloatOpaqueWhite,
+		.maxAnisotropy = 16.0f,
+		.compareEnable = vk::False,
+		.compareOp     = vk::CompareOp::eNever,
+		.minLod        = 0.0f,
+		.maxLod        = 1.0f,
+		.borderColor   = vk::BorderColor::eFloatOpaqueWhite,
 	};
 
 	CHECK_VULKAN_RESULT(device.createSampler(&sampler_info, GetAllocator(), &cubemap_sampler));
 
 	// Update descriptor set
 	{
-		vk::DescriptorBufferInfo buffer_infos[] = {{.buffer = device_buffer, .offset = 0, .range = device_buffer.GetSize()}};
-		vk::DescriptorImageInfo  image_infos[]  = {{
-			  .sampler     = cubemap_sampler,
-			  .imageView   = cubemap_image.GetView(),
-			  .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+		vk::DescriptorBufferInfo buffer_infos[]  = {{.buffer = device_buffer, .offset = 0, .range = device_buffer.GetSize()}};
+		vk::DescriptorImageInfo  texture_infos[] = {{
+			 .sampler     = cubemap_sampler,
+			 .imageView   = cubemap_image.GetView(),
+			 .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+        }};
+		vk::DescriptorImageInfo  image_infos[]   = {{
+			   .sampler     = cubemap_sampler,
+			   .imageView   = accumulator_image.GetView(),
+			   .imageLayout = vk::ImageLayout::eGeneral,
         }};
 
 		vk::WriteDescriptorSet writes[] = {
@@ -610,8 +619,16 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 				.dstSet          = descriptor_set,
 				.dstBinding      = BINDING_TEXTURE,
 				.dstArrayElement = 0,
-				.descriptorCount = static_cast<u32>(std::size(image_infos)),
+				.descriptorCount = static_cast<u32>(std::size(texture_infos)),
 				.descriptorType  = vk::DescriptorType::eCombinedImageSampler,
+				.pImageInfo      = texture_infos,
+			},
+			{
+				.dstSet          = descriptor_set,
+				.dstBinding      = BINDING_STORAGE_IMAGE,
+				.dstArrayElement = 0,
+				.descriptorCount = static_cast<u32>(std::size(image_infos)),
+				.descriptorType  = vk::DescriptorType::eStorageImage,
 				.pImageInfo      = image_infos,
 			},
 		};
@@ -640,11 +657,11 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	sphere.WriteIndices(p_indices);
 
 	auto brdf_weights_src = std::span{reinterpret_cast<std::byte*>(brdf_weights_vec.data()), brdf_weights_vec.size() * sizeof(float)};
-
-	write_network<float, numeric::float16_t>(device, networks[u32(BrdfFunctionType::eCoopVec)], brdf_weights_src.data(), p_staging + weights_offsets[u32(BrdfFunctionType::eCoopVec)], LayoutTy::eInferencingOptimal, ComponentTy::eFloat32, ComponentTy::eFloat16);
-	write_network<float, float>(device, networks[u32(BrdfFunctionType::eWeightsInBuffer)], brdf_weights_src.data(), p_staging + weights_offsets[u32(BrdfFunctionType::eWeightsInBuffer)], LayoutTy::eRowMajor, ComponentTy::eFloat32, ComponentTy::eFloat32);
-	write_network<float, numeric::float16_t>(device, networks[u32(BrdfFunctionType::eWeightsInBufferF16)], brdf_weights_src.data(), p_staging + weights_offsets[u32(BrdfFunctionType::eWeightsInBufferF16)], LayoutTy::eRowMajor, ComponentTy::eFloat32, ComponentTy::eFloat16);
-
+	if (with_coop_vec()) {
+		write_network<float, numeric::float16_t>(device, networks[u32(BrdfFunctionType::eCoopVec)], brdf_weights_src.data(), p_staging + weights_offsets[u32(BrdfFunctionType::eCoopVec)], LayoutTy::eInferencingOptimal, ComponentTy::eFloat32, ComponentTy::eFloat16);
+		write_network<float, float>(device, networks[u32(BrdfFunctionType::eWeightsInBuffer)], brdf_weights_src.data(), p_staging + weights_offsets[u32(BrdfFunctionType::eWeightsInBuffer)], LayoutTy::eRowMajor, ComponentTy::eFloat32, ComponentTy::eFloat32);
+		write_network<float, numeric::float16_t>(device, networks[u32(BrdfFunctionType::eWeightsInBufferF16)], brdf_weights_src.data(), p_staging + weights_offsets[u32(BrdfFunctionType::eWeightsInBufferF16)], LayoutTy::eRowMajor, ComponentTy::eFloat32, ComponentTy::eFloat16);
+	}
 	// std::printf("offset: %zu\n", offset);
 	// std::printf("weights_offsets: %zu\n", weights_offsets[u32(BrdfFunctionType::eWeightsInBufferF16)] + networks[u32(BrdfFunctionType::eWeightsInBufferF16)].GetParametersSize());
 
@@ -760,17 +777,18 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 			.dstOffset = indices_offset,
 			.size      = indices_size_bytes,
 		});
-		for (auto const& ii : {
-				 u32(BrdfFunctionType::eWeightsInBuffer),
-				 u32(BrdfFunctionType::eWeightsInBufferF16),
-				 u32(BrdfFunctionType::eCoopVec),
-			 }) {
-			add_region({
-				.srcOffset = weights_offsets[ii],
-				.dstOffset = weights_offsets[ii],
-				.size      = networks[ii].GetParametersSize(),
-			});
+
+		if (with_coop_vec()) {
+			for (auto const& ii : {u32(BrdfFunctionType::eWeightsInBuffer), u32(BrdfFunctionType::eWeightsInBufferF16), u32(BrdfFunctionType::eCoopVec)}) {
+				if (!with_coop_vec() && ii == u32(BrdfFunctionType::eCoopVec)) continue;
+				add_region({
+					.srcOffset = weights_offsets[ii],
+					.dstOffset = weights_offsets[ii],
+					.size      = networks[ii].GetParametersSize(),
+				});
+			}
 		}
+
 		// Kan
 		if (hasattr(&BRDFSample::kan_weights_file_name)) {
 			add_region({
@@ -815,6 +833,17 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 			.dstAccessMask = vk::AccessFlagBits2::eShaderSampledRead,
 		});
 	}
+
+	cmd.Barrier({
+		.image         = accumulator_image,
+		.aspectMask    = vk::ImageAspectFlagBits::eColor,
+		.oldLayout     = vk::ImageLayout::eUndefined,
+		.newLayout     = accumulator_image.SetLayout(vk::ImageLayout::eGeneral).GetLayout(),
+		.srcStageMask  = vk::PipelineStageFlagBits::eNone,
+		.srcAccessMask = vk::AccessFlagBits::eNone,
+		.dstStageMask  = vk::PipelineStageFlagBits::eTransfer,
+		.dstAccessMask = vk::AccessFlagBits::eNone,
+	});
 
 	CHECK_VULKAN_RESULT(cmd.end());
 	CHECK_VULKAN_RESULT(queue.submit({{.commandBufferCount = 1, .pCommandBuffers = &cmd}}));

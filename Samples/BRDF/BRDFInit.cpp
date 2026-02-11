@@ -20,6 +20,26 @@ import WeightsLoader;
 import SamplesCommon;
 import Math;
 import std;
+#include "BRDFVulkanConstants.h"
+
+static constexpr auto kApiVersion = vk::ApiVersion13;
+
+static constexpr char const* kEnabledLayers[] = {
+	"VK_LAYER_KHRONOS_validation",
+};
+static constexpr std::array kEnabledDeviceExtensionsArr = {
+	vk::KHRSwapchainExtensionName,
+	// vk::NVCooperativeVectorExtensionName,
+	// vk::EXTShaderReplicatedCompositesExtensionName,
+};
+static std::span kEnabledDeviceExtensions = {kEnabledDeviceExtensionsArr.data(), kEnabledDeviceExtensionsArr.size()};
+
+static constexpr std::array kEnabledDeviceExtensionsCoopVecArr = {
+	vk::KHRSwapchainExtensionName,
+	vk::NVCooperativeVectorExtensionName,
+	vk::EXTShaderReplicatedCompositesExtensionName,
+};
+static std::span kEnabledDeviceExtensionsCoopVec = {kEnabledDeviceExtensionsCoopVecArr.data(), kEnabledDeviceExtensionsCoopVecArr.size()};
 
 namespace {
 static void FramebufferSizeCallback(GLFWWindow* window, int width, int height) {
@@ -158,19 +178,36 @@ void BRDFSample::Init() {
 	depth_image.Create(
 		device, vma_allocator, allocator,
 		{.image_info = {
-				.flags         = {},
-				.imageType     = vk::ImageType::e2D,
-				.format        = vk::Format::eD16Unorm,
-				.extent        = {static_cast<u32>(width), static_cast<u32>(height), 1},
-				.mipLevels     = 1,
-				.arrayLayers   = 1,
-				.samples       = vk::SampleCountFlagBits::e1,
-				.tiling        = vk::ImageTiling::eOptimal,
-				.usage         = vk::ImageUsageFlagBits::eDepthStencilAttachment,
-				.sharingMode   = vk::SharingMode::eExclusive,
-				.initialLayout = vk::ImageLayout::eUndefined,
-			},
-			.aspect = vk::ImageAspectFlagBits::eDepth});
+			 .flags         = {},
+			 .imageType     = vk::ImageType::e2D,
+			 .format        = vk::Format::eD16Unorm,
+			 .extent        = {static_cast<u32>(width), static_cast<u32>(height), 1},
+			 .mipLevels     = 1,
+			 .arrayLayers   = 1,
+			 .samples       = vk::SampleCountFlagBits::e1,
+			 .tiling        = vk::ImageTiling::eOptimal,
+			 .usage         = vk::ImageUsageFlagBits::eDepthStencilAttachment,
+			 .sharingMode   = vk::SharingMode::eExclusive,
+			 .initialLayout = vk::ImageLayout::eUndefined,
+		 },
+		 .aspect = vk::ImageAspectFlagBits::eDepth});
+
+	accumulator_image.Create(
+		device, vma_allocator, allocator,
+		{.image_info = {
+			 .flags         = {},
+			 .imageType     = vk::ImageType::e2D,
+			 .format        = vk::Format::eR8G8B8A8Unorm,
+			 .extent        = {static_cast<u32>(width), static_cast<u32>(height), 1},
+			 .mipLevels     = 1,
+			 .arrayLayers   = 1,
+			 .samples       = vk::SampleCountFlagBits::e1,
+			 .tiling        = vk::ImageTiling::eOptimal,
+			 .usage         = vk::ImageUsageFlagBits::eStorage,
+			 .sharingMode   = vk::SharingMode::eExclusive,
+			 .initialLayout = vk::ImageLayout::eUndefined,
+		 },
+		 .aspect = vk::ImageAspectFlagBits::eColor});
 
 	CreateAndUploadBuffers({.file_name = weights_file_name.size() > 0 ? weights_file_name : "Assets/simple_brdf_weights.bin", .header = ""});
 
@@ -223,6 +260,7 @@ void BRDFSample::Destroy() {
 		// for (auto& im : cubemap_images) {
 		// }
 		cubemap_image.Destroy();
+		accumulator_image.Destroy();
 
 		if (cubemap_sampler) {
 			device.destroySampler(cubemap_sampler, GetAllocator());
@@ -318,7 +356,9 @@ void BRDFSample::SelectPhysicalDevice() {
 	for (vk::PhysicalDevice const& device : vulkan_physical_devices) {
 		physical_device.Assign(device);
 		CHECK_VULKAN_RESULT(physical_device.GetDetails());
-		if (physical_device.IsSuitable(surface, kEnabledDeviceExtensions)) {
+		// auto const arr = ;
+
+		if (physical_device.IsSuitable(surface, {with_coop_vec() ? kEnabledDeviceExtensionsCoopVec : kEnabledDeviceExtensions})) {
 			if (verbose) {
 				auto const& properties = physical_device.cooperative_vector_properties;
 				std::printf("=== VkPhysicalDeviceCooperativeVectorPropertiesNV ===\n");
@@ -361,27 +401,49 @@ void BRDFSample::CreateDevice() {
 			.pQueuePriorities = queue_priorities,
 		}};
 
-	vk::StructureChain features{
-		vk::PhysicalDeviceFeatures2{.features = vk::PhysicalDeviceFeatures{
-			.samplerAnisotropy = physical_device.GetFeatures2().features.samplerAnisotropy,
-		}},
-		vk::PhysicalDeviceVulkan11Features{.storageBuffer16BitAccess = vk::True},
-		vk::PhysicalDeviceVulkan12Features{
-			.shaderFloat16       = vk::True,
-			.hostQueryReset      = timestamps_supported ? vk::True : vk::False,
-			.bufferDeviceAddress = vk::True,
-		},
-		vk::PhysicalDeviceVulkan13Features{.synchronization2 = vk::True, .dynamicRendering = vk::True},
-		vk::PhysicalDeviceCooperativeVectorFeaturesNV{.cooperativeVector = vk::True, .cooperativeVectorTraining = vk::True},
-		vk::PhysicalDeviceShaderReplicatedCompositesFeaturesEXT{.shaderReplicatedComposites = vk::True},
+	auto physicalDeviceShaderReplicatedCompositesFeaturesEXT = vk::PhysicalDeviceShaderReplicatedCompositesFeaturesEXT{
+		.shaderReplicatedComposites = vk::True,
+	};
+	auto physicalDeviceCooperativeVectorFeaturesNV = vk::PhysicalDeviceCooperativeVectorFeaturesNV{
+		.pNext                     = &physicalDeviceShaderReplicatedCompositesFeaturesEXT,
+		.cooperativeVector         = vk::True,
+		.cooperativeVectorTraining = vk::True,
 	};
 
+	auto physicalDeviceVulkan13Features = vk::PhysicalDeviceVulkan13Features{
+		.pNext            = with_coop_vec() ? &physicalDeviceShaderReplicatedCompositesFeaturesEXT : 0,
+		.synchronization2 = vk::True,
+		.dynamicRendering = vk::True,
+	};
+	auto physicalDeviceVulkan12Features = vk::PhysicalDeviceVulkan12Features{
+		.pNext               = &physicalDeviceVulkan13Features,
+		.shaderFloat16       = vk::True,
+		.hostQueryReset      = timestamps_supported ? vk::True : vk::False,
+		.bufferDeviceAddress = vk::True,
+	};
+	auto physicalDeviceVulkan11Features = vk::PhysicalDeviceVulkan11Features{
+		.pNext                    = &physicalDeviceVulkan12Features,
+		.storageBuffer16BitAccess = vk::True,
+	};
+
+	auto physicalDeviceFeatures2 = vk::PhysicalDeviceFeatures2{
+		.pNext    = &physicalDeviceVulkan11Features,
+		.features = vk::PhysicalDeviceFeatures{
+			.samplerAnisotropy        = physical_device.GetFeatures2().features.samplerAnisotropy,
+			.fragmentStoresAndAtomics = physical_device.GetFeatures2().features.fragmentStoresAndAtomics,
+		},
+	};
+
+	auto& features = physicalDeviceFeatures2;
+
+	auto ars = with_coop_vec() ? kEnabledDeviceExtensionsCoopVec : kEnabledDeviceExtensions;
 	vk::DeviceCreateInfo info{
-		.pNext                   = &features.get<vk::PhysicalDeviceFeatures2>(),
+		// .pNext                   = &features.get<vk::PhysicalDeviceFeatures2>(),
+		.pNext                   = &features,
 		.queueCreateInfoCount    = static_cast<u32>(std::size(queue_create_infos)),
 		.pQueueCreateInfos       = queue_create_infos,
-		.enabledExtensionCount   = static_cast<u32>(std::size(kEnabledDeviceExtensions)),
-		.ppEnabledExtensionNames = kEnabledDeviceExtensions,
+		.enabledExtensionCount   = static_cast<u32>(std::size(ars)),
+		.ppEnabledExtensionNames = std::data(ars),
 	};
 
 	CHECK_VULKAN_RESULT(physical_device.createDevice(&info, GetAllocator(), &device));
@@ -406,8 +468,9 @@ void BRDFSample::CreateVmaAllocator() {
 	CHECK_VULKAN_RESULT(vk::Result(vmaCreateAllocator(&info, &vma_allocator)));
 }
 
-constexpr u32 kStorageBuffersCount = 1;
+constexpr u32 kStorageBuffersCount      = 1;
 constexpr u32 CombinedImageSamplerCount = 1;
+constexpr u32 StorageImageCount         = 1;
 
 void BRDFSample::CreateDescriptorSetLayout() {
 	vk::DescriptorSetLayoutBinding descriptor_set_layout_bindings[] = {
@@ -421,6 +484,13 @@ void BRDFSample::CreateDescriptorSetLayout() {
 			.binding         = BINDING_TEXTURE,
 			.descriptorType  = vk::DescriptorType::eCombinedImageSampler,
 			.descriptorCount = CombinedImageSamplerCount,
+			.stageFlags      = vk::ShaderStageFlagBits::eFragment,
+		},
+
+		{
+			.binding         = BINDING_STORAGE_IMAGE,
+			.descriptorType  = vk::DescriptorType::eStorageImage,
+			.descriptorCount = StorageImageCount,
 			.stageFlags      = vk::ShaderStageFlagBits::eFragment,
 		}};
 
@@ -437,6 +507,7 @@ void BRDFSample::CreateDescriptorPool() {
 	vk::DescriptorPoolSize descriptor_pool_sizes[] = {
 		{.type = vk::DescriptorType::eStorageBuffer, .descriptorCount = kStorageBuffersCount},
 		{.type = vk::DescriptorType::eCombinedImageSampler, .descriptorCount = CombinedImageSamplerCount},
+		{.type = vk::DescriptorType::eStorageImage, .descriptorCount = StorageImageCount},
 	};
 
 	vk::DescriptorPoolCreateInfo info{

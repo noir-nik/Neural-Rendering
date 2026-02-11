@@ -10,26 +10,11 @@ export struct PhysicalDevice : public VulkanRHI::PhysicalDevice {
 		Utils::AddToPNext(GetFeatures2(), shader_replicated_composites_features);
 		Utils::AddToPNext(GetProperties2(), cooperative_vector_properties);
 	}
-	bool IsSuitable(vk::SurfaceKHR const& surface, std::span<char const* const> extensions) {
-		bool const bSupportsExtensions =
-			SupportsExtensions(extensions);
-		bool const bSupportsQueues =
-			SupportsQueue({.flags = vk::QueueFlagBits::eGraphics, .surface = surface});
-		bool const bSupportsCooperativeVector =
-			cooperative_vector_features.cooperativeVector == vk::True;
-		bool const bSupportsShaderReplicated =
-			shader_replicated_composites_features.shaderReplicatedComposites == vk::True;
-		if (bSupportsExtensions && bSupportsQueues &&
-			bSupportsCooperativeVector && bSupportsShaderReplicated) {
-			return true;
-		}
-		return false;
-	}
+	bool IsSuitable(vk::SurfaceKHR const& surface, std::span<char const* const> extensions);
 
 	inline float GetNsPerTick() const { return static_cast<float>(GetProperties10().limits.timestampPeriod); }
 
 	vk::PhysicalDeviceCooperativeVectorFeaturesNV           cooperative_vector_features{};
 	vk::PhysicalDeviceShaderReplicatedCompositesFeaturesEXT shader_replicated_composites_features{};
 	vk::PhysicalDeviceCooperativeVectorPropertiesNV         cooperative_vector_properties{};
-
 };
