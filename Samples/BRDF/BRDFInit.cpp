@@ -197,7 +197,7 @@ void BRDFSample::Init() {
 		{.image_info = {
 			 .flags         = {},
 			 .imageType     = vk::ImageType::e2D,
-			 .format        = vk::Format::eR8G8B8A8Unorm,
+			 .format        = vk::Format::eR32G32B32A32Sfloat,
 			 .extent        = {static_cast<u32>(width), static_cast<u32>(height), 1},
 			 .mipLevels     = 1,
 			 .arrayLayers   = 1,

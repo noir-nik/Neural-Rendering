@@ -98,3 +98,65 @@ static inline void RusinkiewiczTransform(float3 wi, float3 wo, float3 *half, flo
 func relu<T : __BuiltinFloatingPointType>(T x)->T {
 	return max(x, T(0.));
 }
+
+// Hash function for pseudo-random number generation
+uint hash(uint x) {
+	x += (x << 10u);
+	x ^= (x >> 6u);
+	x += (x << 3u);
+	x ^= (x >> 11u);
+	x += (x << 15u);
+	return x;
+}
+
+// Generate pseudo-random float in [0, 1)
+float random(uint seed) {
+	return float(hash(seed)) / 4294967296.0;
+}
+
+// Generate 2D random numbers
+float2 random2D(uint2 pixel, uint frame) {
+	uint seed = pixel.x + pixel.y * 8192u + frame * 65536u;
+	float r1 = random(seed);
+	float r2 = random(hash(seed));
+	return float2(r1, r2);
+}
+
+// Transform hemisphere sample to world space
+float3 TangentToWorld(float3 sample_dir, float3 normal, float3 tangent, float3 bitangent) {
+	return sample_dir.x * tangent + sample_dir.y * bitangent + sample_dir.z * normal;
+}
+
+float3 SampleBlinnPhong(float2 random_val, float shininess, float3 view_tbn, out float pdf) {
+	float cos_theta = pow(random_val.x, 1.0 / (shininess + 1.0));
+	float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+	float phi = 2.0 * 3.14159265359 * random_val.y;
+
+	float3 half_vec = float3(
+		sin_theta * cos(phi),
+		sin_theta * sin(phi),
+		cos_theta);
+
+	float3 light_tbn = 2.0 * dot(half_vec, view_tbn) * half_vec - view_tbn;
+
+	pdf = (shininess + 1.0) / (2.0 * 3.14159265359) * pow(cos_theta, shininess);
+
+	float HdotL = max(dot(half_vec, light_tbn), 0.0001);
+	pdf = pdf / (4.0 * HdotL);
+
+	return light_tbn;
+}
+
+// Cosine-weighted hemisphere sampling (for diffuse/rough surfaces)
+float3 SampleCosineHemisphere(float2 random_val, out float pdf) {
+	float phi = 2.0 * 3.14159265359 * random_val.x;
+	float cos_theta = sqrt(random_val.y);
+	float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+
+	pdf = cos_theta / 3.14159265359;
+
+	return float3(
+		cos(phi) * sin_theta,
+		sin(phi) * sin_theta,
+		cos_theta);
+}

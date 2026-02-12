@@ -166,12 +166,14 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	camera.updateProjectionViewInverse();
 	camera.getForward() *= -1.0;
 
-	int reset_accumulation = std::fabsf(length(prev_camera_pos - camera.getPosition())) > 0.001f;
-	prev_camera_pos        = camera.getPosition();
-	std::printf("prev_camera_pos: %f, %f, %f\n", prev_camera_pos.x, prev_camera_pos.y, prev_camera_pos.z);
-	std::printf("camera pos     : %f, %f, %f\n", camera.getPosition().x, camera.getPosition().y, camera.getPosition().z);
-	std::printf("reset_accumulation: %d\n", reset_accumulation);
-	std::printf("frame_count: %d\n", frame_count);
+	int reset_accumulation = (length(prev_camera_pos - camera.getPosition())) > 0.001f;
+	// reset_accumulation     = 1;
+
+	prev_camera_pos = camera.getPosition();
+	// std::printf("prev_camera_pos: %f, %f, %f\n", prev_camera_pos.x, prev_camera_pos.y, prev_camera_pos.z);
+	// std::printf("camera pos     : %f, %f, %f\n", camera.getPosition().x, camera.getPosition().y, camera.getPosition().z);
+	// std::printf("reset_accumulation: %d\n", reset_accumulation);
+	// std::printf("frame_count: %d\n", frame_count);
 
 	BRDFConstants constants{
 		.view_proj = camera.getProjViewInv(),

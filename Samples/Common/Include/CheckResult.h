@@ -9,6 +9,7 @@
 		::vk::Result local_result_##line = ::vk::Result(func); \
 		if (local_result_##line != ::vk::Result::eSuccess) [[unlikely]] { \
 			_ERR_STD printf("Vulkan error: %s " #func " in " __FILE__ ":" #line, ::vk::to_string(local_result_##line).c_str()); \
+			_ERR_STD getchar(); \
 			_ERR_STD exit(1); \
 		} \
 	}
