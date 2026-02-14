@@ -334,15 +334,26 @@ void BRDFSample::SaveSwapchainImageToFile(std::string_view filename) {
 	// pending_image_save = false;
 }
 
+void fix_framerate() {
+	auto fps =  60.0f;
+	static auto last_time = std::chrono::steady_clock::now();
+	auto const   now      = std::chrono::steady_clock::now();
+	auto const   elapsed  = now - last_time;
+	last_time             = now;
+	std::this_thread::sleep_for(std::chrono::duration<float, std::milli>(1000.0f / fps) - elapsed);
+}
+
 void BRDFSample::Run() {
 	do {
-		WindowManager::WaitEvents();
+		// WindowManager::WaitEvents();
+		WindowManager::PollEvents();
 		if (window.GetShouldClose()) break;
 		int x, y, width, height;
 		window.GetRect(x, y, width, height);
 		if (width <= 0 || height <= 0) continue;
 		u64       elapsed_ns = DrawWindow();
 		verbose&& std::printf("%f ms\n", elapsed_ns / 1000000.0);
+		fix_framerate();
 	} while (true);
 }
 
