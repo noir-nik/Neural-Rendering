@@ -159,6 +159,7 @@ float3 Reflect(float3 incident, float3 normal) {
 float3 SampleBlinnPhong(float2 random_val, float shininess, float3 view_tbn, out float pdf) {
 
 	float cos_theta = pow(random_val.x, 1.0 / (shininess + 1.0));
+	// float cos_theta = pow(random_val.x, 1.0 / (shininess + 1.0)) / 100.;
 	float sin_theta = sqrt(max(0.0, 1.0 - cos_theta * cos_theta));
 	float phi       = 2.0 * 3.14159265359 * random_val.y;
 
@@ -174,8 +175,9 @@ float3 SampleBlinnPhong(float2 random_val, float shininess, float3 view_tbn, out
 	pdf = (shininess + 1.0) / (2.0 * 3.14159265359) * pow(cos_theta, shininess);
 
 	float HdotL = max(dot(half_vec, light_tbn), 0.0001);
-	pdf         = pdf / (4.0 * HdotL);
-	return light_tbn;
+	pdf = pdf / (4.0 * HdotL);
+	// return light_tbn;
+	return half_vec;
 }
 
 float3 SampleCosineHemisphere(float2 random_val, out float pdf) {

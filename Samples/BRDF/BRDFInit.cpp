@@ -22,6 +22,8 @@ import Math;
 import std;
 #include "BRDFVulkanConstants.h"
 
+
+
 static constexpr auto kApiVersion = vk::ApiVersion13;
 
 static constexpr char const* kEnabledLayers[] = {
@@ -123,11 +125,19 @@ static void MouseButtonCallback(GLFWWindow* in_window, int in_button, int in_act
 }
 } // namespace
 void BRDFSample::Init() {
+	LOG_DEBUG("BRDFSample::Init()");
 	WindowManager::SetErrorCallback(WindowErrorCallback);
 	WindowManager::Init();
 	u32 const initial_width = 1600, initial_height = 1200;
 
-	window.Init({.x = 30, .y = 30, .width = initial_width, .height = initial_height, .title = "BRDF Sample"});
+	window.Init({
+		.x          = 30,
+		.y          = 30,
+		.width      = initial_width,
+		.height     = initial_height,
+		.title      = "BRDF Sample",
+		.bDecorated = false,
+	});
 	window.GetWindowCallbacks().framebufferSizeCallback = FramebufferSizeCallback;
 	if (!is_test_mode) {
 		window.GetWindowCallbacks().windowRefreshCallback = WindowRefreshCallback;
@@ -178,9 +188,11 @@ void BRDFSample::Init() {
 	depth_image.Create(
 		device, vma_allocator, allocator,
 		{.image_info = {
-			 .flags         = {},
-			 .imageType     = vk::ImageType::e2D,
-			 .format        = vk::Format::eD16Unorm,
+			 .flags     = {},
+			 .imageType = vk::ImageType::e2D,
+			 .format    = vk::Format::eD16Unorm,
+			 //  .format        = vk::Format::eD32Sfloat,
+			 //  .format        = vk::Format::eD24UnormS8Uint,
 			 .extent        = {static_cast<u32>(width), static_cast<u32>(height), 1},
 			 .mipLevels     = 1,
 			 .arrayLayers   = 1,
@@ -241,9 +253,13 @@ void BRDFSample::Init() {
 	}
 }
 
-BRDFSample::~BRDFSample() { Destroy(); }
+BRDFSample::~BRDFSample() {
+	LOG_DEBUG("BRDFSample::BRDFSample()");
+	Destroy();
+}
 
 void BRDFSample::Destroy() {
+	LOG_DEBUG("BRDFSample::Destroy()");
 
 	if (device) {
 		CHECK_VULKAN_RESULT(device.waitIdle());
@@ -308,6 +324,7 @@ void BRDFSample::Destroy() {
 }
 
 void BRDFSample::CreateInstance() {
+	LOG_DEBUG("BRDFSample::CreateInstance()");
 	vk::ApplicationInfo applicationInfo{.apiVersion = kApiVersion};
 
 	u32 glfw_extensions_count;
@@ -353,6 +370,7 @@ void BRDFSample::CreateInstance() {
 }
 
 void BRDFSample::SelectPhysicalDevice() {
+	LOG_DEBUG("BRDFSample::SelectPhysicalDevice()");
 	for (vk::PhysicalDevice const& device : vulkan_physical_devices) {
 		physical_device.Assign(device);
 		CHECK_VULKAN_RESULT(physical_device.GetDetails());
@@ -378,9 +396,11 @@ void BRDFSample::SelectPhysicalDevice() {
 }
 
 void BRDFSample::GetPhysicalDeviceInfo() {
+	LOG_DEBUG("BRDFSample::GetPhysicalDeviceInfo()");
 }
 
 void BRDFSample::CreateDevice() {
+	LOG_DEBUG("BRDFSample::CreateDevice()");
 	float const queue_priorities[] = {1.0f};
 
 	auto [result, index] = physical_device.GetQueueFamilyIndex({.flags = vk::QueueFlagBits::eGraphics, .surface = surface});
@@ -436,7 +456,7 @@ void BRDFSample::CreateDevice() {
 
 	auto& features = physicalDeviceFeatures2;
 
-	auto ars = with_coop_vec() ? kEnabledDeviceExtensionsCoopVec : kEnabledDeviceExtensions;
+	auto                 ars = with_coop_vec() ? kEnabledDeviceExtensionsCoopVec : kEnabledDeviceExtensions;
 	vk::DeviceCreateInfo info{
 		// .pNext                   = &features.get<vk::PhysicalDeviceFeatures2>(),
 		.pNext                   = &features,
@@ -451,6 +471,7 @@ void BRDFSample::CreateDevice() {
 }
 
 void BRDFSample::CreateVmaAllocator() {
+	LOG_DEBUG("BRDFSample::CreateVmaAllocator()");
 	VmaVulkanFunctions vulkan_functions = {
 		.vkGetInstanceProcAddr = &vkGetInstanceProcAddr,
 		.vkGetDeviceProcAddr   = &vkGetDeviceProcAddr,
@@ -473,6 +494,7 @@ constexpr u32 CombinedImageSamplerCount = 1;
 constexpr u32 StorageImageCount         = 1;
 
 void BRDFSample::CreateDescriptorSetLayout() {
+	LOG_DEBUG("BRDFSample::CreateDescriptorSetLayout()");
 	vk::DescriptorSetLayoutBinding descriptor_set_layout_bindings[] = {
 		{
 			.binding         = BINDING_STORAGE_BUFFER,
@@ -504,6 +526,7 @@ void BRDFSample::CreateDescriptorSetLayout() {
 }
 
 void BRDFSample::CreateDescriptorPool() {
+	LOG_DEBUG("BRDFSample::CreateDescriptorPool()");
 	vk::DescriptorPoolSize descriptor_pool_sizes[] = {
 		{.type = vk::DescriptorType::eStorageBuffer, .descriptorCount = kStorageBuffersCount},
 		{.type = vk::DescriptorType::eCombinedImageSampler, .descriptorCount = CombinedImageSamplerCount},
@@ -521,6 +544,7 @@ void BRDFSample::CreateDescriptorPool() {
 }
 
 void BRDFSample::CreateDescriptorSet() {
+	LOG_DEBUG("BRDFSample::CreateDescriptorSet()");
 	vk::DescriptorSetAllocateInfo info{
 		.descriptorPool     = descriptor_pool,
 		.descriptorSetCount = 1,
@@ -531,6 +555,7 @@ void BRDFSample::CreateDescriptorSet() {
 }
 
 void BRDFSample::CreateSwapchain() {
+	LOG_DEBUG("BRDFSample::CreateSwapchain()");
 	int x, y, width, height;
 	window.GetRect(x, y, width, height);
 	VulkanRHI::SwapchainInfo info{
@@ -543,6 +568,7 @@ void BRDFSample::CreateSwapchain() {
 }
 
 void BRDFSample::CreatePipelineLayout() {
+	LOG_DEBUG("BRDFSample::CreatePipelineLayout()");
 	vk::PushConstantRange push_constant_range{
 		.stageFlags = vk::ShaderStageFlagBits::eVertex
 					  | vk::ShaderStageFlagBits::eFragment,
@@ -561,6 +587,7 @@ void BRDFSample::CreatePipelineLayout() {
 }
 
 void BRDFSample::CreatePipelines() {
+	LOG_DEBUG("BRDFSample::CreatePipelines()");
 	using CodeType = std::optional<std::vector<std::byte>>;
 
 #define LF(fn) [&](auto&&... args) { return fn; }
@@ -620,6 +647,7 @@ void BRDFSample::CreatePipelines() {
 }
 
 auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, SpecData const& info) -> vk::Pipeline {
+	LOG_DEBUG("BRDFSample::CreatePipeline()");
 
 	// Specialization constant for type of inferencing function
 	// BrdfFunctionType specialization_value = info.function_type;

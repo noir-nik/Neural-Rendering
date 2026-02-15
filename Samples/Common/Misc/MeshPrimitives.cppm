@@ -8,6 +8,12 @@ struct CubeVertex {
 	float pos[4];
 	// int pad;
 };
+struct Vertex {
+	float pos[3];
+	float u;
+	float normal[3];
+	float v;
+};
 
 template <typename VertexType, typename IndexType>
 struct Mesh {
@@ -19,12 +25,6 @@ class UVSphere {
 public:
 	static constexpr float pi = 3.14159265358979323846f;
 
-	struct Vertex {
-		float pos[3];
-		float u;
-		float normal[3];
-		float v;
-	};
 
 	using IndexType = u32;
 

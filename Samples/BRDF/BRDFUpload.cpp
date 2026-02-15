@@ -14,10 +14,11 @@ import FastKan;
 
 import nlohmann.json;
 using json = nlohmann::json;
+using namespace mesh;
 
 using numeric::float16_t;
 
-void DumpVertexData(std::span<const UVSphere::Vertex> vertices, std::span<const UVSphere::IndexType> indices) {
+void DumpVertexData(std::span<const Vertex> vertices, std::span<const UVSphere::IndexType> indices) {
 	std::printf("Vertices:\n");
 	for (u32 i = 0; i < vertices.size(); ++i) {
 		const auto& vertex = vertices[i];
@@ -425,6 +426,10 @@ struct CubeMetadata {
 	auto size_bytes() const -> std::size_t { return image_size_bytes() * kNumFaces; }
 	auto images() const -> std::span<const unsigned char* const> { return cubemap; }
 };
+template <typename T>
+using CSpan = std::span<T const>;
+template <typename T>
+using Span = std::span<T>;
 
 auto LoadCubemap(std::string_view env_map_folder_path) -> CubeMetadata {
 	// Load all the textures.
@@ -475,13 +480,37 @@ auto LoadCubemap(std::string_view env_map_folder_path) -> CubeMetadata {
 }
 
 void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
-	sphere = UVSphere(1.0f, 32 * 2, 16 * 2);
+	LOG_DEBUG("BRDFSample::CreateAndUploadBuffers()");
 
-	std::size_t vertices_size_bytes = sphere.GetVertexCount() * sizeof(UVSphere::Vertex);
-	std::size_t indices_size_bytes  = sphere.GetIndexCount() * sizeof(UVSphere::IndexType);
-	// std::size_t alignment             = kVectorAlignment;
-	std::size_t vertices_size_aligned = AlignUpPowerOfTwo(vertices_size_bytes, kVectorAlignment);
-	std::size_t indices_size_aligned  = AlignUpPowerOfTwo(indices_size_bytes, kVectorAlignment);
+	bool is_obj = hasattr(&BRDFSample::obj_path);
+	// if (!stat(obj_path.data(), &network_info.file_stat)) is_sphere = true;
+
+	std::vector<Vertex>              vertices;
+	std::vector<UVSphere::IndexType> indices;
+	if (is_obj) {
+
+		auto const& [vv, ii]        = LoadObj(obj_path);
+		std::tie(vertices, indices) = std::pair{std::move(vv), std::move(ii)};
+
+		// this->num_vertices          = vertices.size();
+		// this->num_indices           = indices.size();
+		std::tie(this->num_vertices, this->num_indices) = std::pair{vertices.size(), indices.size()};
+		// std::tie(this->num_vertices, this->num_indices) = std::views::transform(std::tuple{vertices, indices}, [](auto const& i) { return i.size(); });
+
+		// vertices                    = std::move(vv);
+		// indices                     = std::move(ii);
+		// std::tie(vertices, indices) = [this] {
+		// 	auto const& [vv, ii] = LoadObj(obj_path);
+		// 	return std::tuple{std::move(vv), std::move(ii)};
+		// }();
+	} else {
+		sphere             = UVSphere(1.0f, 32 * 2, 16 * 2);
+		this->num_vertices = sphere.GetVertexCount();
+		this->num_indices  = sphere.GetIndexCount();
+	}
+
+	std::size_t vertices_size_bytes = AlignUpPowerOfTwo(std::size_t{this->num_vertices * sizeof(Vertex)}, kVectorAlignment);
+	std::size_t indices_size_bytes  = AlignUpPowerOfTwo(std::size_t{this->num_indices * sizeof(UVSphere::IndexType)}, kVectorAlignment);
 
 	// ENABLE_FAST_KAN
 	FastKan const kan; /* = *ReadKANWeights(kan_weights_file_name).or_else([](auto&& error) -> ReadKANResult {
@@ -545,7 +574,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	std::size_t total_size_bytes =
 		std::max(
 			kMinBufferSize,
-			vertices_size_aligned + indices_size_aligned
+			vertices_size_bytes + indices_size_bytes
 				+ (with_coop_vec()
 					   ? networks[u32(BrdfFunctionType::eCoopVec)].GetParametersSize()
 							 + networks[u32(BrdfFunctionType::eWeightsInBuffer)].GetParametersSize()
@@ -640,7 +669,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 
 	std::size_t offset    = 0;
 	this->vertices_offset = offset;
-	offset += vertices_size_aligned;
+	offset += vertices_size_bytes;
 	this->indices_offset = offset;
 	offset += indices_size_bytes;
 
@@ -651,11 +680,17 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	}
 
 	auto p_staging  = static_cast<std::byte*>(staging_buffer.GetMappedData());
-	auto p_vertices = reinterpret_cast<UVSphere::Vertex*>(p_staging + this->vertices_offset);
+	auto p_vertices = reinterpret_cast<Vertex*>(p_staging + this->vertices_offset);
 	auto p_indices  = reinterpret_cast<UVSphere::IndexType*>(p_staging + this->indices_offset);
-	sphere.WriteVertices(p_vertices);
-	sphere.WriteIndices(p_indices);
 
+	if (is_obj) {
+
+		std::memcpy(p_vertices, vertices.data(), Span(vertices).size_bytes());
+		std::memcpy(p_indices, indices.data(), Span(indices).size_bytes());
+	} else {
+		sphere.WriteVertices(p_vertices);
+		sphere.WriteIndices(p_indices);
+	}
 	auto brdf_weights_src = std::span{reinterpret_cast<std::byte*>(brdf_weights_vec.data()), brdf_weights_vec.size() * sizeof(float)};
 	if (with_coop_vec()) {
 		write_network<float, numeric::float16_t>(device, networks[u32(BrdfFunctionType::eCoopVec)], brdf_weights_src.data(), p_staging + weights_offsets[u32(BrdfFunctionType::eCoopVec)], LayoutTy::eInferencingOptimal, ComponentTy::eFloat32, ComponentTy::eFloat16);
@@ -843,6 +878,18 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 		.srcAccessMask = vk::AccessFlagBits::eNone,
 		.dstStageMask  = vk::PipelineStageFlagBits::eTransfer,
 		.dstAccessMask = vk::AccessFlagBits::eNone,
+	});
+
+	//depth
+	cmd.Barrier({
+		.image         = depth_image,
+		.aspectMask    = vk::ImageAspectFlagBits::eDepth,
+		.oldLayout     = vk::ImageLayout::eUndefined,
+		.newLayout     = depth_image.SetLayout(vk::ImageLayout::eDepthAttachmentOptimal).GetLayout(),
+		.srcStageMask  = vk::PipelineStageFlagBits::eNone,
+		.srcAccessMask = vk::AccessFlagBits::eNone,
+		.dstStageMask  = vk::PipelineStageFlagBits::eEarlyFragmentTests,
+		.dstAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite,
 	});
 
 	CHECK_VULKAN_RESULT(cmd.end());

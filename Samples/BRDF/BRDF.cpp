@@ -42,6 +42,7 @@ void PrintMat4(float4x4 const& mat, int precision = 5, int digits = 2) {
 }
 
 auto BRDFSample::GetQueryResult() -> u64 {
+	LOG_DEBUG("BRDFSample::GetQueryResult()");
 	vk::Result result =
 		device.getQueryPoolResults(
 			timestamp_query_pool,
@@ -72,6 +73,7 @@ auto BRDFSample::GetQueryResult() -> u64 {
 }
 
 auto BRDFSample::DrawWindow() -> u64 {
+	LOG_DEBUG("BRDFSample::DrawWindow()");
 	if (function_id)
 		return DrawWindow(pipelines_header[u32(*function_id)]);
 	else
@@ -79,6 +81,7 @@ auto BRDFSample::DrawWindow() -> u64 {
 };
 
 auto BRDFSample::DrawWindow(vk::Pipeline pipeline) -> u64 {
+	LOG_DEBUG("BRDFSample::DrawWindow()");
 	auto HandleSwapchainResult = [this](vk::Result result) -> bool {
 		switch (result) {
 		case vk::Result::eSuccess:           return true;
@@ -104,6 +107,7 @@ static u32    frame_count{};
 static float3 prev_camera_pos = {0.0f, 0.0f, 0.0f};
 
 void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
+	LOG_DEBUG("BRDFSample::RecordCommands()");
 	int x, y, width, height;
 	window.GetRect(x, y, width, height);
 
@@ -126,7 +130,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 
 	vk::Image swapchain_image = swapchain.GetCurrentImage();
 	// cmd.SetViewport({0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height), 0.0f, 1.0f});
-	cmd.SetViewport({0.0f, static_cast<float>(height), static_cast<float>(width), -static_cast<float>(height), 0.0f, 1.0f});
+	cmd.SetViewport({0.0f, static_cast<float>(height), static_cast<float>(width), -static_cast<float>(height), 1.0f, 0.0f});
 	cmd.SetScissor(render_rect);
 	cmd.Barrier2({
 		.image         = swapchain_image,
@@ -154,7 +158,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 			 .imageView   = depth_image.GetView(),
 			 .imageLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal,
 			 .loadOp      = vk::AttachmentLoadOp::eClear,
-			 .storeOp     = vk::AttachmentStoreOp::eDontCare,
+			 .storeOp     = vk::AttachmentStoreOp::eStore,
 			 .clearValue  = {{{{1.0f, 0}}}},
         },
 	});
@@ -233,12 +237,17 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	// std::printf("camera pos %f %f %f\n", constants.camera_pos.x, constants.camera_pos.y, constants.camera_pos.z);
 
 	// u32 vertex_count = GetCubeVertices().size();
-	u32 vertex_count = sphere.GetVertexCount();
+
+	// u32 vertex_count = sphere.GetVertexCount();
+	// u32 index_count  = sphere.GetIndexCount();
+	u32 vertex_count = num_vertices;
+	u32 index_count  = num_indices;
 	cmd.bindVertexBuffers(0, device_buffer, vertices_offset);
 	cmd.bindIndexBuffer(device_buffer, indices_offset, vk::IndexType::eUint32);
 	// cmd.draw(3, 1, 0, 0);
 	// cmd.draw(vertex_count, 1, 0, 0);
-	cmd.drawIndexed(sphere.GetIndexCount(), 1, 0, 0, 0);
+	
+	cmd.drawIndexed(index_count, 1, 0, 0, 0);
 	cmd.endRendering();
 	cmd.Barrier2({
 		.image         = swapchain_image,
@@ -257,6 +266,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 }
 
 void BRDFSample::RecreateSwapchain(int width, int height) {
+	LOG_DEBUG("BRDFSample::RecreateSwapchain()");
 	for (auto& frame : swapchain.GetFrameData()) {
 		CHECK_VULKAN_RESULT(device.waitForFences(1, &frame.GetFence(), vk::True, std::numeric_limits<u32>::max()));
 	}
@@ -265,6 +275,7 @@ void BRDFSample::RecreateSwapchain(int width, int height) {
 }
 
 void BRDFSample::SaveSwapchainImageToFile(std::string_view filename) {
+	LOG_DEBUG("BRDFSample::SaveSwapchainImageToFile()");
 	CHECK_VULKAN_RESULT(device.waitForFences(1, &swapchain.GetCurrentFence(), vk::True, std::numeric_limits<u32>::max()));
 
 	int x, y, width, height;
@@ -335,15 +346,16 @@ void BRDFSample::SaveSwapchainImageToFile(std::string_view filename) {
 }
 
 void fix_framerate() {
-	auto fps =  60.0f;
+	auto        fps       = 60.0f;
 	static auto last_time = std::chrono::steady_clock::now();
-	auto const   now      = std::chrono::steady_clock::now();
-	auto const   elapsed  = now - last_time;
+	auto const  now       = std::chrono::steady_clock::now();
+	auto const  elapsed   = now - last_time;
 	last_time             = now;
 	std::this_thread::sleep_for(std::chrono::duration<float, std::milli>(1000.0f / fps) - elapsed);
 }
 
 void BRDFSample::Run() {
+	LOG_DEBUG("BRDFSample::Run()");
 	do {
 		// WindowManager::WaitEvents();
 		WindowManager::PollEvents();
@@ -366,6 +378,7 @@ constexpr inline auto contains(Range&& range, auto&& value, Proj&& proj = std::i
 };
 
 void BRDFSample::RunBenchmark(TestOptions const& options) {
+	LOG_DEBUG("BRDFSample::RunBenchmark()");
 	struct TestData {
 		vk::Pipeline                pipeline;
 		VulkanCoopVecNetwork const* network;
@@ -413,6 +426,7 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 	BrdfFunctionType skip[] = {};
 
 	// std::mem_fn(&BRDFSample::DrawWindow);
+	LOG_DEBUG("BRDFSample::DrawWindow()");
 
 	auto draw = [&](u32 id) {
 		if (is_header) {
@@ -484,6 +498,7 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 }
 
 auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
+	LOG_DEBUG("BRDFSample::ParseArgs()");
 	auto args_range = std::span(argv + 1, argc - 1);
 
 	if (std::ranges::contains(args_range, std::string_view("--help")))
@@ -530,6 +545,12 @@ auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 			auto str = std::string_view(*(it + 1));
 
 			cubemap_folder_path = str;
+			++it;
+		} else if (arg == "-obj") { // input weights file
+			if ((it + 1) == args_range.end()) return "expected <file>";
+			auto str = std::string_view(*(it + 1));
+
+			obj_path = str;
 			++it;
 		} else return *it;
 	}

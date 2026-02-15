@@ -50,7 +50,7 @@ public:
 
 	static constexpr u32 kFramesInFlight = 3;
 
-	using Vertex = mesh::UVSphere::Vertex;
+	using Vertex = mesh::Vertex;
 
 	~BRDFSample();
 
@@ -88,6 +88,7 @@ public:
 		std::string_view file_name;
 		std::string_view header;
 	};
+	void extracted();
 	void CreateAndUploadBuffers(NetworkBufferInfo const& info);
 	// void ReadKANWeights(NetworkBufferInfo const& info);
 
@@ -114,6 +115,12 @@ public:
 	std::string_view kan_weights_file_name;
 
 	std::string_view      cubemap_folder_path;
+	std::string_view      obj_path;
+	
+	u32 num_vertices = 0;
+	u32 num_indices  = 0;
+
+
 	static constexpr auto kCubeSideCount = 6;
 
 	// std::array<Image, kCubeSideCount> cubemap_images;

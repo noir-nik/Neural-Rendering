@@ -20,6 +20,9 @@ add_subdirectory(${NLOHMANN_JSON_DIR} ${PROJECT_SOURCE_DIR}/External/nlohmann_js
 target_link_libraries(${PROJECT_NAME} PUBLIC nlohmann_json)
 target_link_libraries(${PROJECT_NAME} PUBLIC nlohmann_json_modules)
 
+add_subdirectory(${TIN_DIR} ${PROJECT_SOURCE_DIR}/External/tinyobjloader  ${CMAKE_CURRENT_BINARY_DIR}/External/obj)
+target_link_libraries(${PROJECT_NAME} PUBLIC tinyobjloader )
+
 set(INCLUDE_DIRS
 )
 
