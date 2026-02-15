@@ -9,7 +9,6 @@ module BRDFSample;
 #include "Log.h"
 #include "Shaders/BRDFConfig.h"
 
-
 import NeuralGraphics;
 import vulkan_hpp;
 import WindowManager;
@@ -200,8 +199,6 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	auto view_proj = proj * (view | affineInverse);
 	view_proj      = OpenglToVulkanProjectionMatrixFix() * view_proj;
 
-	
-
 	// view_proj = inverse4x4(view_proj);
 
 	if (invv)
@@ -209,7 +206,6 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 
 	// auto view_proj = (camera.getProjViewInv());
 
-	PrintMat4(view_proj);
 	float4 test = {vv.pos[0], vv.pos[1], vv.pos[2], 1.0f};
 	// auto res =   test * view_proj;
 	auto res = view_proj * test;
@@ -218,8 +214,10 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	// auto res =  camera.getProjViewInv() * test;
 	// auto res =  test * camera.getProjViewInv();
 	// auto res =  affineInverse(camera.getProjViewInv()) * test;
-	std::printf("Result: %f, %f, %f, %f\n", res.x, res.y, res.z, res.w);
-
+	if (0) {
+		PrintMat4(view_proj);
+		std::printf("Result: %f, %f, %f, %f\n", res.x, res.y, res.z, res.w);
+	}
 	BRDFConstants constants{
 		// .view_proj = camera.getProjViewInv(),
 		.view_proj = view_proj,
@@ -407,7 +405,7 @@ void BRDFSample::Run() {
 		if (width <= 0 || height <= 0) continue;
 		u64       elapsed_ns = DrawWindow();
 		verbose&& std::printf("%f ms\n", elapsed_ns / 1000000.0);
-		fix_framerate();
+		// fix_framerate();
 	} while (true);
 }
 

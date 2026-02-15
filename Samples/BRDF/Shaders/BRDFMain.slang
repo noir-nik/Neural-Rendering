@@ -5,7 +5,38 @@
 import Pbr;
 
 import Utils;
-import BRDFSINEKAN;
+
+
+// import BRDFSINEKAN;
+
+
+#ifdef CHEBYKAN
+// #define INC "CHEBYKAN_2_6_6_630_651.slang"
+// #include "BRDFCHEBYKAN.slang"
+// #define FF BRDFCHEBYKAN3
+#endif
+#ifdef FASTKAN
+// #define INC "FASTKAN_2_6_6_645_666.slang"
+// #include "BRDFFASTKAN.slang"
+// #define FF BRDFFASTKAN3
+#endif
+
+#ifdef RELUKAN
+// #define INC "RELUKAN_2_5_3_625_643.slang"
+// #include "BRDFRELUKAN.slang"
+// #define FF BRDFRELUKAN3
+#endif
+
+#ifdef SINEKAN
+// #define INC "SINEKAN_2_6_6_573_681.slang"
+// #include "BRDFSINEKAN.slang"
+// #define FF BRDFSINEKAN3
+#endif
+
+#ifdef NBRDF
+import NBRDF_6_21_21_3_675_675;
+#define FF NBRDF_6_21_21_3_675_675
+#endif
 
 // clang-format off
 [[vk::binding(BINDING_STORAGE_BUFFER, 0)]] StructuredBuffer<float> gWeights;
@@ -52,8 +83,8 @@ VSOutput vs_main(VSInput in_vertex) {
 #define LAYERS 3
 #endif
 #ifndef NUM_SAMPLES
-#define NUM_SAMPLES 32
-
+// #define NUM_SAMPLES 32
+#define NUM_SAMPLES 1
 #endif
 
 	uint pcg_hash(uint seed) {
@@ -261,7 +292,9 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 								diff_vec.x, diff_vec.y, diff_vec.z };
 			float outputf[3];
 
-			BRDFSINEKAN3(inputf, outputf);
+			// BRDFSINEKAN3(inputf, outputf);
+			FF(inputf, outputf);
+
 			float3 brdf = float3(outputf[0], outputf[1], outputf[2]);
 
 			float4 env_sample   = gEnvMap.Sample(light_dir) * 15.;

@@ -225,9 +225,9 @@ public:
 	vk::QueryPool timestamp_query_pool{};
 
 	Camera camera{{
-		.position = {1.0f, 3.0f, 5.0f},
+		.position = {1.0f, 2.0f, 2.0f},
 		.fov      = 50.0f,
-		.z_near   = 0.1f,
+		.z_near   = 0.01f,
 		.z_far    = 100.0f,
 	}};
 

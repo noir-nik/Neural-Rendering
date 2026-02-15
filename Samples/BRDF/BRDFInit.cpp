@@ -128,7 +128,8 @@ void BRDFSample::Init() {
 	LOG_DEBUG("BRDFSample::Init()");
 	WindowManager::SetErrorCallback(WindowErrorCallback);
 	WindowManager::Init();
-	u32 const initial_width = 1600, initial_height = 1200;
+	// u32 const initial_width = 1600, initial_height = 1200;
+	u32 const initial_width = 1920, initial_height = 1080;
 
 	window.Init({
 		.x          = 30,
