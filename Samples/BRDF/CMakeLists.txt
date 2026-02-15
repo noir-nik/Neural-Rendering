@@ -52,10 +52,16 @@ generate_spv_shader_slang(${${SAMPLE_NAME}_SHADERS_DIR}/BRDFMain.slang ${${SAMPL
 	INCLUDE ${INCLUDE_SLANG}
 	OPTIONS "-Wno-30081" "-Wno-39001" "-O3"
 )
+
+generate_spv_shader_slang(${${SAMPLE_NAME}_SHADERS_DIR}/Skybox.slang ${${SAMPLE_NAME}_SHADERS_OUTPUT_DIR}/Skybox.slang.spv
+	INCLUDE ${INCLUDE_SLANG}
+	OPTIONS "-Wno-30081" "-Wno-39001" "-O3"
+)
 # -Wno-30081 
 
 add_custom_target(${SAMPLE_NAME}_shaders_spv ALL DEPENDS
 	${${SAMPLE_NAME}_SHADERS_OUTPUT_DIR}/BRDFMain.slang.spv
+	${${SAMPLE_NAME}_SHADERS_OUTPUT_DIR}/Skybox.slang.spv
 )
 
 add_dependencies(${SAMPLE_NAME} ${SAMPLE_NAME}_shaders_spv)

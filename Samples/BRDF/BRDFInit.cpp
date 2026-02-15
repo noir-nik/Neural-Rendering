@@ -10,7 +10,6 @@ module BRDFSample;
 #include "Shaders/BRDFBindings.h"
 #include "Shaders/BRDFConfig.h"
 
-
 import NeuralGraphics;
 import vulkan_hpp;
 import WindowManager;
@@ -128,8 +127,8 @@ void BRDFSample::Init() {
 	LOG_DEBUG("BRDFSample::Init()");
 	WindowManager::SetErrorCallback(WindowErrorCallback);
 	WindowManager::Init();
-	// u32 const initial_width = 1600, initial_height = 1200;
-	u32 const initial_width = 1920, initial_height = 1080;
+	u32 const initial_width = 1600, initial_height = 1200;
+	// u32 const initial_width = 1920, initial_height = 1080;
 
 	window.Init({
 		.x          = 30,
@@ -191,8 +190,8 @@ void BRDFSample::Init() {
 		{.image_info = {
 			 .flags     = {},
 			 .imageType = vk::ImageType::e2D,
-			//  .format    = vk::Format::eD16Unorm,
-			  .format        = vk::Format::eD32Sfloat,
+			 //  .format    = vk::Format::eD16Unorm,
+			 .format = vk::Format::eD32Sfloat,
 			 //  .format        = vk::Format::eD24UnormS8Uint,
 			 .extent        = {static_cast<u32>(width), static_cast<u32>(height), 1},
 			 .mipLevels     = 1,
@@ -285,18 +284,22 @@ void BRDFSample::Destroy() {
 		// device_buffer.Destroy();
 		// brdf_weights_buffer.Destroy();
 
-		for (vk::Pipeline& pipeline : pipelines_header) {
-			if (pipeline) {
-				device.destroyPipeline(pipeline, GetAllocator());
-				pipeline = vk::Pipeline{};
+		auto mkspan        = [](auto& rng) { return std::span(rng.begin(), rng.end()); };
+		auto mkspan_single = [](auto& elem) { return std::span(&elem, 1); };
+
+		for (auto pp : {
+				 mkspan(pipelines),
+				 mkspan(pipelines_header),
+				 mkspan_single(skybox_pipeline),
+			 }) {
+			for (vk::Pipeline& pipeline : pp) {
+				if (pipeline) {
+					device.destroyPipeline(pipeline, GetAllocator());
+					pipeline = vk::Pipeline{};
+				}
 			}
 		}
-		for (vk::Pipeline& pipeline : pipelines) {
-			if (pipeline) {
-				device.destroyPipeline(pipeline, GetAllocator());
-				pipeline = vk::Pipeline{};
-			}
-		}
+
 		device.destroyPipelineLayout(pipeline_layout, GetAllocator());
 
 		device.destroyDescriptorSetLayout(descriptor_set_layout, GetAllocator());
@@ -414,7 +417,6 @@ void BRDFSample::CreateDevice() {
 	auto queue_family_properties = physical_device.GetQueueFamilyProperties(queue_family_index);
 	timestamps_supported         = queue_family_properties.timestampValidBits > 0;
 
-
 	// auto timestamp_period = physical_device.GetProperties10().limits.timestampPeriod;
 	// std::printf("timestampPeriod: %f\n", timestamp_period);
 
@@ -448,6 +450,7 @@ void BRDFSample::CreateDevice() {
 	auto physicalDeviceVulkan11Features = vk::PhysicalDeviceVulkan11Features{
 		.pNext                    = &physicalDeviceVulkan12Features,
 		.storageBuffer16BitAccess = vk::True,
+		.shaderDrawParameters     = vk::True,
 	};
 
 	auto physicalDeviceFeatures2 = vk::PhysicalDeviceFeatures2{
@@ -648,8 +651,114 @@ void BRDFSample::CreatePipelines() {
 		}
 		device.destroyShaderModule(shader_module_main, GetAllocator());
 	}
+	// Skybox
+	if (hasattr(&BRDFSample::cubemap_folder_path)) {
+		vk::ShaderModuleCreateInfo ci;
+		vk::ShaderModule           sm;
+		constexpr auto             sname   = std::string_view("Shaders/Skybox.slang.spv");
+		CodeType                   scode[] = {
+            Utils::ReadBinaryFile(sname).or_else(LF(error_read_file(sname.substr(sname.find_last_of("/\\") + 1)))),
+        };
+		ci.codeSize = ((*scode[0]).size());
+		ci.pCode    = reinterpret_cast<const u32*>((*scode[0]).data());
+		CHECK_VULKAN_RESULT(device.createShaderModule(&ci, GetAllocator(), &sm));
+
+		skybox_pipeline = CreateSkyboxPipeline(sm);
+		device.destroyShaderModule(sm, GetAllocator());
+	}
 }
 
+auto BRDFSample::CreateSkyboxPipeline(vk::ShaderModule shader_module) -> vk::Pipeline {
+
+	vk::PipelineShaderStageCreateInfo shader_stages[] = {
+		{.stage = vk::ShaderStageFlagBits::eVertex, .module = shader_module, .pName = "vs_main"},
+		{.stage = vk::ShaderStageFlagBits::eFragment, .module = shader_module, .pName = "ps_main"},
+	};
+
+	vk::PipelineVertexInputStateCreateInfo vertex_input_state{};
+
+	vk::PipelineInputAssemblyStateCreateInfo input_assembly_state{
+		.flags                  = {},
+		.topology               = vk::PrimitiveTopology::eTriangleList,
+		.primitiveRestartEnable = vk::False,
+	};
+
+	vk::PipelineViewportStateCreateInfo viewport_state{
+		.viewportCount = 1,
+		.scissorCount  = 1,
+	};
+
+	vk::PipelineRasterizationStateCreateInfo rasterization_state{
+		.cullMode  = vk::CullModeFlagBits::eNone,
+		.frontFace = vk::FrontFace::eCounterClockwise,
+		.lineWidth = 1.0f,
+	};
+
+	vk::PipelineMultisampleStateCreateInfo multisample_state{
+		.rasterizationSamples = vk::SampleCountFlagBits::e1,
+	};
+
+	vk::PipelineDepthStencilStateCreateInfo depth_stencil_state{
+		.depthTestEnable  = vk::True,
+		.depthWriteEnable = vk::False,
+		.depthCompareOp   = vk::CompareOp::eLessOrEqual,
+		.minDepthBounds   = 0.0f,
+		.maxDepthBounds   = 1.0f,
+	};
+
+	auto color_write_mask =
+		vk::ColorComponentFlagBits::eR
+		| vk::ColorComponentFlagBits::eG
+		| vk::ColorComponentFlagBits::eB
+		| vk::ColorComponentFlagBits::eA;
+
+	vk::PipelineColorBlendAttachmentState color_blend_attachment_state{
+		.blendEnable    = vk::False,
+		.colorWriteMask = color_write_mask,
+	};
+
+	vk::PipelineColorBlendStateCreateInfo color_blend_state{
+		.attachmentCount = 1,
+		.pAttachments    = &color_blend_attachment_state,
+	};
+
+	vk::DynamicState dynamic_states[] = {
+		vk::DynamicState::eViewport,
+		vk::DynamicState::eScissor,
+	};
+
+	vk::PipelineDynamicStateCreateInfo dynamic_state{
+		.dynamicStateCount = static_cast<u32>(std::size(dynamic_states)),
+		.pDynamicStates    = dynamic_states,
+	};
+
+	vk::PipelineRenderingCreateInfo pipeline_rendering_info{
+		.viewMask                = 0,
+		.colorAttachmentCount    = 1,
+		.pColorAttachmentFormats = &swapchain.GetFormat(),
+		.depthAttachmentFormat   = depth_image.GetFormat(),
+	};
+
+	vk::GraphicsPipelineCreateInfo create_info{
+		.pNext               = &pipeline_rendering_info,
+		.stageCount          = static_cast<u32>(std::size(shader_stages)),
+		.pStages             = shader_stages,
+		.pVertexInputState   = &vertex_input_state,
+		.pInputAssemblyState = &input_assembly_state,
+		.pViewportState      = &viewport_state,
+		.pRasterizationState = &rasterization_state,
+		.pMultisampleState   = &multisample_state,
+		.pDepthStencilState  = &depth_stencil_state,
+		.pColorBlendState    = &color_blend_state,
+		.pDynamicState       = &dynamic_state,
+		.layout              = pipeline_layout,
+	};
+
+	vk::Pipeline pipeline;
+	CHECK_VULKAN_RESULT(device.createGraphicsPipelines(GetPipelineCache(), 1, &create_info, GetAllocator(), &pipeline));
+
+	return pipeline;
+}
 auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, SpecData const& info) -> vk::Pipeline {
 	LOG_DEBUG("BRDFSample::CreatePipeline()");
 

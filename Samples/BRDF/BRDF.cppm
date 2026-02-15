@@ -47,7 +47,10 @@ struct TestOptions {
 
 using FastKanOffsets = std::vector<FastKanLayerBase<u64>>;
 
-
+struct SpecData {
+	BrdfFunctionType function_type = BrdfFunctionType::eCoopVec;
+	u32              function_id   = 0; // inline
+};
 class BRDFSample {
 public:
 	static constexpr u32 kFramesInFlight = 3;
@@ -78,12 +81,10 @@ public:
 
 	auto with_coop_vec() -> bool { return function_type == BrdfFunctionType::eCoopVec; }
 
-	struct SpecData {
-		BrdfFunctionType function_type = BrdfFunctionType::eCoopVec;
-		u32              function_id   = 0; // inline
-	};
 	[[nodiscard]]
-	auto CreatePipeline(vk::ShaderModule vertex_shader_module, SpecData const& info) -> vk::Pipeline;
+	auto CreatePipeline(vk::ShaderModule vertex_shader_module, SpecData const& info = {}) -> vk::Pipeline;
+	[[nodiscard]]
+	auto CreateSkyboxPipeline(vk::ShaderModule shader_module) -> vk::Pipeline ;
 
 	// void BuildNetwork();
 	struct NetworkBufferInfo {
@@ -175,6 +176,7 @@ public:
 	// vk::Pipeline vec4_pipeline;
 
 	std::array<vk::Pipeline, u32(BrdfFunctionType::eCount)> pipelines = {};
+	vk::Pipeline                                            skybox_pipeline{};
 
 	static constexpr int kTestFunctionsCount = 50;
 

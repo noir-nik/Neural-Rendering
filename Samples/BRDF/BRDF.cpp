@@ -151,7 +151,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 			.loadOp      = vk::AttachmentLoadOp::eClear,
 			.storeOp     = vk::AttachmentStoreOp::eStore,
 			// .clearValue  = {{{{0.5f, 0.5f, 0.5f, 0.0f}}}},
-			.clearValue = {{{{0.2f, 0.2f, 0.2f, 0.0f}}}},
+			// .clearValue = {{{{0.2f, 0.2f, 0.2f, 0.0f}}}},
 			// .clearValue = {{{{1.f, 1.f, 1.f, 1.0f}}}},
 			// .clearValue  = {{{{0.f, 0.f, 0.f, 1.0f}}}},
 		}}},
@@ -163,9 +163,6 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 			 .clearValue  = {{{{1.0f, 0}}}},
         },
 	});
-	// auto pipeline = pipelines[u32(function_type)];
-	cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
-	cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
 
 	// camera.getForward() *= -1.0;
 	// camera.updateProjectionViewInverse();
@@ -267,27 +264,41 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 
 		// std::printf("Layer %d weights_offset %d bias_offset %d\n", i, constants.weights_offsets[i], constants.bias_offsets[i]);
 	}
+	auto bind_push = [&](vk::Pipeline pipeline) {
+		cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
 
-	u32 const constants_offset = 0u;
-	cmd.pushConstants(
-		pipeline_layout,
-		vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-		constants_offset, sizeof(constants), &constants);
+		cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
 
-	// std::printf("camera pos %f %f %f\n", constants.camera_pos.x, constants.camera_pos.y, constants.camera_pos.z);
+		u32 const constants_offset = 0u;
+		cmd.pushConstants(
+			pipeline_layout,
+			vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+			constants_offset, sizeof(constants), &constants);
+	};
+	// Skybox
+	{
 
-	// u32 vertex_count = GetCubeVertices().size();
+		bind_push(skybox_pipeline);
+		 
+		u32 vertex_count = num_vertices;
+ 
+		cmd.draw(vertex_count, 1, 0, 0);
+	}
+	// Model
+	{ // auto pipeline = pipelines[u32(function_type)];
 
-	// u32 vertex_count = sphere.GetVertexCount();
-	// u32 index_count  = sphere.GetIndexCount();
-	u32 vertex_count = num_vertices;
-	u32 index_count  = num_indices;
-	cmd.bindVertexBuffers(0, device_buffer, vertices_offset);
-	cmd.bindIndexBuffer(device_buffer, indices_offset, vk::IndexType::eUint32);
-	// cmd.draw(3, 1, 0, 0);
-	// cmd.draw(vertex_count, 1, 0, 0);
+		bind_push(pipeline);
+ 
+		u32 vertex_count = num_vertices;
+		u32 index_count  = num_indices;
+		cmd.bindVertexBuffers(0, device_buffer, vertices_offset);
+		cmd.bindIndexBuffer(device_buffer, indices_offset, vk::IndexType::eUint32);
+		// cmd.draw(3, 1, 0, 0);
+		// cmd.draw(vertex_count, 1, 0, 0);
 
-	cmd.drawIndexed(index_count, 1, 0, 0, 0);
+		cmd.drawIndexed(index_count, 1, 0, 0, 0);
+	}
+
 	cmd.endRendering();
 	cmd.Barrier2({
 		.image         = swapchain_image,
@@ -405,7 +416,7 @@ void BRDFSample::Run() {
 		if (width <= 0 || height <= 0) continue;
 		u64       elapsed_ns = DrawWindow();
 		verbose&& std::printf("%f ms\n", elapsed_ns / 1000000.0);
-		// fix_framerate();
+		fix_framerate();
 	} while (true);
 }
 

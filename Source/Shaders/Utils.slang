@@ -156,7 +156,7 @@ float3 Reflect(float3 incident, float3 normal) {
 	return incident - 2.0 * dot(incident, normal) * normal;
 }
 
-float3 SampleBlinnPhong(float2 random_val, float shininess, float3 view_tbn, out float pdf) {
+float3 SampleBlinnPhong0(float2 random_val, float shininess, float3 view_tbn, out float pdf) {
 
 	float cos_theta = pow(random_val.x, 1.0 / (shininess + 1.0));
 	float sin_theta = sqrt(max(0.0, 1.0 - cos_theta * cos_theta));
@@ -167,19 +167,17 @@ float3 SampleBlinnPhong(float2 random_val, float shininess, float3 view_tbn, out
 		sin_theta * sin(phi),
 		cos_theta);
 
-	
 	float3 light_tbn = 2.0 * dot(half_vec, view_tbn) * half_vec - view_tbn;
 
-	
 	pdf = (shininess + 1.0) / (2.0 * 3.14159265359) * pow(cos_theta, shininess);
 
 	float HdotL = max(dot(half_vec, light_tbn), 0.0001);
-	pdf = pdf / (4.0 * HdotL);
+	pdf         = pdf / (4.0 * HdotL);
 	return light_tbn;
 	// return half_vec;
 }
 
-float3 SampleCosineHemisphere(float2 random_val, out float pdf) {
+float3 SampleCosineHemisphere0(float2 random_val, out float pdf) {
 	float phi       = 2.0 * 3.14159265359 * random_val.x;
 	float cos_theta = sqrt(random_val.y);
 	float sin_theta = sqrt(max(0.0, 1.0 - cos_theta * cos_theta));
@@ -190,6 +188,77 @@ float3 SampleCosineHemisphere(float2 random_val, out float pdf) {
 		cos(phi) * sin_theta,
 		sin(phi) * sin_theta,
 		cos_theta);
+}
+
+float3 SampleCosineHemisphere(float2 random_val, out float pdf) {
+
+	float phi = 2.0 * 3.14159265359 * random_val.x;
+	float r   = sqrt(random_val.y);
+
+	float x = r * cos(phi);
+	float y = r * sin(phi);
+	float z = sqrt(max(0.0, 1.0 - random_val.y));
+
+	pdf = z / 3.14159265359;
+
+	return float3(x, y, z);
+}
+
+float3 SampleBlinnPhong(float2 random_val, float shininess, float3 view_tbn, out float pdf) {
+
+	float phi      = 2.0 * 3.14159265359 * random_val.x;
+	float cosTheta = pow(random_val.y, 1.0 / (shininess + 1.0));
+	float sinTheta = sqrt(max(0.0, 1.0 - cosTheta * cosTheta));
+
+	float3 half_vec;
+	half_vec.x = sinTheta * cos(phi);
+	half_vec.y = sinTheta * sin(phi);
+	half_vec.z = cosTheta;
+
+	float3 light_dir = reflect(-view_tbn, half_vec);
+
+	if (light_dir.z <= 0.0) {
+		pdf = 0.0;
+		return float3(0.0, 0.0, 1.0);
+	}
+
+	float pdf_half = (shininess + 1.0) / (2.0 * 3.14159265359) * pow(cosTheta, shininess);
+
+	float VdotH = max(dot(view_tbn, half_vec), 0.0001);
+	pdf         = pdf_half / (4.0 * VdotH);
+
+	return light_dir;
+}
+
+float3 SampleBlinnPhongReflection(float2 random_val, float shininess, float3 view_tbn, out float pdf) {
+
+	float3 reflect_dir = float3(-view_tbn.x, -view_tbn.y, view_tbn.z);
+
+	float phi      = 2.0 * 3.14159265359 * random_val.x;
+	float cosTheta = pow(random_val.y, 1.0 / (shininess + 1.0));
+	float sinTheta = sqrt(max(0.0, 1.0 - cosTheta * cosTheta));
+
+	float3 up        = abs(reflect_dir.z) < 0.999 ? float3(0, 0, 1) : float3(1, 0, 0);
+	float3 tangent   = normalize(cross(up, reflect_dir));
+	float3 bitangent = cross(reflect_dir, tangent);
+
+	float3 sample_dir;
+	sample_dir.x = sinTheta * cos(phi);
+	sample_dir.y = sinTheta * sin(phi);
+	sample_dir.z = cosTheta;
+
+	float3 light_dir = sample_dir.x * tangent + sample_dir.y * bitangent + sample_dir.z * reflect_dir;
+
+	light_dir = normalize(light_dir);
+
+	if (light_dir.z <= 0.0) {
+		pdf = 0.0;
+		return float3(0.0, 0.0, 1.0);
+	}
+
+	pdf = (shininess + 1.0) / (2.0 * 3.14159265359) * pow(cosTheta, shininess);
+
+	return light_dir;
 }
 
 float3 SampleGGX(float2 random_val, float roughness, float3 view_tbn, out float pdf) {
@@ -221,13 +290,13 @@ float3 SampleGGX(float2 random_val, float roughness, float3 view_tbn, out float 
 // GGX NDF (Normal Distribution Function) for isotropic materials
 float GGX_D(float NdotH, float alpha) {
 	float a2 = alpha * alpha;
-	float d = NdotH * NdotH * (a2 - 1.0) + 1.0;
+	float d  = NdotH * NdotH * (a2 - 1.0) + 1.0;
 	return a2 / (3.14159265359 * d * d);
 }
 
 // Smith masking function for GGX
 float GGX_G1(float NdotV, float alpha) {
-	float a2 = alpha * alpha;
+	float a2     = alpha * alpha;
 	float NdotV2 = NdotV * NdotV;
 	return 2.0 * NdotV / (NdotV + sqrt(a2 + (1.0 - a2) * NdotV2));
 }
@@ -242,17 +311,17 @@ float3 SampleGGXVNDF(float3 view_local, float alpha, float2 u, out float pdf) {
 	float3 Vh = normalize(float3(alpha * view_local.x, alpha * view_local.y, view_local.z));
 
 	// Section 4.1: Orthonormal basis (with special case if view_local is aligned with z-axis)
-	float lensq = Vh.x * Vh.x + Vh.y * Vh.y;
-	float3 T1 = lensq > 0.0 ? float3(-Vh.y, Vh.x, 0.0) * rsqrt(lensq) : float3(1.0, 0.0, 0.0);
-	float3 T2 = cross(Vh, T1);
+	float  lensq = Vh.x * Vh.x + Vh.y * Vh.y;
+	float3 T1    = lensq > 0.0 ? float3(-Vh.y, Vh.x, 0.0) * rsqrt(lensq) : float3(1.0, 0.0, 0.0);
+	float3 T2    = cross(Vh, T1);
 
 	// Section 4.2: Parameterization of the projected area
-	float r = sqrt(u.x);
+	float r   = sqrt(u.x);
 	float phi = 2.0 * 3.14159265359 * u.y;
-	float t1 = r * cos(phi);
-	float t2 = r * sin(phi);
-	float s = 0.5 * (1.0 + Vh.z);
-	t2 = (1.0 - s) * sqrt(1.0 - t1 * t1) + s * t2;
+	float t1  = r * cos(phi);
+	float t2  = r * sin(phi);
+	float s   = 0.5 * (1.0 + Vh.z);
+	t2        = (1.0 - s) * sqrt(1.0 - t1 * t1) + s * t2;
 
 	// Section 4.3: Reprojection onto hemisphere
 	float3 Nh = t1 * T1 + t2 * T2 + sqrt(max(0.0, 1.0 - t1 * t1 - t2 * t2)) * Vh;
@@ -270,21 +339,13 @@ float3 SampleGGXVNDF(float3 view_local, float alpha, float2 u, out float pdf) {
 		return float3(0.0, 0.0, 1.0);
 	}
 
-	float D = GGX_D(NdotH, alpha);
+	float D  = GGX_D(NdotH, alpha);
 	float G1 = GGX_G1(view_local.z, alpha);
 
 	// VNDF PDF: G1(V) * D(H) * max(0, dot(V, H)) / V.z
 	pdf = (G1 * D * VdotH) / max(1e-6, view_local.z);
 
 	return Ne;
-}
-
-// Multiple Importance Sampling (MIS) weight calculation
-// Using power heuristic with beta = 2 (balance heuristic when beta = 1)
-float MISWeight(float pdf_a, float pdf_b, float beta) {
-	float pdf_a_pow = pow(pdf_a, beta);
-	float pdf_b_pow = pow(pdf_b, beta);
-	return pdf_a_pow / (pdf_a_pow + pdf_b_pow);
 }
 
 // Evaluate PDF for cosine-weighted hemisphere sampling
@@ -301,7 +362,7 @@ float GGXVNDF_PDF(float3 view_local, float3 half_local, float3 light_local, floa
 		return 0.0;
 	}
 
-	float D = GGX_D(NdotH, alpha);
+	float D  = GGX_D(NdotH, alpha);
 	float G1 = GGX_G1(view_local.z, alpha);
 
 	// VNDF PDF: G1(V) * D(H) * max(0, dot(V, H)) / V.z
@@ -314,9 +375,9 @@ float GGXVNDF_PDF(float3 view_local, float3 half_local, float3 light_local, floa
 float dGgx(float dotNH, float roughness) {
 	const float PI = 3.1415926535;
 
-	float alpha = roughness * roughness;
+	float alpha  = roughness * roughness;
 	float alpha2 = alpha * alpha;
-	float denom = dotNH * dotNH * (alpha2 - 1.0) + 1.0;
+	float denom  = dotNH * dotNH * (alpha2 - 1.0) + 1.0;
 	return alpha2 / (PI * denom * denom);
 }
 
@@ -325,12 +386,12 @@ float schlickSmithGGX(float dotN, float k) {
 }
 float schlickSmithGGX2(float dotNL, float dotNV, float roughness) {
 	float alpha = roughness;
-	float k = (alpha * alpha) / 2.0; // special remap of k for IBL lighting
-	float GL = schlickSmithGGX(dotNL, k);
-	float GV = schlickSmithGGX(dotNV, k);
+	float k     = (alpha * alpha) / 2.0; // special remap of k for IBL lighting
+	float GL    = schlickSmithGGX(dotNL, k);
+	float GV    = schlickSmithGGX(dotNV, k);
 	return GL * GV;
 }
- 
+
 float vdcSequence(uint bits) {
 	bits = (bits << 16u) | (bits >> 16u);
 	bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
@@ -339,7 +400,7 @@ float vdcSequence(uint bits) {
 	bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
 	return float(bits) * 2.3283064365386963e-10; // / 0x100000000
 }
- 
+
 float2 hammersleySequence(uint i, uint N) {
 	return float2(float(i) / float(N), vdcSequence(i));
 }
@@ -348,10 +409,10 @@ float2 hammersleySequence(uint i, uint N) {
 float3 importanceSampleGGX(float2 Xi, float3 N, float roughness) {
 	const float PI = 3.1415926535;
 
-	float alpha = roughness * roughness;
+	float alpha  = roughness * roughness;
 	float alpha2 = alpha * alpha;
 
-	float phi = 2.0 * PI * Xi.x;
+	float phi      = 2.0 * PI * Xi.x;
 	float cosTheta = sqrt((1.0 - Xi.y) / (1.0 + (alpha2 - 1.0) * Xi.y));
 	float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
 
@@ -359,10 +420,136 @@ float3 importanceSampleGGX(float2 Xi, float3 N, float roughness) {
 	float3 H = float3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
 
 	// from tangent-space vector to world-space sample vector
-	float3 up = abs(N.z) < 0.999 ? float3(0.0, 0.0, 1.0) : float3(1.0, 0.0, 0.0);
-	float3 tangent = normalize(cross(up, N));
+	float3 up        = abs(N.z) < 0.999 ? float3(0.0, 0.0, 1.0) : float3(1.0, 0.0, 0.0);
+	float3 tangent   = normalize(cross(up, N));
 	float3 bitangent = cross(N, tangent);
 
 	float3 sampleVec = tangent * H.x + bitangent * H.y + N * H.z;
 	return normalize(sampleVec);
 }
+
+// ============================================================================
+// Multiple Importance Sampling (MIS) Weight Calculations
+// ============================================================================
+
+// Multiple Importance Sampling (MIS) weight calculation
+// Using power heuristic with beta = 2 (balance heuristic when beta = 1)
+float MISWeight(float pdf_a, float pdf_b, float beta) {
+	float pdf_a_pow = pow(pdf_a, beta);
+	float pdf_b_pow = pow(pdf_b, beta);
+	return pdf_a_pow / (pdf_a_pow + pdf_b_pow);
+}
+
+// Balance heuristic - optimal for minimizing variance when PDFs are similar
+// Most commonly used MIS heuristic
+float MISWeightBalance(float pdf_a, float pdf_b) {
+	if (pdf_a + pdf_b == 0.0) {
+		return 0.0;
+	}
+	return pdf_a / (pdf_a + pdf_b);
+}
+
+// Power heuristic with exponent beta (typically beta = 2)
+// Better variance reduction than balance heuristic in most cases
+// Veach's thesis recommends beta = 2
+float MISWeightPower(float pdf_a, float pdf_b, float beta) {
+	if (pdf_a == 0.0) {
+		return 0.0;
+	}
+
+	float pdf_a_beta = pow(pdf_a, beta);
+	float pdf_b_beta = pow(pdf_b, beta);
+
+	if (pdf_a_beta + pdf_b_beta == 0.0) {
+		return 0.0;
+	}
+
+	return pdf_a_beta / (pdf_a_beta + pdf_b_beta);
+}
+
+// Power heuristic with beta = 2 (most common)
+float MISWeightPowerSquared(float pdf_a, float pdf_b) {
+	if (pdf_a == 0.0) {
+		return 0.0;
+	}
+
+	float pdf_a_sq = pdf_a * pdf_a;
+	float pdf_b_sq = pdf_b * pdf_b;
+
+	if (pdf_a_sq + pdf_b_sq == 0.0) {
+		return 0.0;
+	}
+
+	return pdf_a_sq / (pdf_a_sq + pdf_b_sq);
+}
+
+// Multi-sample MIS weight (for combining more than 2 sampling strategies)
+// n_samples[i] = number of samples taken from strategy i
+// pdf[i] = PDF of current sample under strategy i
+float MISWeightBalanceMulti(float pdf_current, float n_current, float pdfs[], uint num_strategies, float n_samples[]) {
+	float sum_weighted_pdfs = 0.0;
+
+	for (uint i = 0; i < num_strategies; i++) {
+		sum_weighted_pdfs += n_samples[i] * pdfs[i];
+	}
+
+	if (sum_weighted_pdfs == 0.0) {
+		return 0.0;
+	}
+
+	return (n_current * pdf_current) / sum_weighted_pdfs;
+}
+
+// Multi-sample power heuristic
+float MISWeightPowerMulti(float pdf_current, float n_current, float pdfs[], uint num_strategies, float n_samples[], float beta) {
+	float weighted_pdf_current   = n_current * pdf_current;
+	float sum_weighted_pdfs_beta = 0.0;
+
+	for (uint i = 0; i < num_strategies; i++) {
+		float weighted_pdf = n_samples[i] * pdfs[i];
+		sum_weighted_pdfs_beta += pow(weighted_pdf, beta);
+	}
+
+	if (sum_weighted_pdfs_beta == 0.0) {
+		return 0.0;
+	}
+
+	return pow(weighted_pdf_current, beta) / sum_weighted_pdfs_beta;
+}
+
+// #region PDF
+//  Calculate PDF of cosine hemisphere sampling for a given direction
+float PDFCosineHemisphere(float3 direction_tbn) {
+	// direction_tbn.z is cos(theta)
+	if (direction_tbn.z <= 0.0) {
+		return 0.0;
+	}
+	return direction_tbn.z / 3.14159265359;
+}
+
+// Calculate PDF of Blinn-Phong sampling for a given light direction
+float PDFBlinnPhong(float3 view_tbn, float3 light_tbn, float shininess) {
+	if (light_tbn.z <= 0.0) {
+		return 0.0;
+	}
+
+	// Calculate half-vector
+	float3 half_vec = normalize(view_tbn + light_tbn);
+
+	if (half_vec.z <= 0.0) {
+		return 0.0;
+	}
+
+	float VdotH = max(dot(view_tbn, half_vec), 0.0001);
+
+	// PDF of half-vector
+	float cosTheta_h = half_vec.z;
+	float pdf_half   = (shininess + 1.0) / (2.0 * 3.14159265359) * pow(cosTheta_h, shininess);
+
+	// Convert to light direction PDF
+	float pdf_light = pdf_half / (4.0 * VdotH);
+
+	return pdf_light;
+}
+
+// #endregion
