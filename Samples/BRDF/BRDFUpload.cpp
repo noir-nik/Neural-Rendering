@@ -1,8 +1,9 @@
 #include "Shaders/BRDFBindings.h"
 module;
-#include "Log.h"
 #include "CheckResult.h"
+#include "Log.h"
 #include <cassert> // assert
+
 
 module BRDFSample;
 import NeuralGraphics;
@@ -471,10 +472,10 @@ auto LoadCubemap(std::string_view env_map_folder_path) -> CubeMetadata {
 
 	std::array cube_data = {
 		loads("nx.png"),
-		loads("ny.png"),
-		loads("nz.png"),
 		loads("px.png"),
 		loads("py.png"),
+		loads("ny.png"),
+		loads("nz.png"),
 		loads("pz.png"),
 	};
 	return {cube_data, width, height, channels};
@@ -504,7 +505,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 		// 	auto const& [vv, ii] = LoadObj(obj_path);
 		// 	return std::tuple{std::move(vv), std::move(ii)};
 		// }();
-		this-> vv = vertices[0];
+		this->vv = vertices[0];
 	} else {
 		sphere             = UVSphere(1.0f, 32 * 2, 16 * 2);
 		this->num_vertices = sphere.GetVertexCount();
@@ -775,7 +776,8 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 		for (u32 const side_id : range(num_cube_sides)) {
 			auto imdata = cube_data.cubemap[side_id];
 
-			std::memcpy(p_staging + offset, imdata, cube_data.image_size_bytes());
+			auto const sbytes = cube_data.image_size_bytes();
+			std::memcpy(p_staging + offset, imdata, sbytes);
 			// cube_offsets[i] = offset;
 			// auto const cube_region = vk::BufferImageCopy{
 			cube_regions[side_id] = vk::BufferImageCopy{
@@ -791,7 +793,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 				.imageOffset = vk::Offset3D{0, 0, 0},
 				.imageExtent = vk::Extent3D{static_cast<uint32_t>(cube_data.width), static_cast<uint32_t>(cube_data.height), 1},
 			};
-			offset = AlignUpPowerOfTwo(offset + cube_data.image_size_bytes(), kVectorAlignment);
+			offset = AlignUpPowerOfTwo(offset + sbytes, kVectorAlignment);
 		}
 	}
 
@@ -882,7 +884,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 		.dstAccessMask = vk::AccessFlagBits::eNone,
 	});
 
-	//depth
+	// depth
 	cmd.Barrier({
 		.image         = depth_image,
 		.aspectMask    = vk::ImageAspectFlagBits::eDepth,

@@ -193,8 +193,8 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	// auto view_proj = inverse(camera.getProjViewInv());
 	// auto view_proj = proj * (view | inverse4x4);
 	// auto view_proj = proj * (view  inverse4x4);
-	auto view_proj = proj * (view | affineInverse);
-	view_proj      = OpenglToVulkanProjectionMatrixFix() * view_proj;
+	auto view_proj_base = proj * (view | affineInverse);
+	auto view_proj      = OpenglToVulkanProjectionMatrixFix() * view_proj_base;
 
 	// view_proj = inverse4x4(view_proj);
 
@@ -277,18 +277,30 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	};
 	// Skybox
 	{
+		auto ffix = [] {
+			float4x4 res;
+			res[1][1] = -1.0f;
+			// res[2][2] = 0.5f;
+			// res[2][3] = 0.5f;
+			return res;
+		};
+		
+		constants.view_proj = ffix() * inverse(view_proj_base);
 
 		bind_push(skybox_pipeline);
-		 
-		u32 vertex_count = num_vertices;
- 
+
+		// u32 vertex_count = num_vertices;
+		u32 vertex_count = 3;
+
 		cmd.draw(vertex_count, 1, 0, 0);
 	}
 	// Model
 	{ // auto pipeline = pipelines[u32(function_type)];
 
+		constants.view_proj = OpenglToVulkanProjectionMatrixFix() * (view_proj_base);
+
 		bind_push(pipeline);
- 
+
 		u32 vertex_count = num_vertices;
 		u32 index_count  = num_indices;
 		cmd.bindVertexBuffers(0, device_buffer, vertices_offset);
