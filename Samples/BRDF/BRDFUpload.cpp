@@ -1,5 +1,6 @@
 #include "Shaders/BRDFBindings.h"
 module;
+#include "Log.h"
 #include "CheckResult.h"
 #include <cassert> // assert
 
@@ -503,6 +504,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 		// 	auto const& [vv, ii] = LoadObj(obj_path);
 		// 	return std::tuple{std::move(vv), std::move(ii)};
 		// }();
+		this-> vv = vertices[0];
 	} else {
 		sphere             = UVSphere(1.0f, 32 * 2, 16 * 2);
 		this->num_vertices = sphere.GetVertexCount();

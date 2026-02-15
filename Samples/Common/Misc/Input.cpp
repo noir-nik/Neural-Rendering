@@ -38,7 +38,7 @@ void ProcessViewportInput(GLFWWindow const& window, Camera& camera, Mouse& mouse
 		// if (glfwGetKey(glfw_window, std::to_underlying(Glfw::Key::eLeftAlt)) == std::to_underlying(Glfw::Action::ePress)) {
 		if (mouse.is_dragging) {
 			auto zoom_factor = camera.zoom_factor * length(camera_pos - camera.focus);
-			auto movement    = (zoom_factor * delta_pos.x) * camera_forward;
+			auto movement    = (zoom_factor * -delta_pos.x) * camera_forward;
 			camera.view      = camera.view | translate(movement);
 			// camera.focus += movement;
 		} else {

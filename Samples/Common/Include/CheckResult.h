@@ -1,17 +1,21 @@
 #pragma once
 
+#include "Log.h"
+
 #ifndef _ERR_STD
 #define _ERR_STD ::std::
 #endif
 
 #define _CHECK_VULKAN_RESULT2(func, line) \
 	{ \
+		LOG_DEBUG("%s in %s:%d", #func, __FILE__, line); \
 		::vk::Result local_result_##line = ::vk::Result(func); \
 		if (local_result_##line != ::vk::Result::eSuccess) [[unlikely]] { \
 			_ERR_STD printf("Vulkan error: %s " #func " in " __FILE__ ":" #line, ::vk::to_string(local_result_##line).c_str()); \
 			_ERR_STD getchar(); \
 			_ERR_STD exit(1); \
 		} \
+		LOG_DEBUG("Vulkan success: %s " #func " in " __FILE__ ":" #line, ::vk::to_string(local_result_##line).c_str()); \
 	}
 
 #define _CHECK_VULKAN_RESULT(func, line) _CHECK_VULKAN_RESULT2(func, line)
@@ -25,3 +29,4 @@
 			_ERR_STD exit(1); \
 		} \
 	}
+

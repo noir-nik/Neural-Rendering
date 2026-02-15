@@ -3,6 +3,7 @@ module;
 // #include <cstddef>
 
 // #include <cstdint>
+#include "Log.h"
 
 export module BRDFSample;
 
@@ -16,6 +17,7 @@ import WeightsLoader;
 import SamplesCommon;
 import VulkanRHI;
 import Math;
+import Vdevice;
 import vulkan_hpp;
 import std;
 
@@ -45,9 +47,9 @@ struct TestOptions {
 
 using FastKanOffsets = std::vector<FastKanLayerBase<u64>>;
 
+
 class BRDFSample {
 public:
-
 	static constexpr u32 kFramesInFlight = 3;
 
 	using Vertex = mesh::Vertex;
@@ -114,17 +116,16 @@ public:
 	std::string_view weights_file_name;
 	std::string_view kan_weights_file_name;
 
-	std::string_view      cubemap_folder_path;
-	std::string_view      obj_path;
-	
+	std::string_view cubemap_folder_path;
+	std::string_view obj_path;
+
 	u32 num_vertices = 0;
 	u32 num_indices  = 0;
-
 
 	static constexpr auto kCubeSideCount = 6;
 
 	// std::array<Image, kCubeSideCount> cubemap_images;
-	Image cubemap_image;
+	Image       cubemap_image;
 	vk::Sampler cubemap_sampler{};
 
 	Image accumulator_image;
@@ -151,10 +152,11 @@ public:
 	std::span<char const* const>    enabled_layers;
 	std::vector<vk::PhysicalDevice> vulkan_physical_devices;
 	PhysicalDevice                  physical_device;
-	vk::Device                      device;
-	VulkanRHI::Swapchain            swapchain;
-	bool                            swapchain_dirty = false;
-	vk::SurfaceKHR                  surface;
+	// vk::Device                      device;
+	VDevice              device;
+	VulkanRHI::Swapchain swapchain;
+	bool                 swapchain_dirty = false;
+	vk::SurfaceKHR       surface;
 
 	vk::Queue queue;
 	u32       queue_family_index = ~0u;
@@ -225,7 +227,9 @@ public:
 	Camera camera{{
 		.position = {1.0f, 3.0f, 5.0f},
 		.fov      = 50.0f,
-		.z_near   = 0.01f,
-		.z_far    = 1000.0f,
+		.z_near   = 0.1f,
+		.z_far    = 100.0f,
 	}};
+
+	Vertex vv{};
 };

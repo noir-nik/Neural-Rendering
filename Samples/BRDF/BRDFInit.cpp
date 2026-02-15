@@ -6,8 +6,10 @@ module;
 module BRDFSample;
 
 #include "CheckResult.h"
+#include "Log.h"
 #include "Shaders/BRDFBindings.h"
 #include "Shaders/BRDFConfig.h"
+
 
 import NeuralGraphics;
 import vulkan_hpp;
@@ -21,8 +23,6 @@ import SamplesCommon;
 import Math;
 import std;
 #include "BRDFVulkanConstants.h"
-
-
 
 static constexpr auto kApiVersion = vk::ApiVersion13;
 
@@ -190,8 +190,8 @@ void BRDFSample::Init() {
 		{.image_info = {
 			 .flags     = {},
 			 .imageType = vk::ImageType::e2D,
-			 .format    = vk::Format::eD16Unorm,
-			 //  .format        = vk::Format::eD32Sfloat,
+			//  .format    = vk::Format::eD16Unorm,
+			  .format        = vk::Format::eD32Sfloat,
 			 //  .format        = vk::Format::eD24UnormS8Uint,
 			 .extent        = {static_cast<u32>(width), static_cast<u32>(height), 1},
 			 .mipLevels     = 1,
@@ -236,10 +236,9 @@ void BRDFSample::Init() {
 
 	// network_parameters.resize(network.GetParametersSize());
 
-	auto [result, cooperative_vector_properties] = physical_device.getCooperativeVectorPropertiesNV();
-	CHECK_VULKAN_RESULT(result);
-
-	if (verbose) {
+	if (with_coop_vec() && verbose) {
+		auto [result, cooperative_vector_properties] = physical_device.getCooperativeVectorPropertiesNV();
+		CHECK_VULKAN_RESULT(result);
 		std::printf("=== VkCooperativeVectorPropertiesNV ===\n");
 		for (auto& property : cooperative_vector_properties) {
 			std::printf("inputType: %-8s ", vk::to_string(property.inputType).c_str());
@@ -413,6 +412,10 @@ void BRDFSample::CreateDevice() {
 
 	auto queue_family_properties = physical_device.GetQueueFamilyProperties(queue_family_index);
 	timestamps_supported         = queue_family_properties.timestampValidBits > 0;
+
+
+	// auto timestamp_period = physical_device.GetProperties10().limits.timestampPeriod;
+	// std::printf("timestampPeriod: %f\n", timestamp_period);
 
 	vk::DeviceQueueCreateInfo queue_create_infos[] = {
 		{

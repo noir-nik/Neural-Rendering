@@ -44,9 +44,9 @@ auto LoadObj(std::string_view obj_path) -> LoadObjResult {
 	for (u32 i = 0; i < attrib.vertices.size() / 3; i++) {
 		Vertex vv = {
 			.pos = {
-				attrib.vertices[3 * i + 0] / decltype(attrib.vertices[0])(100./2),
-				attrib.vertices[3 * i + 1] / decltype(attrib.vertices[0])(100./2) - 1.0f,
-				attrib.vertices[3 * i + 2] / decltype(attrib.vertices[0])(100./2),
+				attrib.vertices[3 * i + 0] / decltype(attrib.vertices[0])(30.),
+				attrib.vertices[3 * i + 1] / decltype(attrib.vertices[0])(30.) - 1.3f,
+				attrib.vertices[3 * i + 2] / decltype(attrib.vertices[0])(30.),
 			},
 		};
 		// if (attrib.normals.size() > 0) {

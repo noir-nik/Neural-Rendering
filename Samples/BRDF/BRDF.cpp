@@ -6,7 +6,9 @@ module BRDFSample;
 // #include <cstddef>
 
 #include "CheckResult.h"
+#include "Log.h"
 #include "Shaders/BRDFConfig.h"
+
 
 import NeuralGraphics;
 import vulkan_hpp;
@@ -166,9 +168,9 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
 	cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
 
-	camera.getForward() *= -1.0;
-	camera.updateProjectionViewInverse();
-	camera.getForward() *= -1.0;
+	// camera.getForward() *= -1.0;
+	// camera.updateProjectionViewInverse();
+	// camera.getForward() *= -1.0;
 
 	int reset_accumulation = (length(prev_camera_pos - camera.getPosition())) > 0.001f;
 	// reset_accumulation     = 1;
@@ -179,8 +181,48 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	// std::printf("reset_accumulation: %d\n", reset_accumulation);
 	// std::printf("frame_count: %d\n", frame_count);
 
+	// proj = inverse(proj);
+	// view = inverse(view);
+	// auto view_proj = (proj * view);
+
+	auto invv = 0;
+	if (invv)
+		camera.getForward() *= -1.0;
+
+	auto view = camera.view;
+	auto proj = camera.proj;
+
+	// auto view_proj = (view * proj);
+	// auto view_proj = affineInverse(camera.getProjViewInv());
+	// auto view_proj = inverse(camera.getProjViewInv());
+	// auto view_proj = proj * (view | inverse4x4);
+	// auto view_proj = proj * (view  inverse4x4);
+	auto view_proj = proj * (view | affineInverse);
+	view_proj      = OpenglToVulkanProjectionMatrixFix() * view_proj;
+
+	
+
+	// view_proj = inverse4x4(view_proj);
+
+	if (invv)
+		camera.getForward() *= -1.0;
+
+	// auto view_proj = (camera.getProjViewInv());
+
+	PrintMat4(view_proj);
+	float4 test = {vv.pos[0], vv.pos[1], vv.pos[2], 1.0f};
+	// auto res =   test * view_proj;
+	auto res = view_proj * test;
+	// auto res =   view_proj * test ;
+	// auto res =   inverse(view_proj * test) ;
+	// auto res =  camera.getProjViewInv() * test;
+	// auto res =  test * camera.getProjViewInv();
+	// auto res =  affineInverse(camera.getProjViewInv()) * test;
+	std::printf("Result: %f, %f, %f, %f\n", res.x, res.y, res.z, res.w);
+
 	BRDFConstants constants{
-		.view_proj = camera.getProjViewInv(),
+		// .view_proj = camera.getProjViewInv(),
+		.view_proj = view_proj,
 		.material  = {
 			 .base_color = float4{0.8, 0.8, 0.8, 1.0},
 			 .metallic   = 0.5f,
@@ -246,7 +288,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	cmd.bindIndexBuffer(device_buffer, indices_offset, vk::IndexType::eUint32);
 	// cmd.draw(3, 1, 0, 0);
 	// cmd.draw(vertex_count, 1, 0, 0);
-	
+
 	cmd.drawIndexed(index_count, 1, 0, 0, 0);
 	cmd.endRendering();
 	cmd.Barrier2({

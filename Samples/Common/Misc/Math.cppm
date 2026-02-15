@@ -1,6 +1,14 @@
 export module Math;
 import std;
 
+#if defined(_MSC_VER)
+#define CVEX_ALIGNED(x) __declspec(align(x))
+#else
+// #if defined(__GNUC__)
+#define CVEX_ALIGNED(x) __attribute__((aligned(x)))
+// #endif
+#endif
+
 export namespace math {
 
 struct int2;
@@ -123,8 +131,8 @@ struct float3x3 {
 	}
 
 	inline explicit float3x3(float a00, float a01, float a02,
-							 float a10, float a11, float a12,
-							 float a20, float a21, float a22) {
+							float a10, float a11, float a12,
+							float a20, float a21, float a22) {
 		m_col[0] = float3{a00, a01, a02};
 		m_col[1] = float3{a10, a11, a12};
 		m_col[2] = float3{a20, a21, a22};
@@ -351,7 +359,35 @@ inline float3 cross(float3 const a, float3 const b) {
 }
 
 // RH
-inline float4x4 lookAt(float3 eye, float3 center, float3 up) {
+
+	inline float4x4 lookAtLM(float3 eye, float3 center, float3 up)
+{
+	float3 x, y, z; // basis; will make a rotation matrix
+	z.x = eye.x - center.x;
+	z.y = eye.y - center.y;
+	z.z = eye.z - center.z;
+	z = normalize(z);
+	y.x = up.x;
+	y.y = up.y;
+	y.z = up.z;
+	x = cross(y, z); // X vector = Y cross Z
+	y = cross(z, x); // Recompute Y = Z cross X
+	// cross product gives area of parallelogram, which is < 1.0 for
+	// non-perpendicular unit-length vectors; so normalize x, y here
+	x = normalize(x);
+	y = normalize(y);
+	float4x4 M;
+	M.set_col(0, float4{ x.x, y.x, z.x, 0.0f });
+	M.set_col(1, float4{ x.y, y.y, z.y, 0.0f });
+	M.set_col(2, float4{ x.z, y.z, z.z, 0.0f });
+	M.set_col(3, float4{ -x.x * eye.x - x.y * eye.y - x.z*eye.z,
+						-y.x * eye.x - y.y * eye.y - y.z*eye.z,
+						-z.x * eye.x - z.y * eye.y - z.z*eye.z,
+						1.0f });
+	return M;
+}
+
+inline float4x4 lookAt0(float3 eye, float3 center, float3 up) {
 	float3 r, u, f;
 
 	f = normalize(center - eye);
@@ -366,6 +402,20 @@ inline float4x4 lookAt(float3 eye, float3 center, float3 up) {
 	};
 }
 
+float4x4 lookAt1(float3 eye, float3 target, float3 up) {
+	
+	float3 f = normalize( (target - eye)); 
+	float3 s = normalize(cross(f, up));      
+	float3 u = cross(s, f);                 
+
+	float4x4 res = {};
+	res.col(0) = { s.x, u.x, -f.x, 0.0f };
+	res.col(1) = { s.y, u.y, -f.y, 0.0f };
+	res.col(2) = { s.z, u.z, -f.z, 0.0f };
+	res.col(3) = { -dot(s, eye), -dot(u, eye), dot(f, eye), 1.0f };
+	return res;
+}
+
 inline float4x4 lookAtInverse(float3 eye, float3 center, float3 up) {
 	float3 const f = normalize(center - eye);
 	float3 const s = normalize(cross(f, up));
@@ -378,8 +428,22 @@ inline float4x4 lookAtInverse(float3 eye, float3 center, float3 up) {
 	return res;
 }
 
+float4x4 perspectiveG(float fov, float aspect, float znear, float zfar) {
+	float h = 1.0f / tanf(fov * DEG_TO_RAD * 0.5f);
+	float w = h / aspect;
+	float a = zfar / (zfar - znear);
+	float b = -(zfar * znear) / (zfar - znear);
+
+	float4x4 res = {};
+	res.col(0) = { w,    0.0f, 0.0f, 0.0f };
+	res.col(1) = { 0.0f, -h,   0.0f, 0.0f }; // -h инвертирует Y для Vulkan
+	res.col(2) = { 0.0f, 0.0f, a,    1.0f };
+	res.col(3) = { 0.0f, 0.0f, b,    0.0f };
+	return res;
+}
+
 inline float4x4 perspectiveX(float fov_x, float aspect, float z_near, float z_far) {
-	float tan_half_fov_inverse = 1.0f / std::tanf(fov_x * DEG_TO_RAD / 2.0f);
+	float tan_half_fov_inverse = 1.0f / std::tanf(fov_x * DEG_TO_RAD * 0.5f);
 
 	float4x4 result;
 	result(0, 0) = tan_half_fov_inverse;
@@ -392,7 +456,7 @@ inline float4x4 perspectiveX(float fov_x, float aspect, float z_near, float z_fa
 }
 
 inline float4x4 perspectiveY(float fov_y, float aspect, float z_near, float z_far) {
-	float tan_half_fov_inverse = 1.0f / std::tanf(fov_y * DEG_TO_RAD / 2.0f);
+	float tan_half_fov_inverse = 1.0f / std::tanf(fov_y * DEG_TO_RAD * 0.5f);
 
 	float4x4 result;
 	result(0, 0) = aspect * tan_half_fov_inverse;
@@ -403,6 +467,152 @@ inline float4x4 perspectiveY(float fov_y, float aspect, float z_near, float z_fa
 	result(3, 3) = 0.0f;
 	return result;
 }
+
+inline float4x4 projectionMatrix(float fovy, float aspect, float zNear, float zFar)
+{
+float4x4 res;
+const float ymax = zNear * tanf(fovy * DEG_TO_RAD * 0.5f);
+const float xmax = ymax * aspect;
+
+const float left   = -xmax;
+const float right  = +xmax;
+const float bottom = -ymax;
+const float top    = +ymax;
+
+const float temp = 2.0f * zNear;
+const float temp2 = right - left;
+const float temp3 = top - bottom;
+const float temp4 = zFar - zNear;
+
+res(0,0) = temp / temp2;
+res(1,0) = 0.0;
+res(2,0) = 0.0;
+res(3,0) = 0.0;
+
+res(0,1) = 0.0;
+res(1,1) = temp / temp3;
+res(2,1) = 0.0;
+res(3,1) = 0.0;
+
+res(0, 2) = (right + left) / temp2;
+res(1, 2) = (top + bottom) / temp3;
+res(2, 2) = (-zFar - zNear) / temp4;
+res(3, 2) = -1.0;
+
+res(0, 3) = 0.0;
+res(1, 3) = 0.0;
+res(2, 3) = (-temp * zFar) / temp4;
+res(3, 3) = 0.0;
+
+return res;
+}
+
+inline float4x4 perspectiveMatrix(float fovy, float aspect, float zNear, float zFar)
+{
+const float ymax = zNear * tanf(fovy * 3.14159265358979323846f / 360.0f);
+const float xmax = ymax * aspect;
+const float left = -xmax;
+const float right = +xmax;
+const float bottom = -ymax;
+const float top = +ymax;
+const float temp = 2.0f * zNear;
+const float temp2 = right - left;
+const float temp3 = top - bottom;
+const float temp4 = zFar - zNear;
+float4x4 res;
+res.set_col(0, float4{ temp / temp2, 0.0f, 0.0f, 0.0f });
+res.set_col(1, float4{ 0.0f, temp / temp3, 0.0f, 0.0f });
+res.set_col(2, float4{ (right + left) / temp2,  (top + bottom) / temp3, (-zFar - zNear) / temp4, -1.0 });
+res.set_col(3, float4{ 0.0f, 0.0f, (-temp * zFar) / temp4, 0.0f });
+return res;
+}
+
+// Column-major float4x4 helper functions for Vulkan
+
+// Creates a right-handed look-at view matrix for Vulkan
+// Column-major layout: each float4 is a column of the matrix
+inline float4x4 lookAt(float3 eye, float3 center, float3 up) {
+	// Right-handed coordinate system
+	float3 f = normalize(center - eye);  // forward (camera looks towards +Z in view space)
+	float3 r = normalize(cross(f, up));   // right
+	float3 u = cross(r, f);               // up
+	
+	// Vulkan uses column-major matrices
+	// Column 0: right vector and -dot(right, eye)
+	// Column 1: up vector and -dot(up, eye)
+	// Column 2: -forward vector and dot(forward, eye)
+	// Column 3: translation
+	
+	float4x4 result;
+	
+	// Column 0 (right)
+	result[0] = float4(r.x, u.x, -f.x, 0.0);
+	
+	// Column 1 (up)
+	result[1] = float4(r.y, u.y, -f.y, 0.0);
+	
+	// Column 2 (forward)
+	result[2] = float4(r.z, u.z, -f.z, 0.0);
+	
+	// Column 3 (translation)
+	result[3] = float4(-dot(r, eye), -dot(u, eye), dot(f, eye), 1.0);
+	
+	return result;
+}
+
+// Creates a perspective projection matrix for Vulkan
+// Vulkan uses:
+// - Column-major matrices
+// - Depth range [0, 1] (unlike OpenGL's [-1, 1])
+// - Y-axis pointing down in NDC (can be flipped in viewport or here)
+inline float4x4 perspective(float fov, float aspect, float znear, float zfar) {
+	// fov is vertical field of view in radians
+	float tanHalfFov = tanf(fov * DEG_TO_RAD / 2.0);
+	
+	float4x4 result = float4x4(
+		float4(0.0, 0.0, 0.0, 0.0),
+		float4(0.0, 0.0, 0.0, 0.0),
+		float4(0.0, 0.0, 0.0, 0.0),
+		float4(0.0, 0.0, 0.0, 0.0)
+	);
+	
+	// Column 0
+	result[0][0] = 1.0 / (aspect * tanHalfFov);
+	
+	// Column 1 - Vulkan Y-axis flip (negative for standard Vulkan convention)
+	result[1][1] = -1.0 / tanHalfFov;  // Flip Y for Vulkan's top-left origin
+	
+	// Column 2 - Vulkan depth mapping [0, 1]
+	result[2][2] = zfar / (znear - zfar);
+	result[2][3] = -1.0;
+	
+	// Column 3
+	result[3][2] = -(zfar * znear) / (zfar - znear);
+	
+	return result;
+}
+
+// Alternative perspective without Y-flip if you handle it in viewport
+inline float4x4 perspectiveNoFlip(float fov, float aspect, float znear, float zfar) {
+	float tanHalfFov = tanf(fov * DEG_TO_RAD / 2.0);
+	
+	float4x4 result = float4x4(
+		float4(0.0, 0.0, 0.0, 0.0),
+		float4(0.0, 0.0, 0.0, 0.0),
+		float4(0.0, 0.0, 0.0, 0.0),
+		float4(0.0, 0.0, 0.0, 0.0)
+	);
+	
+	result[0][0] = 1.0 / (aspect * tanHalfFov);
+	result[1][1] = 1.0 / tanHalfFov;  // No Y-flip
+	result[2][2] = zfar / (znear - zfar);
+	result[2][3] = -1.0;
+	result[3][2] = -(zfar * znear) / (zfar - znear);
+	
+	return result;
+}
+
+
 inline float3x3 transpose(float3x3 const& m1) {
 	float3x3 res;
 	res[0] = float3{m1(0, 0), m1(1, 0), m1(2, 0)};
@@ -437,6 +647,15 @@ inline float3x3 inverse(float3x3 const& m) {
 	return res;
 }
 
+inline float4x4 OpenglToVulkanProjectionMatrixFix()
+{
+	float4x4 res;
+	res[1][1] = -1.0f;
+	res[2][2] = 0.5f;
+	res[2][3] = 0.5f;
+	return res;
+}
+
 inline void mat3_colmajor_mul_vec3(float* __restrict RES, const float* __restrict B, const float* __restrict V) {
 	RES[0] = V[0] * B[0] + V[1] * B[3] + V[2] * B[6];
 	RES[1] = V[0] * B[1] + V[1] * B[4] + V[2] * B[7];
@@ -458,11 +677,27 @@ inline void mat4_colmajor_mul_vec4(float* __restrict res, const float* __restric
 	res[3] = v[0] * b[3] + v[1] * b[7] + v[2] * b[11] + v[3] * b[15];
 }
 
+inline void vec4_colmajor_mul_mat4(float* __restrict res, const float* __restrict b, const float* __restrict v) {
+	res[0] = v[0] * b[0] + v[1] * b[1] + v[2] * b[2] + v[3] * b[3];
+	res[1] = v[0] * b[4] + v[1] * b[5] + v[2] * b[6] + v[3] * b[7];
+	res[2] = v[0] * b[8] + v[1] * b[9] + v[2] * b[10] + v[3] * b[11];
+	res[3] = v[0] * b[12] + v[1] * b[13] + v[2] * b[14] + v[3] * b[15];
+}
+
 inline float4 mul(float4x4 const& m, float4 const& v) {
 	float4 res;
 	mat4_colmajor_mul_vec4((float*)&res, (const float*)&m, (const float*)&v);
 	return res;
 }
+
+inline float4 mul(float4 const& v, float4x4 const& m) {
+	float4 res;
+	vec4_colmajor_mul_mat4((float*)&res, (const float*)&m, (const float*)&v);
+	return res;
+}
+
+inline float4 operator*(float4x4 const& m, float4 const& v) { return mul(m, v); }
+inline float4 operator*(float4 const& v, float4x4 const& m) { return mul(v, m); }
 
 inline float4x4 translate4x4(float3 t) {
 	float4x4 res;
@@ -570,6 +805,96 @@ inline float4x4 affineInverse(float4x4 const& m) {
 	};
 }
 
+inline float4x4 inverse4x4(float4x4 const& m1) {
+	CVEX_ALIGNED(16)
+	float    tmp[12]; // temp array for pairs
+	float4x4 m;
+
+	// calculate pairs for first 8 elements (cofactors)
+	//
+	tmp[0]  = m1(2, 2) * m1(3, 3);
+	tmp[1]  = m1(2, 3) * m1(3, 2);
+	tmp[2]  = m1(2, 1) * m1(3, 3);
+	tmp[3]  = m1(2, 3) * m1(3, 1);
+	tmp[4]  = m1(2, 1) * m1(3, 2);
+	tmp[5]  = m1(2, 2) * m1(3, 1);
+	tmp[6]  = m1(2, 0) * m1(3, 3);
+	tmp[7]  = m1(2, 3) * m1(3, 0);
+	tmp[8]  = m1(2, 0) * m1(3, 2);
+	tmp[9]  = m1(2, 2) * m1(3, 0);
+	tmp[10] = m1(2, 0) * m1(3, 1);
+	tmp[11] = m1(2, 1) * m1(3, 0);
+
+	// calculate first 8 m1.rowents (cofactors)
+	//
+	m(0, 0) = tmp[0] * m1(1, 1) + tmp[3] * m1(1, 2) + tmp[4] * m1(1, 3);
+	m(0, 0) -= tmp[1] * m1(1, 1) + tmp[2] * m1(1, 2) + tmp[5] * m1(1, 3);
+	m(1, 0) = tmp[1] * m1(1, 0) + tmp[6] * m1(1, 2) + tmp[9] * m1(1, 3);
+	m(1, 0) -= tmp[0] * m1(1, 0) + tmp[7] * m1(1, 2) + tmp[8] * m1(1, 3);
+	m(2, 0) = tmp[2] * m1(1, 0) + tmp[7] * m1(1, 1) + tmp[10] * m1(1, 3);
+	m(2, 0) -= tmp[3] * m1(1, 0) + tmp[6] * m1(1, 1) + tmp[11] * m1(1, 3);
+	m(3, 0) = tmp[5] * m1(1, 0) + tmp[8] * m1(1, 1) + tmp[11] * m1(1, 2);
+	m(3, 0) -= tmp[4] * m1(1, 0) + tmp[9] * m1(1, 1) + tmp[10] * m1(1, 2);
+	m(0, 1) = tmp[1] * m1(0, 1) + tmp[2] * m1(0, 2) + tmp[5] * m1(0, 3);
+	m(0, 1) -= tmp[0] * m1(0, 1) + tmp[3] * m1(0, 2) + tmp[4] * m1(0, 3);
+	m(1, 1) = tmp[0] * m1(0, 0) + tmp[7] * m1(0, 2) + tmp[8] * m1(0, 3);
+	m(1, 1) -= tmp[1] * m1(0, 0) + tmp[6] * m1(0, 2) + tmp[9] * m1(0, 3);
+	m(2, 1) = tmp[3] * m1(0, 0) + tmp[6] * m1(0, 1) + tmp[11] * m1(0, 3);
+	m(2, 1) -= tmp[2] * m1(0, 0) + tmp[7] * m1(0, 1) + tmp[10] * m1(0, 3);
+	m(3, 1) = tmp[4] * m1(0, 0) + tmp[9] * m1(0, 1) + tmp[10] * m1(0, 2);
+	m(3, 1) -= tmp[5] * m1(0, 0) + tmp[8] * m1(0, 1) + tmp[11] * m1(0, 2);
+
+	// calculate pairs for second 8 m1.rowents (cofactors)
+	//
+	tmp[0]  = m1(0, 2) * m1(1, 3);
+	tmp[1]  = m1(0, 3) * m1(1, 2);
+	tmp[2]  = m1(0, 1) * m1(1, 3);
+	tmp[3]  = m1(0, 3) * m1(1, 1);
+	tmp[4]  = m1(0, 1) * m1(1, 2);
+	tmp[5]  = m1(0, 2) * m1(1, 1);
+	tmp[6]  = m1(0, 0) * m1(1, 3);
+	tmp[7]  = m1(0, 3) * m1(1, 0);
+	tmp[8]  = m1(0, 0) * m1(1, 2);
+	tmp[9]  = m1(0, 2) * m1(1, 0);
+	tmp[10] = m1(0, 0) * m1(1, 1);
+	tmp[11] = m1(0, 1) * m1(1, 0);
+
+	// calculate second 8 m1 (cofactors)
+	//
+	m(0, 2) = tmp[0] * m1(3, 1) + tmp[3] * m1(3, 2) + tmp[4] * m1(3, 3);
+	m(0, 2) -= tmp[1] * m1(3, 1) + tmp[2] * m1(3, 2) + tmp[5] * m1(3, 3);
+	m(1, 2) = tmp[1] * m1(3, 0) + tmp[6] * m1(3, 2) + tmp[9] * m1(3, 3);
+	m(1, 2) -= tmp[0] * m1(3, 0) + tmp[7] * m1(3, 2) + tmp[8] * m1(3, 3);
+	m(2, 2) = tmp[2] * m1(3, 0) + tmp[7] * m1(3, 1) + tmp[10] * m1(3, 3);
+	m(2, 2) -= tmp[3] * m1(3, 0) + tmp[6] * m1(3, 1) + tmp[11] * m1(3, 3);
+	m(3, 2) = tmp[5] * m1(3, 0) + tmp[8] * m1(3, 1) + tmp[11] * m1(3, 2);
+	m(3, 2) -= tmp[4] * m1(3, 0) + tmp[9] * m1(3, 1) + tmp[10] * m1(3, 2);
+	m(0, 3) = tmp[2] * m1(2, 2) + tmp[5] * m1(2, 3) + tmp[1] * m1(2, 1);
+	m(0, 3) -= tmp[4] * m1(2, 3) + tmp[0] * m1(2, 1) + tmp[3] * m1(2, 2);
+	m(1, 3) = tmp[8] * m1(2, 3) + tmp[0] * m1(2, 0) + tmp[7] * m1(2, 2);
+	m(1, 3) -= tmp[6] * m1(2, 2) + tmp[9] * m1(2, 3) + tmp[1] * m1(2, 0);
+	m(2, 3) = tmp[6] * m1(2, 1) + tmp[11] * m1(2, 3) + tmp[3] * m1(2, 0);
+	m(2, 3) -= tmp[10] * m1(2, 3) + tmp[2] * m1(2, 0) + tmp[7] * m1(2, 1);
+	m(3, 3) = tmp[10] * m1(2, 2) + tmp[4] * m1(2, 0) + tmp[9] * m1(2, 1);
+	m(3, 3) -= tmp[8] * m1(2, 1) + tmp[11] * m1(2, 2) + tmp[5] * m1(2, 0);
+
+	// calculate matrix inverse
+	//
+	const float  k = 1.0f / (m1(0, 0) * m(0, 0) + m1(0, 1) * m(1, 0) + m1(0, 2) * m(2, 0) + m1(0, 3) * m(3, 0));
+	const float4 vK{k, k, k, k};
+
+	m.set_col(0, m.col(0) * vK);
+	m.set_col(1, m.col(1) * vK);
+	m.set_col(2, m.col(2) * vK);
+	m.set_col(3, m.col(3) * vK);
+
+	return m;
+}
+
+inline float4x4 inverse(float4x4 const& m1) {
+	return inverse4x4(m1);
+}
+
 inline float4x4 operator|(float4x4 const& m, float4x4 (*func)(float4x4 const&)) {
 	return func(m);
 }
@@ -580,8 +905,8 @@ struct translate_op {
 
 inline translate_op translate(float3 t) { return translate_op(t); }
 inline float4x4     operator|(float4x4 m, translate_op const& op) {
-    m.col(3) += float4{op.translation.x, op.translation.y, op.translation.z, 0.0f};
-    return m;
+	m.col(3) += float4{op.translation.x, op.translation.y, op.translation.z, 0.0f};
+	return m;
 }
 
 struct rotateX_op {
