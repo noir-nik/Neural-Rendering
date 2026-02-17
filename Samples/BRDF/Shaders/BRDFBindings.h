@@ -16,5 +16,12 @@
 #ifndef BINDING_STORAGE_IMAGE
 #define BINDING_STORAGE_IMAGE 2u
 #endif
+#ifndef BINDING_STORAGE_IMAGE2
+#define BINDING_STORAGE_IMAGE2 3u
+#endif
+
+// #ifndef BINDING_SAMPLED_IMAGE
+// #define BINDING_SAMPLED_IMAGE 3u
+// #endif
 
 #endif // BRDF_BINDINGS_H

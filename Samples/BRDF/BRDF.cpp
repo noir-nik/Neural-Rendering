@@ -104,10 +104,14 @@ auto BRDFSample::DrawWindow(vk::Pipeline pipeline) -> u64 {
 	swapchain.EndFrame();
 	return elapsed;
 }
-static u32    frame_count{};
-static constexpr u32    start_frame{120};
-static constexpr u32    end_frame{400};
-static float3 prev_camera_pos = {0.0f, 0.0f, 0.0f};
+
+u32 constexpr ppi = 270;
+static u32            frame_count{};
+static constexpr u32  start_frame{150};
+static constexpr u32  end_frame{150+ppi};
+static constexpr bool move_scripted   = true;
+// static constexpr bool move_scripted   = false;
+static float3         prev_camera_pos = {0.0f, 0.0f, 0.0f};
 
 void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	LOG_DEBUG("BRDFSample::RecordCommands()");
@@ -119,7 +123,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	// 	depth_image.Recreate({static_cast<u32>(width), static_cast<u32>(height), 1});
 	// }
 
-	for (auto i : {&depth_image, &accumulator_image}) {
+	for (auto i : {&depth_image, &accumulator_image, &depth_storage_image}) {
 		if (static_cast<u32>(width) > i->GetExtent().width || static_cast<u32>(height) > i->GetExtent().height) {
 			i->Recreate({static_cast<u32>(width), static_cast<u32>(height), 1});
 		}
@@ -145,27 +149,58 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 		.dstStageMask  = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
 		.dstAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
 	});
-	cmd.BeginRendering({
-		.renderArea       = render_rect,
-		.colorAttachments = {{{
+	// cmd.BeginRendering({
+	// 	.renderArea       = render_rect,
+	// 	.colorAttachments = {{{
+	// 		.imageView   = swapchain.GetCurrentImageView(),
+	// 		.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
+	// 		.loadOp      = vk::AttachmentLoadOp::eClear,
+	// 		.storeOp     = vk::AttachmentStoreOp::eStore,
+	// 		// .clearValue  = {{{{0.5f, 0.5f, 0.5f, 0.0f}}}},
+	// 		// .clearValue = {{{{0.2f, 0.2f, 0.2f, 0.0f}}}},
+	// 		.clearValue = {{{{0.1f, 0.1f, 0.1f, 0.0f}}}},
+	// 		// .clearValue = {{{{1.f, 1.f, 1.f, 1.0f}}}},
+	// 		// .clearValue  = {{{{0.f, 0.f, 0.f, 1.0f}}}},
+	// 	}}},
+	// 	.depthAttachment  = {
+	// 		 .imageView   = depth_image.GetView(),
+	// 		 .imageLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal,
+	// 		 .loadOp      = vk::AttachmentLoadOp::eClear,
+	// 		 .storeOp     = vk::AttachmentStoreOp::eStore,
+	// 		 .clearValue  = {{{{1.0f, 0}}}},
+	//     },
+	// });
+
+	vk::RenderingAttachmentInfo depthAttachment = {
+		.imageView   = depth_image.GetView(),
+		.imageLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal,
+		.loadOp      = vk::AttachmentLoadOp::eClear,
+		.storeOp     = vk::AttachmentStoreOp::eStore,
+		.clearValue  = {{{{1.0f, 0}}}},
+	};
+	vk::RenderingAttachmentInfo colorAttachments[] = {
+		{
 			.imageView   = swapchain.GetCurrentImageView(),
 			.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
 			.loadOp      = vk::AttachmentLoadOp::eClear,
 			.storeOp     = vk::AttachmentStoreOp::eStore,
 			// .clearValue  = {{{{0.5f, 0.5f, 0.5f, 0.0f}}}},
 			// .clearValue = {{{{0.2f, 0.2f, 0.2f, 0.0f}}}},
-			.clearValue = {{{{0.1f, 0.1f, 0.1f, 0.0f}}}},
-			// .clearValue = {{{{1.f, 1.f, 1.f, 1.0f}}}},
+			// .clearValue = {{{{0.5f, 0.5f, 0.5f, 0.0f}}}},
+			.clearValue = {{{{1.f, 1.f, 1.f, 1.0f}}}},
 			// .clearValue  = {{{{0.f, 0.f, 0.f, 1.0f}}}},
-		}}},
-		.depthAttachment  = {
-			 .imageView   = depth_image.GetView(),
-			 .imageLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal,
-			 .loadOp      = vk::AttachmentLoadOp::eClear,
-			 .storeOp     = vk::AttachmentStoreOp::eStore,
-			 .clearValue  = {{{{1.0f, 0}}}},
-        },
-	});
+		}};
+
+	vk::RenderingInfoKHR renderingInfo{
+		.flags                = {},
+		.renderArea           = render_rect,
+		.layerCount           = 1,
+		.viewMask             = 0,
+		.colorAttachmentCount = std::ranges::size(colorAttachments),
+		.pColorAttachments    = colorAttachments,
+		.pDepthAttachment     = &depthAttachment,
+	};
+	cmd.beginRendering(renderingInfo);
 
 	// camera.getForward() *= -1.0;
 	// camera.updateProjectionViewInverse();
@@ -182,34 +217,35 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 
 	// proj = inverse(proj);
 	// view = inverse(view);
-	// auto view_proj = (proj * view);
+	// auto view_proj = (proj *  view);
 
-	bool movesine = 1;
-	// bool movesine = ;
-	// std::printf("frame_count: %d\n", frame_count);
-	
-	if (movesine){
+	// bool move_scripted = ;
+	// std::printf("frame_count: %d\n", frame_count	 );
 
-		auto dm  = frame_count/20.0f;
+	if (move_scripted) {
+
+		float pi = 3.14159265359f;
+
+		auto dm = 2*pi*(float(frame_count) / ppi);
 
 		if (frame_count < start_frame) {
-			dm = start_frame/20.0f;
+			dm = 2*pi*(float(start_frame) / ppi);
 		}
-		auto delta_x =  sinf(dm);
-		auto delta_y =  cosf(dm);
+		auto delta_x = sinf(dm);
+		auto delta_y = cosf(dm) * 0.3f;
 
 		// auto delta_x = 1.f;
 		// auto delta_y =  0.f;
 
-		float2 delta_pos = {delta_x* 2.0f, delta_y* 2.0f};
+		float2 delta_pos = {delta_x * 2.5f, delta_y * 2.5f};
 
 		// camera.moveWithCursor(width, height, delta_x, delta_y);
 
 		if (frame_count > start_frame) {
-				auto&       camera_pos     = camera.getPosition();
-	auto const& camera_right   = camera.getRight();
-	auto const& camera_up      = camera.getUp();
-	auto const& camera_forward = camera.getForward();
+			auto&       camera_pos     = camera.getPosition();
+			auto const& camera_right   = camera.getRight();
+			auto const& camera_up      = camera.getUp();
+			auto const& camera_forward = camera.getForward();
 			// all float3
 			camera_pos -= camera.focus;
 
@@ -220,7 +256,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 
 			camera.view = camera.view
 						  | rotate(camera_right, -delta_pos.y * camera.rotation_factor)
-						//   | rotate(camera_up, rotation_sign * delta_pos.x * camera.rotation_factor);
+						  //   | rotate(camera_up, rotation_sign * delta_pos.x * camera.rotation_factor);
 						  | rotate(world_up, rotation_sign * delta_pos.x * camera.rotation_factor);
 			camera_pos += camera.focus;
 		}
@@ -233,13 +269,31 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	auto view = camera.view;
 	auto proj = camera.proj;
 
+	// struct CamData{
+	// 	float fov,
+	// 	int width,
+	// 	int height,
+	// 	float z_near,
+	// 	float z_far;
+	// }
+
+	auto ffix = [] {
+		float4x4 res;
+		res[1][1] = -1.0f;
+		// res[2][2] = 0.5f;
+		// res[2][3] = 0.5f;
+		return res;
+	};
+
 	// auto view_proj = (view * proj);
 	// auto view_proj = affineInverse(camera.getProjViewInv());
 	// auto view_proj = inverse(camera.getProjViewInv());
 	// auto view_proj = proj * (view | inverse4x4);
 	// auto view_proj = proj * (view  inverse4x4);
-	auto view_proj_base = proj * (view | affineInverse);
+	auto view_proj_base = proj * (view | inverse);
 	auto view_proj      = OpenglToVulkanProjectionMatrixFix() * view_proj_base;
+	// auto view_proj      = ffix() * view_proj_base;
+	// view_proj      = view_proj_base;
 
 	// view_proj = inverse4x4(view_proj);
 
@@ -256,9 +310,11 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	// auto res =  camera.getProjViewInv() * test;
 	// auto res =  test * camera.getProjViewInv();
 	// auto res =  affineInverse(camera.getProjViewInv()) * test;
+
 	if (0) {
 		PrintMat4(view_proj);
-		std::printf("Result: %f, %f, %f, %f\n", res.x, res.y, res.z, res.w);
+		std::printf("Result : %f, %f, %f, %f\n", res.x, res.y, res.z, res.w);
+		std::printf("Result1: %f, %f, %f, %f\n", res.x/res.w, res.y/res.w, res.z/res.w, res.w);
 	}
 	BRDFConstants constants{
 		// .view_proj = camera.getProjViewInv(),
@@ -322,16 +378,14 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	};
 
 	// Skybox
-	if (hasattr(&BRDFSample::cubemap_folder_path)) {
-		auto ffix = [] {
-			float4x4 res;
-			res[1][1] = -1.0f;
-			// res[2][2] = 0.5f;
-			// res[2][3] = 0.5f;
-			return res;
-		};
-		
+	if (hasattr(&BRDFSample::cubemap_folder_path) && 0) {
+
+		float4x4 view_rotation = view;
+		view_rotation[3]       = float4(0.0f, 0.0f, 0.0f, 1.0f);
+
 		constants.view_proj = ffix() * inverse(view_proj_base);
+		// constants.view_proj = inverse(view_proj_base);
+		// constants.view_proj = inverse(proj * view_rotation | inverse);
 
 		bind_push(skybox_pipeline);
 
@@ -475,7 +529,7 @@ void BRDFSample::Run() {
 		u64       elapsed_ns = DrawWindow();
 		verbose&& std::printf("%f ms\n", elapsed_ns / 1000000.0);
 		fix_framerate();
-		if (frame_count > end_frame) {
+		if (move_scripted && (frame_count > end_frame)) {
 			return;
 		}
 	} while (true);

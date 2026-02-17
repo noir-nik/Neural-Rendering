@@ -124,6 +124,8 @@ void CommandBuffer::BeginRendering(RenderingInfo const& info) {
 		.pDepthAttachment     = info.depthAttachment.imageView ? &info.depthAttachment : nullptr,
 		.pStencilAttachment   = info.stencilAttachment.imageView ? &info.stencilAttachment : nullptr,
 	};
+	// pDepthAttachment
+	// std::printf("BeginRendering: %p:", renderingInfo.pDepthAttachment);
 	beginRendering(&renderingInfo);
 }
 

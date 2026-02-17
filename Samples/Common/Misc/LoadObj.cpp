@@ -45,7 +45,7 @@ auto LoadObj(std::string_view obj_path) -> LoadObjResult {
 		Vertex vv = {
 			.pos = {
 				attrib.vertices[3 * i + 0] / decltype(attrib.vertices[0])(30.),
-				attrib.vertices[3 * i + 1] / decltype(attrib.vertices[0])(30.) - 1.3f,
+				-attrib.vertices[3 * i + 1] / decltype(attrib.vertices[0])(30.) + 1.5f,
 				attrib.vertices[3 * i + 2] / decltype(attrib.vertices[0])(30.),
 			},
 		};

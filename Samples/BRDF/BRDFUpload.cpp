@@ -4,7 +4,6 @@ module;
 #include "Log.h"
 #include <cassert> // assert
 
-
 module BRDFSample;
 import NeuralGraphics;
 import vulkan_hpp;
@@ -632,6 +631,11 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 			 .imageView   = cubemap_image.GetView(),
 			 .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
         }};
+		vk::DescriptorImageInfo  sampled_infos[] = {{
+            //  .sampler     = cubemap_sampler,
+			 .imageView   = depth_storage_image.GetView(),
+			 .imageLayout = vk::ImageLayout::eGeneral,
+        }};
 		vk::DescriptorImageInfo  image_infos[]   = {{
 			   .sampler     = cubemap_sampler,
 			   .imageView   = accumulator_image.GetView(),
@@ -663,6 +667,23 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 				.descriptorType  = vk::DescriptorType::eStorageImage,
 				.pImageInfo      = image_infos,
 			},
+			// {
+			// 	.dstSet          = descriptor_set,
+			// 	.dstBinding      = BINDING_STORAGE_IMAGE2,
+			// 	.dstArrayElement = 0,
+			// 	.descriptorCount = static_cast<u32>(std::size(sampled_infos)),
+			// 	.descriptorType  = vk::DescriptorType::eStorageImage,
+			// 	.pImageInfo      = sampled_infos,
+			// },
+			// {
+			// 	.dstSet          = descriptor_set,
+			// 	.dstBinding      = BINDING_SAMPLED_IMAGE,
+			// 	.dstArrayElement = 0,
+			// 	.descriptorCount = static_cast<u32>(std::size(sampled_infos)),
+			// 	.descriptorType  = vk::DescriptorType::eSampledImage,
+			// 	.pImageInfo      = sampled_infos,
+			// },
+
 		};
 
 		auto descriptor_copy_count = 0u;
@@ -890,11 +911,36 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 		.aspectMask    = vk::ImageAspectFlagBits::eDepth,
 		.oldLayout     = vk::ImageLayout::eUndefined,
 		.newLayout     = depth_image.SetLayout(vk::ImageLayout::eDepthAttachmentOptimal).GetLayout(),
-		.srcStageMask  = vk::PipelineStageFlagBits::eNone,
-		.srcAccessMask = vk::AccessFlagBits::eNone,
-		.dstStageMask  = vk::PipelineStageFlagBits::eEarlyFragmentTests,
+		.srcStageMask  = vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests,
+		.srcAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentRead,
+		.dstStageMask  = vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests,
 		.dstAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite,
 	});
+
+	// depth storage
+	cmd.Barrier({
+		.image         = depth_storage_image,
+		.aspectMask    = vk::ImageAspectFlagBits::eColor,
+		.oldLayout     = vk::ImageLayout::eUndefined,
+		.newLayout     = depth_storage_image.SetLayout(vk::ImageLayout::eGeneral).GetLayout(),
+		.srcStageMask  = vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests,
+		.srcAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentRead,
+		.dstStageMask  = vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests,
+		.dstAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite,
+	});
+	auto plss = vk::ImageSubresourceRange{
+		vk::ImageAspectFlagBits::eColor,
+		0,
+		1,
+		0,
+		1,
+	};
+	cmd.clearColorImage(
+		depth_storage_image,
+		vk::ImageLayout::eGeneral,
+		// vk::ClearDepthStencilValue{1.0f, 0},
+		vk::ClearColorValue{{{1.0f, 1.0f, 1.0f, 1.0f}}},
+		plss);
 
 	CHECK_VULKAN_RESULT(cmd.end());
 	CHECK_VULKAN_RESULT(queue.submit({{.commandBufferCount = 1, .pCommandBuffers = &cmd}}));

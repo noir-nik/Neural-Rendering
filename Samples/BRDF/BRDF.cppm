@@ -201,6 +201,7 @@ public:
 	UVSphere sphere = UVSphere(1.0f, 32, 16);
 
 	Image depth_image;
+	Image depth_storage_image;
 	bool  use_depth = true;
 
 	VulkanCoopVecNetwork networks[u32(BrdfFunctionType::eCount)];
@@ -227,10 +228,12 @@ public:
 	vk::QueryPool timestamp_query_pool{};
 
 	Camera camera{{
-		// .position = {1.0f, -1.0f, 2.0f},
-		.position = float3{1.0f, 1.0f, 2.5f},// * 1.8,
+		// .position = float3{1.0f, -1.0f, 2.0f},
+		.position = float3{0.04f, -0.37f, 2.0f} * 3.2,
+		// .position = {1.0f, -3.0f, 4.5f},
+		// .position = float3{1.0f, 1.0f, 2.5f},// * 1.8,
 		// .position = float3{-0.82666, -0.10470,  0.55289}*3,
-		// .position = {-0.05682, 0.55289, 1.63774,}
+		// .position = {-0.05682, 0.55289, 1.63774},
 		.fov      = 50.0f,
 		.z_near   = 0.01f,
 		.z_far    = 100.0f,

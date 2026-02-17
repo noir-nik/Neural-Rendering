@@ -61,6 +61,7 @@ static const float3 tri[3] = {
     // Reconstruct view ray for environment map sampling
     // Transform NDC position to world space direction
     float4 world_pos = mul((ctx.view_proj), float4(pos, 1.0, 1.0));
+	world_pos.y *= -1.0;
     output.view_ray = world_pos.xyz / world_pos.w;
     
     return output;

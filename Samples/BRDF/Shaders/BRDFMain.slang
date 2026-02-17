@@ -6,7 +6,7 @@ import Pbr;
 
 import Utils;
 
-// #define RELUKAN
+// #define NBRDF
 
 #ifdef CHEBYKAN
 #define INC "CHEBYKAN_2_6_6_630_651.slang"
@@ -59,8 +59,11 @@ import BRDFSINEKAN;
 [[vk::binding(BINDING_STORAGE_BUFFER, 0)]] StructuredBuffer<COOPVEC_TYPE> gWeightsCoopVec;
 [[vk::binding(BINDING_TEXTURE, 0)]] SamplerCube gEnvMap;
 [[vk::binding(BINDING_STORAGE_IMAGE, 0)]] RWTexture2D<float4> gAccumBuffer;	
+// [[vk::binding(BINDING_STORAGE_IMAGE2, 0)]] RWTexture2D<float> gDepthBuffer;
 
 [[vk::push_constant]] BRDFConstants ctx;
+
+// layout(early_fragment_tests) in;
 
 [SpecializationConstant] const int shader_type = 0;
 [SpecializationConstant] const int func_id = 0;
@@ -78,6 +81,7 @@ struct VSOutput {
 
 struct PSOutput {
 	float4 color : SV_TARGET0;
+	float depth : SV_DEPTH;
 }
 // clang-format on
 
@@ -149,7 +153,9 @@ float3 Reflect(float3 incident, float3 normal) {
 }
 
 [[shader("fragment")]]
-float4 ps_main(VSOutput ps_input) : SV_TARGET {
+void ps_main(VSOutput ps_input,
+			 out float4 color: SV_TARGET0/* ,
+			 out float depth: SV_Depth */) /* : SV_TARGET  */{
 	float3 normal = normalize(ps_input.normal);
 
 	float3 view_dir = normalize(ctx.camera_pos - ps_input.world_pos);
@@ -168,6 +174,46 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 
 	uint2 pixel_coord = uint2(ps_input.clip_pos.xy);
 
+	if (dot(view_tbn, normal_tbn) < 0.0) {
+		// discard;
+	}
+
+	// float zer =
+	if (dot(ctx.camera_pos, ps_input.world_pos) < 0.0) {
+		// discard;
+	}
+
+	// return PSOutput(float4(accumulated_color, 1.0), ps_input.clip_pos.z);
+
+	
+	
+	// float di = ps_input.clip_pos.z;
+	// float ub = 0.7;
+	// float lb = 0.660;
+	// // di from lb, ub -> 0, 1
+	// float dres = (di - lb) / (ub - lb);
+	// float current_depth = 1.0f - max(0.0f, min(1.0f, dres)) - 0.5f;
+	// // depth               = current_depth;
+
+	// //  = ps_input.clip_pos.z;
+	// float existing_depth = gDepthBuffer.Load((pixel_coord)).r;
+
+	// printf("current depth: %f, existing depth: %f\n", current_depth, existing_depth);
+
+	// if (current_depth > existing_depth && existing_depth > 0.0) {
+	// 	// Fragment would be occluded - discard without writing accumulation buffer
+	// 	// Still need to output something valid but it won't matter after discard
+	// 	discard;
+	// }
+
+	// gDepthBuffer.Store((pixel_coord), current_depth);
+
+
+	float4 nc = float4(normal, 1.0);
+	// color = nc;
+	// return;
+
+
 	float3 prev_color;
 	float  prev_sample_count;
 
@@ -176,6 +222,8 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 	if (camera_moved) {
 		prev_color        = float3(0, 0, 0);
 		prev_sample_count = 0.0;
+		// depth = 1.0f;
+		// gDepthBuffer.Store((pixel_coord), 1.0f);
 	} else {
 		float4 prev_accum = gAccumBuffer[pixel_coord];
 		prev_color        = prev_accum.rgb;
@@ -202,7 +250,9 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 		float  mis_weight;
 		bool   is_specular_sample = random_val.x < specular_weight;
 
-		bool is_point = true;
+		constexpr bool is_point = true;
+		// constexpr bool is_point = true;
+
 		if (is_point) {
 			float3 ldir      = ctx.light.position - ps_input.world_pos;
 			float  dist      = length(ldir);
@@ -221,7 +271,7 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 			} else {
 
 				float2 rand = float2((random_val.x - specular_weight) / (1.0 - specular_weight), random_val.y);
-			light_tbn   = SampleCosineHemisphere(rand, pdf);
+				light_tbn   = SampleCosineHemisphere(rand, pdf);
 
 				pdf_other = PDFBlinnPhong(view_tbn, light_tbn, shininess) * specular_weight;
 				pdf *= (1.0 - specular_weight);
@@ -248,13 +298,13 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 
 			float3 eval;
 			if (is_point) {
-				eval = (brdf);
-				//  eval = (brdf * NdotL);
+				// eval = (brdf) * 2;
+				 eval = (brdf * NdotL) * 3.;
 			} else {
 				float4 env_sample   = gEnvMap.Sample(light_dir) * 5.;
 				float3 env_radiance = env_sample.rgb;
-				mis_weight  = MISWeight(pdf, pdf_other, 2.0);
-				float3 eval = (brdf * env_radiance * NdotL * mis_weight) / pdf;
+				mis_weight          = MISWeight(pdf, pdf_other, 2.0);
+				eval                = (brdf * env_radiance * NdotL * mis_weight) / pdf;
 			}
 			eval = min(eval, float3(10.0, 10.0, 10.0));
 			current_sample += eval;
@@ -265,8 +315,15 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 	float3 accumulated_color = (prev_color * prev_sample_count + current_sample) / new_sample_count;
 
 	gAccumBuffer[pixel_coord] = float4(accumulated_color, new_sample_count);
+	
 
-	return (float4(accumulated_color, 1.0));
+
+
+	// color = float4(accumulated_color, 1.0);
+	color = float4(current_sample, 1.0);
+
+	// depth = lerp(0.6674, 0.669, di);
+
 }
 
 

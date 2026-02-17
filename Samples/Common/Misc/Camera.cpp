@@ -5,17 +5,19 @@ import Math;
 import std;
 
 Camera::Camera(CameraCreationInfo const& info) : focus(info.focus), fov(info.fov), z_near(info.z_near), z_far(info.z_far) {
-	view = lookAt(info.position, focus, info.up) | affineInverse;
+	// view = lookAt(info.position, focus, info.up) | affineInverse;
+	view = lookAt(info.position, focus, info.up) | inverse;
 	// view = lookAt(info.position, focus, info.up);// | affineInverse;
 	// view = lookAt(info.position, focus, info.up) ;//| inverse4x4;
 }
 
 void Camera::setProj(float fov, int width, int height, float z_near, float z_far) {
-/* 	proj = width > height
+	proj = width > height
 			   ? perspectiveX(fov, (float)width / height, z_near, z_far)
 			   : perspectiveY(fov, (float)height / width, z_near, z_far);
- */
-	proj = perspective(fov, (float)width / height, z_near, z_far);
+
+	// proj = perspectiveMatrix(fov, (float)width / height, z_near, z_far);
+	// proj = perspectiveNoFlip(fov, (float)width / height, z_near, z_far);
 	// proj = inverse(proj);
 	this->fov    = fov;
 	this->z_near = z_near;

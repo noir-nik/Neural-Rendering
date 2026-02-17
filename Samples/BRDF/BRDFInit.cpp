@@ -190,7 +190,7 @@ void BRDFSample::Init() {
 		{.image_info = {
 			 .flags     = {},
 			 .imageType = vk::ImageType::e2D,
-			 //  .format    = vk::Format::eD16Unorm,
+			 //   .format    = vk::Format::eD16Unorm,
 			 .format = vk::Format::eD32Sfloat,
 			 //  .format        = vk::Format::eD24UnormS8Uint,
 			 .extent        = {static_cast<u32>(width), static_cast<u32>(height), 1},
@@ -203,6 +203,23 @@ void BRDFSample::Init() {
 			 .initialLayout = vk::ImageLayout::eUndefined,
 		 },
 		 .aspect = vk::ImageAspectFlagBits::eDepth});
+
+	depth_storage_image.Create(
+		device, vma_allocator, allocator,
+		{.image_info = {
+			 .flags         = {},
+			 .imageType     = vk::ImageType::e2D,
+			 .format        = vk::Format::eR32Sfloat,
+			 .extent        = {static_cast<u32>(width), static_cast<u32>(height), 1},
+			 .mipLevels     = 1,
+			 .arrayLayers   = 1,
+			 .samples       = vk::SampleCountFlagBits::e1,
+			 .tiling        = vk::ImageTiling::eOptimal,
+			 .usage         = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eTransferDst,
+			 .sharingMode   = vk::SharingMode::eExclusive,
+			 .initialLayout = vk::ImageLayout::eUndefined,
+		 },
+		 .aspect = vk::ImageAspectFlagBits::eColor});
 
 	accumulator_image.Create(
 		device, vma_allocator, allocator,
@@ -221,35 +238,35 @@ void BRDFSample::Init() {
 		 },
 		 .aspect = vk::ImageAspectFlagBits::eColor});
 
-	CreateAndUploadBuffers({.file_name = weights_file_name.size() > 0 ? weights_file_name : "Assets/simple_brdf_weights.bin", .header = ""});
+CreateAndUploadBuffers({.file_name = weights_file_name.size() > 0 ? weights_file_name : "Assets/simple_brdf_weights.bin", .header = ""});
 
-	// After depth, because depth format is need in rendering info
-	CreatePipelines();
+// After depth, because depth format is need in rendering info
+CreatePipelines();
 
-	// Create timestamp query pool
-	vk::QueryPoolCreateInfo query_pool_info{
-		.flags      = {},
-		.queryType  = vk::QueryType::eTimestamp,
-		.queryCount = static_cast<u32>(std::size(timestamp_results)),
-	};
-	CHECK_VULKAN_RESULT(device.createQueryPool(&query_pool_info, GetAllocator(), &timestamp_query_pool));
+// Create timestamp query pool
+vk::QueryPoolCreateInfo query_pool_info{
+	.flags      = {},
+	.queryType  = vk::QueryType::eTimestamp,
+	.queryCount = static_cast<u32>(std::size(timestamp_results)),
+};
+CHECK_VULKAN_RESULT(device.createQueryPool(&query_pool_info, GetAllocator(), &timestamp_query_pool));
 
-	// network_parameters.resize(network.GetParametersSize());
+// network_parameters.resize(network.GetParametersSize());
 
-	if (with_coop_vec() && verbose) {
-		auto [result, cooperative_vector_properties] = physical_device.getCooperativeVectorPropertiesNV();
-		CHECK_VULKAN_RESULT(result);
-		std::printf("=== VkCooperativeVectorPropertiesNV ===\n");
-		for (auto& property : cooperative_vector_properties) {
-			std::printf("inputType: %-8s ", vk::to_string(property.inputType).c_str());
-			std::printf("inputInterpretation: %-13s ", vk::to_string(property.inputInterpretation).c_str());
-			std::printf("matrixInterpretation: %-13s ", vk::to_string(property.matrixInterpretation).c_str());
-			std::printf("biasInterpretation: %-13s ", vk::to_string(property.biasInterpretation).c_str());
-			std::printf("resultType: %-10s ", vk::to_string(property.resultType).c_str());
-			std::printf("transpose: %-10u ", property.transpose);
-			std::printf("\n");
-		}
+if (with_coop_vec() && verbose) {
+	auto [result, cooperative_vector_properties] = physical_device.getCooperativeVectorPropertiesNV();
+	CHECK_VULKAN_RESULT(result);
+	std::printf("=== VkCooperativeVectorPropertiesNV ===\n");
+	for (auto& property : cooperative_vector_properties) {
+		std::printf("inputType: %-8s ", vk::to_string(property.inputType).c_str());
+		std::printf("inputInterpretation: %-13s ", vk::to_string(property.inputInterpretation).c_str());
+		std::printf("matrixInterpretation: %-13s ", vk::to_string(property.matrixInterpretation).c_str());
+		std::printf("biasInterpretation: %-13s ", vk::to_string(property.biasInterpretation).c_str());
+		std::printf("resultType: %-10s ", vk::to_string(property.resultType).c_str());
+		std::printf("transpose: %-10u ", property.transpose);
+		std::printf("\n");
 	}
+}
 }
 
 BRDFSample::~BRDFSample() {
@@ -272,6 +289,7 @@ void BRDFSample::Destroy() {
 		device_buffer.Destroy();
 
 		depth_image.Destroy();
+		depth_storage_image.Destroy();
 		// for (auto& im : cubemap_images) {
 		// }
 		cubemap_image.Destroy();
@@ -499,6 +517,7 @@ void BRDFSample::CreateVmaAllocator() {
 constexpr u32 kStorageBuffersCount      = 1;
 constexpr u32 CombinedImageSamplerCount = 1;
 constexpr u32 StorageImageCount         = 1;
+constexpr u32 SampledImageCount         = 1;
 
 void BRDFSample::CreateDescriptorSetLayout() {
 	LOG_DEBUG("BRDFSample::CreateDescriptorSetLayout()");
@@ -521,7 +540,20 @@ void BRDFSample::CreateDescriptorSetLayout() {
 			.descriptorType  = vk::DescriptorType::eStorageImage,
 			.descriptorCount = StorageImageCount,
 			.stageFlags      = vk::ShaderStageFlagBits::eFragment,
-		}};
+		},
+		{
+			.binding         = BINDING_STORAGE_IMAGE2,
+			.descriptorType  = vk::DescriptorType::eStorageImage,
+			.descriptorCount = StorageImageCount,
+			.stageFlags      = vk::ShaderStageFlagBits::eFragment,
+		},
+		// {
+		// 	.binding         = BINDING_SAMPLED_IMAGE,
+		// 	.descriptorType  = vk::DescriptorType::eSampledImage,
+		// 	.descriptorCount = SampledImageCount,
+		// 	.stageFlags      = vk::ShaderStageFlagBits::eFragment,
+		// },
+	};
 
 	vk::DescriptorSetLayoutCreateInfo info{
 		.flags        = {},
@@ -538,6 +570,8 @@ void BRDFSample::CreateDescriptorPool() {
 		{.type = vk::DescriptorType::eStorageBuffer, .descriptorCount = kStorageBuffersCount},
 		{.type = vk::DescriptorType::eCombinedImageSampler, .descriptorCount = CombinedImageSamplerCount},
 		{.type = vk::DescriptorType::eStorageImage, .descriptorCount = StorageImageCount},
+		{.type = vk::DescriptorType::eStorageImage, .descriptorCount = StorageImageCount},
+		// {.type = vk::DescriptorType::eSampledImage, .descriptorCount = SampledImageCount},
 	};
 
 	vk::DescriptorPoolCreateInfo info{
