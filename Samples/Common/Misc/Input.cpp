@@ -46,13 +46,14 @@ void ProcessViewportInput(GLFWWindow const& window, Camera& camera, Mouse& mouse
 			camera_pos -= camera.focus;
 
 			// Correct upside down
-			// float3 world_up = float3(0.0f, 0.0f, 1.0f);
+			float3 world_up = float3(0.0f, 1.0f, 0.0f);
 			// float rotation_sign = dot(camera_up, world_up) < 0.0f ? -1.0f : 1.0f;
 			float rotation_sign = 1.0f;
 
 			camera.view = camera.view
 						  | rotate(camera_right, -delta_pos.y * camera.rotation_factor)
-						  | rotate(camera_up, rotation_sign * delta_pos.x * camera.rotation_factor);
+						//   | rotate(camera_up, rotation_sign * delta_pos.x * camera.rotation_factor);
+						  | rotate(world_up, rotation_sign * delta_pos.x * camera.rotation_factor);
 			camera_pos += camera.focus;
 		}
 		// window->AddFramesToDraw(1);

@@ -1,9 +1,12 @@
 #ifndef INC
 // #include "BRDFSINEKAN.h"
-// #include "BRDFSINEKAN.h"
+
+// import rgb_decoder_gr;
 // import rgb_decoder_g_SineKAN_2_3_nCps3;
-import rgb_decoder_gr;
-// #include "f:\Temp\KAN\KanShaders\SineKAN_2_8_nCps6.slang"
+// #include "BRDFSINEKAN.h"
+import SineKAN_2_8_nCps6;
+// import "blue-acrylic";
+// import "pink-plastic";
 
 #else
 import INC;

@@ -6,37 +6,52 @@ import Pbr;
 
 import Utils;
 
+// #define RELUKAN
+
 #ifdef CHEBYKAN
-// #define INC "CHEBYKAN_2_6_6_630_651.slang"
-// #include "BRDFCHEBYKAN.slang"
-// #define FF BRDFCHEBYKAN3
+#define INC "CHEBYKAN_2_6_6_630_651.slang"
+#include "BRDFCHEBYKAN.slang"
+#define FF BRDFCHEBYKAN3
 #endif
+
 #ifdef FASTKAN
-// #define INC "FASTKAN_2_6_6_645_666.slang"
-// #include "BRDFFASTKAN.slang"
-// #define FF BRDFFASTKAN3
+#define INC "FASTKAN_2_6_6_645_666.slang"
+#include "BRDFFASTKAN.slang"
+#define FF BRDFFASTKAN3
 #endif
 
 #ifdef RELUKAN
 // #define INC "RELUKAN_2_5_3_625_643.slang"
-// #include "BRDFRELUKAN.slang"
-// #define FF BRDFRELUKAN3
+// #define INC "blue-acrylic-relu.slang"
+#define INC "green-metallic-paint2.slang"
+#include "BRDFRELUKAN.slang"
+#define FF BRDFRELUKAN3
 #endif
 
 #ifdef SINEKAN
-// #define INC "SINEKAN_2_6_6_573_681.slang"
-// #include "BRDFSINEKAN.slang"
-// #define FF BRDFSINEKAN3
+#define INC "SINEKAN_2_6_6_573_681.slang"
+#include "BRDFSINEKAN.slang"
+#define FF BRDFSINEKAN3
 #endif
 
 #ifdef NBRDF
-// import NBRDF_6_21_21_3_675_675;
-// #define FF NBRDF_6_21_21_3_675_675
+import NBRDF_6_21_21_3_675_675;
+#define FF NBRDF_6_21_21_3_675_675
 #endif
 
 #if !defined(CHEBYKAN) && !defined(FASTKAN) && !defined(RELUKAN) && !defined(SINEKAN) && !defined(NBRDF)
 import BRDFSINEKAN;
 #define FF BRDFSINEKAN3
+#endif
+
+#ifndef LAYERS
+#define LAYERS 3
+#endif
+#ifndef NUM_SAMPLES
+// #define NUM_SAMPLES 32
+// #define NUM_SAMPLES 16
+// #define NUM_SAMPLES 64
+#define NUM_SAMPLES 1
 #endif
 
 // clang-format off
@@ -76,15 +91,6 @@ VSOutput vs_main(VSInput in_vertex) {
 
 	return output;
 }
-
-#ifndef LAYERS
-#define LAYERS 3
-#endif
-#ifndef NUM_SAMPLES
-#define NUM_SAMPLES 32
-// #define NUM_SAMPLES 64
-// #define NUM_SAMPLES 1
-#endif
 
 uint pcg_hash(uint seed) {
 	uint state = seed * 747796405u + 2891336453u;
@@ -191,31 +197,38 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 		float2 random_val = float2(rng_float(rng_state), rng_float(rng_state));
 
 		float3 light_tbn;
-		float  pdf;
+		float  pdf = 1.;
 		float  pdf_other;
 		float  mis_weight;
 		bool   is_specular_sample = random_val.x < specular_weight;
 
-		if (is_specular_sample) {
-			float2 rand        = float2(random_val.x / specular_weight, random_val.y);
-			float3 light_blinn = SampleBlinnPhong(rand, shininess, view_tbn, pdf);
-			light_tbn          = (light_blinn);
-			pdf_other          = PDFCosineHemisphere(light_tbn) * (1.0 - specular_weight);
-
-			float pdf_cosine = CosinePDF(light_tbn.z);
-			pdf *= specular_weight;
-
+		bool is_point = true;
+		if (is_point) {
+			float3 ldir      = ctx.light.position - ps_input.world_pos;
+			float  dist      = length(ldir);
+			float3 light_dir = normalize(ldir);
+			light_tbn        = WorldToTangent(light_dir, tangent, bitangent, normal);
 		} else {
+			if (is_specular_sample) {
+				float2 rand        = float2(random_val.x / specular_weight, random_val.y);
+				float3 light_blinn = SampleBlinnPhong(rand, shininess, view_tbn, pdf);
+				light_tbn          = (light_blinn);
+				pdf_other          = PDFCosineHemisphere(light_tbn) * (1.0 - specular_weight);
 
-			float2 rand = float2((random_val.x - specular_weight) / (1.0 - specular_weight), random_val.y);
+				float pdf_cosine = CosinePDF(light_tbn.z);
+				pdf *= specular_weight;
+
+			} else {
+
+				float2 rand = float2((random_val.x - specular_weight) / (1.0 - specular_weight), random_val.y);
 			light_tbn   = SampleCosineHemisphere(rand, pdf);
 
-			pdf_other = PDFBlinnPhong(view_tbn, light_tbn, shininess) * specular_weight;
-			pdf *= (1.0 - specular_weight);
+				pdf_other = PDFBlinnPhong(view_tbn, light_tbn, shininess) * specular_weight;
+				pdf *= (1.0 - specular_weight);
+			}
 		}
 
 		if (light_tbn.z > 0.0 && pdf > 0.00001) {
-			mis_weight       = MISWeight(pdf, pdf_other, 2.0);
 			float3 light_dir = TangentToWorld(light_tbn, tangent, bitangent, normal);
 
 			float3 half_vec = float3(0.f, 0.f, 0.f);
@@ -231,13 +244,19 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 
 			float3 brdf = float3(outputf[0], outputf[1], outputf[2]);
 
-			float4 env_sample   = gEnvMap.Sample(light_dir) * 10.;
-			float3 env_radiance = env_sample.rgb;
-
 			float NdotL = max(dot(normal, light_dir), 0.0);
 
-			float3 eval = (brdf * env_radiance * NdotL * mis_weight) / pdf;
-			eval        = min(eval, float3(10.0, 10.0, 10.0));
+			float3 eval;
+			if (is_point) {
+				eval = (brdf);
+				//  eval = (brdf * NdotL);
+			} else {
+				float4 env_sample   = gEnvMap.Sample(light_dir) * 5.;
+				float3 env_radiance = env_sample.rgb;
+				mis_weight  = MISWeight(pdf, pdf_other, 2.0);
+				float3 eval = (brdf * env_radiance * NdotL * mis_weight) / pdf;
+			}
+			eval = min(eval, float3(10.0, 10.0, 10.0));
 			current_sample += eval;
 		}
 	}

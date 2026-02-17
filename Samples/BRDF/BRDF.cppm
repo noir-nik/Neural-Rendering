@@ -228,7 +228,8 @@ public:
 
 	Camera camera{{
 		// .position = {1.0f, -1.0f, 2.0f},
-		.position = float3{-0.82666, -0.10470,  0.55289}*3,
+		.position = float3{1.0f, 1.0f, 2.5f},// * 1.8,
+		// .position = float3{-0.82666, -0.10470,  0.55289}*3,
 		// .position = {-0.05682, 0.55289, 1.63774,}
 		.fov      = 50.0f,
 		.z_near   = 0.01f,

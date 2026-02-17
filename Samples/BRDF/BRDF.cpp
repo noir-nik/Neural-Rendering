@@ -105,6 +105,8 @@ auto BRDFSample::DrawWindow(vk::Pipeline pipeline) -> u64 {
 	return elapsed;
 }
 static u32    frame_count{};
+static constexpr u32    start_frame{120};
+static constexpr u32    end_frame{400};
 static float3 prev_camera_pos = {0.0f, 0.0f, 0.0f};
 
 void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
@@ -152,6 +154,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 			.storeOp     = vk::AttachmentStoreOp::eStore,
 			// .clearValue  = {{{{0.5f, 0.5f, 0.5f, 0.0f}}}},
 			// .clearValue = {{{{0.2f, 0.2f, 0.2f, 0.0f}}}},
+			.clearValue = {{{{0.1f, 0.1f, 0.1f, 0.0f}}}},
 			// .clearValue = {{{{1.f, 1.f, 1.f, 1.0f}}}},
 			// .clearValue  = {{{{0.f, 0.f, 0.f, 1.0f}}}},
 		}}},
@@ -180,6 +183,48 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	// proj = inverse(proj);
 	// view = inverse(view);
 	// auto view_proj = (proj * view);
+
+	bool movesine = 1;
+	// bool movesine = ;
+	// std::printf("frame_count: %d\n", frame_count);
+	
+	if (movesine){
+
+		auto dm  = frame_count/20.0f;
+
+		if (frame_count < start_frame) {
+			dm = start_frame/20.0f;
+		}
+		auto delta_x =  sinf(dm);
+		auto delta_y =  cosf(dm);
+
+		// auto delta_x = 1.f;
+		// auto delta_y =  0.f;
+
+		float2 delta_pos = {delta_x* 2.0f, delta_y* 2.0f};
+
+		// camera.moveWithCursor(width, height, delta_x, delta_y);
+
+		if (frame_count > start_frame) {
+				auto&       camera_pos     = camera.getPosition();
+	auto const& camera_right   = camera.getRight();
+	auto const& camera_up      = camera.getUp();
+	auto const& camera_forward = camera.getForward();
+			// all float3
+			camera_pos -= camera.focus;
+
+			// Correct upside down
+			float3 world_up = float3(0.0f, 1.0f, 0.0f);
+			// float rotation_sign = dot(camera_up, world_up) < 0.0f ? -1.0f : 1.0f;
+			float rotation_sign = 1.0f;
+
+			camera.view = camera.view
+						  | rotate(camera_right, -delta_pos.y * camera.rotation_factor)
+						//   | rotate(camera_up, rotation_sign * delta_pos.x * camera.rotation_factor);
+						  | rotate(world_up, rotation_sign * delta_pos.x * camera.rotation_factor);
+			camera_pos += camera.focus;
+		}
+	}
 
 	auto invv = 0;
 	if (invv)
@@ -275,8 +320,9 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 			vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
 			constants_offset, sizeof(constants), &constants);
 	};
+
 	// Skybox
-	{
+	if (hasattr(&BRDFSample::cubemap_folder_path)) {
 		auto ffix = [] {
 			float4x4 res;
 			res[1][1] = -1.0f;
@@ -429,6 +475,9 @@ void BRDFSample::Run() {
 		u64       elapsed_ns = DrawWindow();
 		verbose&& std::printf("%f ms\n", elapsed_ns / 1000000.0);
 		fix_framerate();
+		if (frame_count > end_frame) {
+			return;
+		}
 	} while (true);
 }
 
