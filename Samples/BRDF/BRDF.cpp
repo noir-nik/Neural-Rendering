@@ -104,10 +104,10 @@ auto BRDFSample::DrawWindow(vk::Pipeline pipeline) -> u64 {
 	swapchain.EndFrame();
 	return elapsed;
 }
-static u32    frame_count{};
-static constexpr u32    start_frame{120};
-static constexpr u32    end_frame{400};
-static float3 prev_camera_pos = {0.0f, 0.0f, 0.0f};
+static u32           frame_count{};
+static constexpr u32 start_frame{120};
+static constexpr u32 end_frame{400};
+static float3        prev_camera_pos = {0.0f, 0.0f, 0.0f};
 
 void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	LOG_DEBUG("BRDFSample::RecordCommands()");
@@ -184,32 +184,33 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	// view = inverse(view);
 	// auto view_proj = (proj * view);
 
-	bool movesine = 1;
+	// bool movesine = 1;
+	bool movesine = 0;
 	// bool movesine = ;
 	// std::printf("frame_count: %d\n", frame_count);
-	
-	if (movesine){
 
-		auto dm  = frame_count/20.0f;
+	if (movesine) {
+
+		auto dm = frame_count / 20.0f;
 
 		if (frame_count < start_frame) {
-			dm = start_frame/20.0f;
+			dm = start_frame / 20.0f;
 		}
-		auto delta_x =  sinf(dm);
-		auto delta_y =  cosf(dm);
+		auto delta_x = sinf(dm);
+		auto delta_y = cosf(dm);
 
 		// auto delta_x = 1.f;
 		// auto delta_y =  0.f;
 
-		float2 delta_pos = {delta_x* 2.0f, delta_y* 2.0f};
+		float2 delta_pos = {delta_x * 2.0f, delta_y * 2.0f};
 
 		// camera.moveWithCursor(width, height, delta_x, delta_y);
 
 		if (frame_count > start_frame) {
-				auto&       camera_pos     = camera.getPosition();
-	auto const& camera_right   = camera.getRight();
-	auto const& camera_up      = camera.getUp();
-	auto const& camera_forward = camera.getForward();
+			auto&       camera_pos     = camera.getPosition();
+			auto const& camera_right   = camera.getRight();
+			auto const& camera_up      = camera.getUp();
+			auto const& camera_forward = camera.getForward();
 			// all float3
 			camera_pos -= camera.focus;
 
@@ -220,7 +221,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 
 			camera.view = camera.view
 						  | rotate(camera_right, -delta_pos.y * camera.rotation_factor)
-						//   | rotate(camera_up, rotation_sign * delta_pos.x * camera.rotation_factor);
+						  //   | rotate(camera_up, rotation_sign * delta_pos.x * camera.rotation_factor);
 						  | rotate(world_up, rotation_sign * delta_pos.x * camera.rotation_factor);
 			camera_pos += camera.focus;
 		}
@@ -330,7 +331,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 			// res[2][3] = 0.5f;
 			return res;
 		};
-		
+
 		constants.view_proj = ffix() * inverse(view_proj_base);
 
 		bind_push(skybox_pipeline);
@@ -474,10 +475,10 @@ void BRDFSample::Run() {
 		if (width <= 0 || height <= 0) continue;
 		u64       elapsed_ns = DrawWindow();
 		verbose&& std::printf("%f ms\n", elapsed_ns / 1000000.0);
-		fix_framerate();
-		if (frame_count > end_frame) {
-			return;
-		}
+		// fix_framerate();
+		// if (frame_count > end_frame) {
+		// 	return;
+		// }
 	} while (true);
 }
 
@@ -579,34 +580,88 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 	char const* header_names[] = {
 #define BRDF_NAME(x) #x,
 // #include "SINEKAN_HeaderNames.def"
-// #include "FASTKAN_HeaderNames.def"
-#include "CHEBYKAN_HeaderNames.def"
+#include "FASTKAN_HeaderNames.def"
+		// #include "CHEBYKAN_HeaderNames.def"
 		// #include "RELUKAN_HeaderNames.def"
 	};
 
-	for (u32 t_i = first_test; t_i < last_test; ++t_i) {
-		if (contains(skip, BrdfFunctionType(t_i))) continue;
-		if (is_header) {
-			std::printf("%s", header_names[t_i]);
-		} else {
-			// std::printf("t_i %u", t_i);
-			std::printf("%s", names[t_i]);
-		}
-		if (t_i < last_test - 1 && !contains(skip, BrdfFunctionType(t_i + 1))) std::printf(",");
-	}
-	std::printf("\n");
+	// for (u32 t_i = first_test; t_i < last_test; ++t_i) {
+	// 	if (contains(skip, BrdfFunctionType(t_i))) continue;
+	// 	if (is_header) {
+	// 		std::printf("%s", header_names[t_i]);
+	// 	} else {
+	// 		// std::printf("t_i %u", t_i);
+	// 		std::printf("%s", names[t_i]);
+	// 	}
+	// 	if (t_i < last_test - 1 && !contains(skip, BrdfFunctionType(t_i + 1))) std::printf(",");
+	// }
+	// std::printf("\n");
 
-	// std::printf("Print times\n");
-	for (u32 iter = 0; iter < kTestRunsCount; ++iter) {
-		auto const& tests_row = test_times[iter];
-		// print with ,
+	// // std::printf("Print times\n");
+	// for (u32 iter = 0; iter < kTestRunsCount; ++iter) {
+	// 	auto const& tests_row = test_times[iter];
+	// 	// print with ,
+	// 	for (u32 t_i = first_test; t_i < last_test; ++t_i) {
+	// 		if (contains(skip, BrdfFunctionType(t_i))) continue;
+	// 		std::printf("%llu", tests_row[t_i]);
+	// 		if (t_i < last_test - 1 && !contains(skip, BrdfFunctionType(t_i + 1))) std::printf(",");
+	// 	}
+	// 	std::printf("\n");
+	// }
+
+	auto print_name =
+		// false
+		 true
+		;
+	if (print_name) {
 		for (u32 t_i = first_test; t_i < last_test; ++t_i) {
 			if (contains(skip, BrdfFunctionType(t_i))) continue;
-			std::printf("%llu", tests_row[t_i]);
+			if (is_header) {
+				std::printf("%s", header_names[t_i]);
+			} else {
+				std::printf("%s", names[t_i]);
+			}
 			if (t_i < last_test - 1 && !contains(skip, BrdfFunctionType(t_i + 1))) std::printf(",");
 		}
 		std::printf("\n");
 	}
+
+	auto print_all =
+		// false
+		 true
+		;
+	if (print_all)
+		for (u32 iter = 0; iter < kTestRunsCount; ++iter) {
+			auto const& tests_row = test_times[iter];
+			// print with ,
+			for (u32 t_i = first_test; t_i < last_test; ++t_i) {
+				if (contains(skip, BrdfFunctionType(t_i))) continue;
+				std::printf("%llu", tests_row[t_i]);
+				if (t_i < last_test - 1 && !contains(skip, BrdfFunctionType(t_i + 1))) std::printf(",");
+			}
+			std::printf("\n");
+		}
+
+	// print means
+	// std::printf("Classic,CoopVec,WeightsInBuffer,WeightsInBufferFloat16,WeightsInHeader\n");
+	u32 first_row = 3;
+	u64 ms_in_ns  = 1e6;
+	auto print_means =
+		// true
+		false
+		;
+	for (u32 t_i = first_test; t_i < last_test; ++t_i) {
+		if (contains(skip, BrdfFunctionType(t_i))) continue;
+		double mean = 0;
+		for (u32 iter = first_row; iter < kTestRunsCount; ++iter) {
+			mean += double(test_times[iter][t_i]) / ms_in_ns;
+		}
+		mean /= (kTestRunsCount - first_row);
+		std::printf("%f", mean);
+		if (t_i < last_test - 1 && !contains(skip, BrdfFunctionType(t_i + 1))) std::printf(",");
+		// if (t_i > 0  and (t_i + 1) % 4 == 0) std::printf("\n");
+	}
+	std::printf("\n");
 }
 
 auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {

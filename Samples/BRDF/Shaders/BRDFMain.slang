@@ -6,7 +6,7 @@ import Pbr;
 
 import Utils;
 
-// #define RELUKAN
+#define FASTKAN
 
 #ifdef CHEBYKAN
 #define INC "CHEBYKAN_2_6_6_630_651.slang"
@@ -14,10 +14,20 @@ import Utils;
 #define FF BRDFCHEBYKAN3
 #endif
 
+#ifndef LAYERS
+#define LAYERS 3
+#endif
+
 #ifdef FASTKAN
-#define INC "FASTKAN_2_6_6_645_666.slang"
-#include "BRDFFASTKAN.slang"
+// #define INC "FASTKAN_2_6_6_645_666.slang"
+// #include "BRDFFASTKAN.slang"
+import BRDFFASTKAN;
+#if LAYERS == 3
 #define FF BRDFFASTKAN3
+#endif
+#if LAYERS == 2
+#define FF BRDFFASTKAN2
+#endif
 #endif
 
 #ifdef RELUKAN
@@ -44,9 +54,7 @@ import BRDFSINEKAN;
 #define FF BRDFSINEKAN3
 #endif
 
-#ifndef LAYERS
-#define LAYERS 3
-#endif
+
 #ifndef NUM_SAMPLES
 // #define NUM_SAMPLES 32
 // #define NUM_SAMPLES 16
@@ -202,13 +210,8 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 		float  mis_weight;
 		bool   is_specular_sample = random_val.x < specular_weight;
 
-		bool is_point = true;
-		if (is_point) {
-			float3 ldir      = ctx.light.position - ps_input.world_pos;
-			float  dist      = length(ldir);
-			float3 light_dir = normalize(ldir);
-			light_tbn        = WorldToTangent(light_dir, tangent, bitangent, normal);
-		} else {
+		// bool is_point = true;
+		{
 			if (is_specular_sample) {
 				float2 rand        = float2(random_val.x / specular_weight, random_val.y);
 				float3 light_blinn = SampleBlinnPhong(rand, shininess, view_tbn, pdf);
@@ -221,7 +224,7 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 			} else {
 
 				float2 rand = float2((random_val.x - specular_weight) / (1.0 - specular_weight), random_val.y);
-			light_tbn   = SampleCosineHemisphere(rand, pdf);
+				light_tbn   = SampleCosineHemisphere(rand, pdf);
 
 				pdf_other = PDFBlinnPhong(view_tbn, light_tbn, shininess) * specular_weight;
 				pdf *= (1.0 - specular_weight);
@@ -247,14 +250,11 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 			float NdotL = max(dot(normal, light_dir), 0.0);
 
 			float3 eval;
-			if (is_point) {
-				eval = (brdf);
-				//  eval = (brdf * NdotL);
-			} else {
+			{
 				float4 env_sample   = gEnvMap.Sample(light_dir) * 5.;
 				float3 env_radiance = env_sample.rgb;
-				mis_weight  = MISWeight(pdf, pdf_other, 2.0);
-				float3 eval = (brdf * env_radiance * NdotL * mis_weight) / pdf;
+				mis_weight          = MISWeight(pdf, pdf_other, 2.0);
+				eval                = (brdf * env_radiance * NdotL * mis_weight) / pdf;
 			}
 			eval = min(eval, float3(10.0, 10.0, 10.0));
 			current_sample += eval;

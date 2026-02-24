@@ -2,9 +2,9 @@
 // #include "BRDFSINEKAN.h"
 
 // import rgb_decoder_gr;
-// import rgb_decoder_g_SineKAN_2_3_nCps3;
+import rgb_decoder_g_SineKAN_2_3_nCps3;
 // #include "BRDFSINEKAN.h"
-import SineKAN_2_8_nCps6;
+// import SineKAN_2_8_nCps6;
 // import "blue-acrylic";
 // import "pink-plastic";
 
