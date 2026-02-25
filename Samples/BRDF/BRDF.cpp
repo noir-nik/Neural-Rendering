@@ -270,7 +270,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 			 .roughness  = 0.5f,
         },
 		.light = {
-			.position          = vec3(1.2, 1.2, 1.2),
+			.position          = vec3(1.2, 1.2, -1.2),
 			.range             = 10.0,
 			.color             = vec3(0.75, 0.75, 0.75),
 			.intensity         = 8.0,

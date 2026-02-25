@@ -54,7 +54,6 @@ import BRDFSINEKAN;
 #define FF BRDFSINEKAN3
 #endif
 
-
 #ifndef NUM_SAMPLES
 // #define NUM_SAMPLES 32
 // #define NUM_SAMPLES 16
@@ -210,8 +209,14 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 		float  mis_weight;
 		bool   is_specular_sample = random_val.x < specular_weight;
 
-		// bool is_point = true;
-		{
+		bool is_point = true;
+		// bool is_point = false;
+		if (is_point) {
+			float3 ldir      = ctx.light.position - ps_input.world_pos;
+			float  dist      = length(ldir);
+			float3 light_dir = normalize(ldir);
+			light_tbn        = WorldToTangent(light_dir, tangent, bitangent, normal);
+		} else {
 			if (is_specular_sample) {
 				float2 rand        = float2(random_val.x / specular_weight, random_val.y);
 				float3 light_blinn = SampleBlinnPhong(rand, shininess, view_tbn, pdf);
@@ -250,7 +255,10 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 			float NdotL = max(dot(normal, light_dir), 0.0);
 
 			float3 eval;
-			{
+			if (is_point) {
+				// eval = (brdf);
+				eval = (brdf * NdotL);
+			} else {
 				float4 env_sample   = gEnvMap.Sample(light_dir) * 5.;
 				float3 env_radiance = env_sample.rgb;
 				mis_weight          = MISWeight(pdf, pdf_other, 2.0);

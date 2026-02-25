@@ -23,8 +23,9 @@ cmake . -B build -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ 
 cmake --build build
 ```
 
-## Run Sdf sample from the repository root:
+## Run BRDF sample from the repository root:
 
 ```sh
-./build/Samples/SDF/SDF
+./build/Samples/BRDF/BRDF
 ```
+

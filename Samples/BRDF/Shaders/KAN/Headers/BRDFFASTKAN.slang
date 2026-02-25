@@ -1,8 +1,6 @@
-
-// #define INC FASTKAN_1_2_3_77_85
-
 #ifndef INC
 #include "BRDFFASTKAN.h"
+// import rgb_decoder_fc;
 #else
 import INC;
 #endif
@@ -30,8 +28,13 @@ inline float spline_linear_forward(in float basis_flat[], int weight_cols /* == 
 	return sum;
 }
 
+float expm10(float x) {
+	typealias T = float;
+	return pow(T(1.0) + exp(T(10.0) * x), T(0.1)) - T(1.0);
+}
+
 float base_activation(float x) {
-	return tanh(x);
+	return expm10(x);
 }
 
 float silu(float x) {
@@ -46,7 +49,9 @@ void fastkan_layer_forward(
 	in float spline_weights[],
 	in float base_weights[],
 	in float base_bias[]) {
-	let FLAT_SIZE = IN_SIZE * GRID_SIZE;
+		
+	int FLAT_SIZE = IN_SIZE * GRID_SIZE;
+
 	for (int out_idx = 0; out_idx < OUT_SIZE; out_idx++) {
 		float val = base_bias[out_idx];
 
