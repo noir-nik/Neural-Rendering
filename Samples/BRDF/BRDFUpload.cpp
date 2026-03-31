@@ -1,5 +1,5 @@
-#include "Shaders/BRDFBindings.h"
 module;
+#include "Shaders/BRDFBindings.h"
 #include "CheckResult.h"
 #include "Log.h"
 #include <cassert> // assert
