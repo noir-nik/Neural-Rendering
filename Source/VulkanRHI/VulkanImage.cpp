@@ -2,7 +2,7 @@ module VulkanRHI;
 import :Image;
 import :Enums;
 
-import vulkan_hpp;
+import vulkan;
 import vk_mem_alloc;
 import VulkanModule;
 import std;

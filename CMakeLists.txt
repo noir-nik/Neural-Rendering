@@ -23,9 +23,11 @@ set(ALL_SOURCES
 add_library(${PROJECT_NAME} ${SOURCES})
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
+# set(VULKAN_HPP_BUILD_CXX_MODULE ON)
+
 find_package(Vulkan REQUIRED)
-if(${Vulkan_VERSION} VERSION_LESS "1.4.309" )
-message( WARNING "Minimum required Vulkan version is 1.4.309. Found ${Vulkan_VERSION}.")
+if(${Vulkan_VERSION} VERSION_LESS "1.4.335" )
+message( WARNING "Minimum required Vulkan version is 1.4.335. Found ${Vulkan_VERSION}.")
 endif()
 target_link_libraries(${PROJECT_NAME} PRIVATE Vulkan::Vulkan)
 
@@ -75,41 +77,13 @@ add_library( VulkanHppModule )
 target_sources( VulkanHppModule PUBLIC
 	FILE_SET CXX_MODULES
 	BASE_DIRS ${Vulkan_INCLUDE_DIR}
-	FILES ${Vulkan_INCLUDE_DIR}/vulkan/vulkan.cppm
+	FILES ${Vulkan_INCLUDE_DIR}/vulkan/vulkan.cppm ${Vulkan_INCLUDE_DIR}/vulkan/vulkan_video.cppm 
 )
 target_compile_features( VulkanHppModule PUBLIC cxx_std_20 )
 target_link_libraries( VulkanHppModule PUBLIC Vulkan::Vulkan )
 
 target_link_libraries( ${PROJECT_NAME} PUBLIC VulkanHppModule )
 target_compile_definitions(VulkanHppModule PUBLIC ${VULKAN_HPP_DEFINITIONS})
-
-# CUDA
-# message(STATUS "CMAKE_CXX_COMPILER_FRONTEND_VARIANT:" ${CMAKE_CXX_COMPILER_FRONTEND_VARIANT})
-option(WITH_CUDA OFF)
-if(WITH_CUDA)
-	find_package(CUDAToolkit)
-	if (CUDAToolkit_FOUND)
-		if (WIN32 AND NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-		else()
-			enable_language(CUDA)
-		endif()
-
-			if (NOT CUDA_LIBRARY_DIR)
-				message(FATAL_ERROR "CUDA_LIBRARY_DIR is not specified")
-			endif()
-
-			add_library(${PROJECT_NAME}-cuda INTERFACE)
-
-			target_link_directories(${PROJECT_NAME}-cuda INTERFACE ${CUDA_LIBRARY_DIR})
-			# message(STATUS "CUDA_TOOLKIT_INCLUDE_DIRECTORIES: ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
-			target_include_directories(${PROJECT_NAME}-cuda INTERFACE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
-			target_link_libraries(${PROJECT_NAME}-cuda INTERFACE
-				cudnn
-				cudart
-				cuda
-			)
-	endif() 
-endif()
 
 
 # Sanitize

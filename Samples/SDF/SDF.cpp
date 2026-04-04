@@ -4,7 +4,7 @@
 #include "Shaders/SDFConfig.h"
 
 import NeuralGraphics;
-import vulkan_hpp;
+import vulkan;
 import WindowManager;
 import VulkanExtensions;
 import VulkanFunctions;

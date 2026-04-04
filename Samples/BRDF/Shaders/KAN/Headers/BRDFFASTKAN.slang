@@ -1,5 +1,6 @@
 #ifndef INC
-#include "BRDFFASTKAN.h"
+// #include "BRDFFASTKAN.h"
+import FastKAN_6_6_6_3_nCps_6;
 // import rgb_decoder_fc;
 #else
 import INC;
@@ -33,12 +34,18 @@ float expm10(float x) {
 	return pow(T(1.0) + exp(T(10.0) * x), T(0.1)) - T(1.0);
 }
 
-float base_activation(float x) {
-	return expm10(x);
+float reluexpm1(float x) {
+	return max(0.0, exp(x) - 1.0);
 }
 
 float silu(float x) {
 	return x / (1.0 + exp(-x));
+}
+
+float base_activation(float x) {
+	return silu(x);
+	// return reluexpm1(x);
+	// return expm10(x);
 }
 
 void fastkan_layer_forward(
@@ -49,7 +56,7 @@ void fastkan_layer_forward(
 	in float spline_weights[],
 	in float base_weights[],
 	in float base_bias[]) {
-		
+
 	int FLAT_SIZE = IN_SIZE * GRID_SIZE;
 
 	for (int out_idx = 0; out_idx < OUT_SIZE; out_idx++) {

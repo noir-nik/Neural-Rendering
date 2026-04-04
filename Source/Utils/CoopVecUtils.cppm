@@ -1,6 +1,6 @@
 export module NeuralGraphics:CoopVecUtils;
 import std;
-import vulkan_hpp;
+import vulkan;
 
 
 export class CoopVecUtils {

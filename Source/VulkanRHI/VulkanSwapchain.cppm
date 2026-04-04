@@ -1,6 +1,6 @@
 export module VulkanRHI:Swapchain;
 
-import vulkan_hpp;
+import vulkan;
 import std;
 
 export namespace VulkanRHI {

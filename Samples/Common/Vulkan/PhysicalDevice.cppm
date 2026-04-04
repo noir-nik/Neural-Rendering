@@ -1,7 +1,7 @@
 export module SamplesCommon:PhysicalDevice;
 import VulkanRHI;
 import NeuralGraphics;
-import vulkan_hpp;
+import vulkan;
 import std;
 
 export struct PhysicalDevice : public VulkanRHI::PhysicalDevice {

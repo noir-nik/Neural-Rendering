@@ -4,7 +4,7 @@ module;
 
 module VulkanRHI;
 import :CommandBuffer;
-import vulkan_hpp;
+import vulkan;
 import std;
 
 using u32 = std::uint32_t;

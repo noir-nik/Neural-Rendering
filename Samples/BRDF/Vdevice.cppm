@@ -4,7 +4,7 @@ module;
 #include <cstdio>
 
 export module Vdevice;
-import vulkan_hpp;
+import vulkan;
 
 export struct VDevice : vk::Device {
 	using Base = vk::Device;

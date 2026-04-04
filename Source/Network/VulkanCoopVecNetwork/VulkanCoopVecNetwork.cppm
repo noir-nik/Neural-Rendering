@@ -3,7 +3,7 @@ import :GenericNetwork;
 import :Core;
 import :Utils;
 import std;
-import vulkan_hpp;
+import vulkan;
 
 export template <typename T, typename U>
 constexpr inline auto AlignUp(T const value, U const alignment) -> T {

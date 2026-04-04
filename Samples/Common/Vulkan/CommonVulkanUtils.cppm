@@ -2,7 +2,7 @@ module;
 
 export module SamplesCommon:VulkanUtils;
 
-import vulkan_hpp;
+import vulkan;
 import std;
 import float16;
 

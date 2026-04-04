@@ -1,6 +1,6 @@
 module VulkanRHI;
 import :PhysicalDevice;
-import vulkan_hpp;
+import vulkan;
 import std;
 
 namespace VulkanRHI {

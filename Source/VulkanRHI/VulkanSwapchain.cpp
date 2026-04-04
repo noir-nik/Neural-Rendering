@@ -1,7 +1,7 @@
 module VulkanRHI;
 import :Swapchain;
 
-import vulkan_hpp;
+import vulkan;
 import std;
 
 using u64 = std::uint64_t;

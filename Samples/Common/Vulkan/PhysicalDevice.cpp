@@ -1,7 +1,7 @@
 module SamplesCommon;
 import VulkanRHI;
 import NeuralGraphics;
-import vulkan_hpp;
+import vulkan;
 import std;
 
 bool PhysicalDevice::IsSuitable(vk::SurfaceKHR const& surface, std::span<char const* const> extensions) {

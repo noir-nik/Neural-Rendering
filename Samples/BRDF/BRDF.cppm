@@ -18,7 +18,7 @@ import SamplesCommon;
 import VulkanRHI;
 import Math;
 import Vdevice;
-import vulkan_hpp;
+import vulkan;
 import std;
 
 import FastKan;

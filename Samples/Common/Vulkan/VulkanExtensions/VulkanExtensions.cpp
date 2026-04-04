@@ -6,7 +6,7 @@ module;
 
 module VulkanExtensions;
 
-import vulkan_hpp;
+import vulkan;
 
 void LoadInstanceDebugUtilsFunctionsEXT(vk::Instance instance) {
 	pfn_vkCreateDebugUtilsMessengerEXT =

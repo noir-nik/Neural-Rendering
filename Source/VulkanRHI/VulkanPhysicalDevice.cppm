@@ -1,5 +1,5 @@
 export module VulkanRHI:PhysicalDevice;
-import vulkan_hpp;
+import vulkan;
 import std;
 
 export namespace VulkanRHI {

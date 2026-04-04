@@ -1,5 +1,5 @@
 export module VulkanRHI:Enums;
-import vulkan_hpp;
+import vulkan;
 
 export namespace VulkanRHI {
 namespace Memory {

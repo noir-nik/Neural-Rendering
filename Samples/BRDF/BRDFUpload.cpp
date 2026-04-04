@@ -7,7 +7,7 @@ module;
 
 module BRDFSample;
 import NeuralGraphics;
-import vulkan_hpp;
+import vulkan;
 import WeightsLoader;
 import SamplesCommon;
 import Math;

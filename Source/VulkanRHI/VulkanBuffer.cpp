@@ -5,7 +5,7 @@ module;
 module VulkanRHI;
 import :Buffer;
 import :Enums;
-import vulkan_hpp;
+import vulkan;
 import vk_mem_alloc;
 import std;
 

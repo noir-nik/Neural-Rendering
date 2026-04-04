@@ -1,7 +1,7 @@
 module NeuralGraphics;
 import :CoopVecUtils;
 import std;
-import vulkan_hpp;
+import vulkan;
 
 using u32 = std::uint32_t;
 using namespace Utils;

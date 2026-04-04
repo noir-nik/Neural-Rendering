@@ -1,7 +1,7 @@
 export module MessageCallbacks;
 
 import std;
-import vulkan_hpp;
+import vulkan;
 
 export {
 	vk::Bool32 DebugUtilsCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,

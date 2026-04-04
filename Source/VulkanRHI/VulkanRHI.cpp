@@ -1,5 +1,5 @@
 module VulkanRHI;
-import vulkan_hpp;
+import vulkan;
 
 namespace VulkanRHI {
 

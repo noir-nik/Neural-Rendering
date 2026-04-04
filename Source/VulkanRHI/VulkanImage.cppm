@@ -1,7 +1,7 @@
 export module VulkanRHI:Image;
 
 import std;
-import vulkan_hpp;
+import vulkan;
 import vk_mem_alloc;
 
 export namespace VulkanRHI {

@@ -11,7 +11,7 @@ module BRDFSample;
 #include "Shaders/BRDFConfig.h"
 
 import NeuralGraphics;
-import vulkan_hpp;
+import vulkan;
 import WindowManager;
 import VulkanExtensions;
 import VulkanFunctions;

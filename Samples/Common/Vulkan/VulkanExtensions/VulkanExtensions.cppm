@@ -1,5 +1,5 @@
 export module VulkanExtensions;
-import vulkan_hpp;
+import vulkan;
 
 export {
 	void LoadInstanceDebugUtilsFunctionsEXT(vk::Instance instance);

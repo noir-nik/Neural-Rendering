@@ -1,6 +1,6 @@
 module NeuralGraphics;
 import :VulkanCoopVecNetwork;
-import vulkan_hpp;
+import vulkan;
 import :Utils;
 
 import std;
