@@ -330,9 +330,10 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 			// res[2][2] = 0.5f;
 			// res[2][3] = 0.5f;
 			return res;
+			// return res;
 		};
 
-		constants.view_proj = ffix() * inverse(view_proj_base);
+		constants.view_proj = (ffix() * view_proj_base) | inverse;
 
 		bind_push(skybox_pipeline);
 
