@@ -62,6 +62,7 @@ typedef struct float3 vec3;
 typedef struct float4 vec4;
 
 typedef struct float3x3 mat3;
+struct float4x4base;
 typedef struct float4x4 mat4;
 
 struct float2 {
@@ -131,14 +132,14 @@ struct float3x3 {
 	}
 
 	inline explicit float3x3(float a00, float a01, float a02,
-							float a10, float a11, float a12,
-							float a20, float a21, float a22) {
+							 float a10, float a11, float a12,
+							 float a20, float a21, float a22) {
 		m_col[0] = float3{a00, a01, a02};
 		m_col[1] = float3{a10, a11, a12};
 		m_col[2] = float3{a20, a21, a22};
 	}
 
-	inline float3x3(float4x4 const& from4x4);
+	inline float3x3(float4x4base const& from4x4);
 
 	// constexpr inline auto col(this auto&& self, int i) -> auto&& { return std::forward_like<decltype(self)>(self.operator[](i)); }
 	// constexpr inline auto operator[](this auto&& self, int col) -> auto&& { return std::forward<decltype(self)>(self).m_col[col]; }
@@ -157,17 +158,17 @@ struct float3x3 {
 	float3 m_col[3];
 };
 
-struct float4x4 {
-	constexpr inline float4x4() { identity(); }
+struct float4x4base {
+	constexpr inline float4x4base() { identity(); }
 
-	constexpr inline explicit float4x4(float const A[16]) {
+	constexpr inline explicit float4x4base(float const A[16]) {
 		m_col[0] = float4{A[0], A[4], A[8], A[12]};
 		m_col[1] = float4{A[1], A[5], A[9], A[13]};
 		m_col[2] = float4{A[2], A[6], A[10], A[14]};
 		m_col[3] = float4{A[3], A[7], A[11], A[15]};
 	}
 
-	constexpr inline explicit float4x4(
+	constexpr inline explicit float4x4base(
 		float a1, float a2, float a3, float a4,
 		float a5, float a6, float a7, float a8,
 		float a9, float a10, float a11, float a12,
@@ -178,14 +179,14 @@ struct float4x4 {
 		m_col[3] = float4{a4, a8, a12, a16};
 	}
 
-	constexpr inline explicit float4x4(float3x3 const& from3x3) {
+	constexpr inline explicit float4x4base(float3x3 const& from3x3) {
 		m_col[0] = float4{from3x3[0][0], from3x3[0][1], from3x3[0][2], 0.0f};
 		m_col[1] = float4{from3x3[1][0], from3x3[1][1], from3x3[1][2], 0.0f};
 		m_col[2] = float4{from3x3[2][0], from3x3[2][1], from3x3[2][2], 0.0f};
 		m_col[3] = float4{0.0f, 0.0f, 0.0f, 1.0f};
 	}
 
-	constexpr inline explicit float4x4(float4 const& col0, float4 const& col1, float4 const& col2, float4 const& col3) {
+	constexpr inline explicit float4x4base(float4 const& col0, float4 const& col1, float4 const& col2, float4 const& col3) {
 		m_col[0] = col0;
 		m_col[1] = col1;
 		m_col[2] = col2;
@@ -333,7 +334,7 @@ constexpr inline auto operator/(float const value, float4 const& vec) -> float4 
 
 // clang-format on
 
-inline float3x3::float3x3(float4x4 const& from4x4) {
+inline float3x3::float3x3(float4x4base const& from4x4) {
 	m_col[0] = from4x4.m_col[0].xyz();
 	m_col[1] = from4x4.m_col[1].xyz();
 	m_col[2] = from4x4.m_col[2].xyz();
@@ -358,32 +359,57 @@ inline float3 cross(float3 const a, float3 const b) {
 	return shuffle_yzx(a * b_yzx - a_yzx * b);
 }
 
+inline float4x4 inverse4x4(float4x4 const& m1);
+inline float4x4 transpose4x4(float4x4 const& m1);
+inline float4x4 affineInverse4x4(float4x4 const& m);
+inline float4x4 translate4x4(float4x4 const& m, float3 const& t);
+inline float4x4 rotate4x4(float3 const& axis, float angle);
+inline float4x4 scale4x4(float3 t);
+inline float4x4 rotateX4x4(float phi);
+inline float4x4 rotateY4x4(float phi);
+inline float4x4 rotateZ4x4(float phi);
+// inline float4x4 inverse(float4x4 const& m1);
+inline float4x4 operator*(float4x4 const& m1, float4x4 const& m2);
+
+struct float4x4 : float4x4base {
+	using float4x4base::float4x4base;
+
+	inline auto inverse() const -> float4x4 { return inverse4x4(*this); }
+	inline auto transpose() const -> float4x4 { return transpose4x4(*this); }
+	inline auto affineInverse() const -> float4x4 { return affineInverse4x4(*this); }
+	inline auto translate(float3 const& t) const -> float4x4 { return translate4x4(*this, t); }
+	inline auto rotate(float3 const& axis, float angle) const -> float4x4 { return rotate4x4(axis, angle) * *this; }
+	inline auto scale(float3 const& t) const -> float4x4 { return scale4x4(t) * *this; }
+	inline auto rotateX(float phi) const -> float4x4 { return rotateX4x4(phi) * *this; }
+	inline auto rotateY(float phi) const -> float4x4 { return rotateY4x4(phi) * *this; }
+	inline auto rotateZ(float phi) const -> float4x4 { return rotateZ4x4(phi) * *this; }
+};
+
 // RH
 
-	inline float4x4 lookAtLM(float3 eye, float3 center, float3 up)
-{
+inline float4x4 lookAtLM(float3 eye, float3 center, float3 up) {
 	float3 x, y, z; // basis; will make a rotation matrix
 	z.x = eye.x - center.x;
 	z.y = eye.y - center.y;
 	z.z = eye.z - center.z;
-	z = normalize(z);
+	z   = normalize(z);
 	y.x = up.x;
 	y.y = up.y;
 	y.z = up.z;
-	x = cross(y, z); // X vector = Y cross Z
-	y = cross(z, x); // Recompute Y = Z cross X
+	x   = cross(y, z); // X vector = Y cross Z
+	y   = cross(z, x); // Recompute Y = Z cross X
 	// cross product gives area of parallelogram, which is < 1.0 for
 	// non-perpendicular unit-length vectors; so normalize x, y here
 	x = normalize(x);
 	y = normalize(y);
 	float4x4 M;
-	M.set_col(0, float4{ x.x, y.x, z.x, 0.0f });
-	M.set_col(1, float4{ x.y, y.y, z.y, 0.0f });
-	M.set_col(2, float4{ x.z, y.z, z.z, 0.0f });
-	M.set_col(3, float4{ -x.x * eye.x - x.y * eye.y - x.z*eye.z,
-						-y.x * eye.x - y.y * eye.y - y.z*eye.z,
-						-z.x * eye.x - z.y * eye.y - z.z*eye.z,
-						1.0f });
+	M.set_col(0, float4{x.x, y.x, z.x, 0.0f});
+	M.set_col(1, float4{x.y, y.y, z.y, 0.0f});
+	M.set_col(2, float4{x.z, y.z, z.z, 0.0f});
+	M.set_col(3, float4{-x.x * eye.x - x.y * eye.y - x.z * eye.z,
+						-y.x * eye.x - y.y * eye.y - y.z * eye.z,
+						-z.x * eye.x - z.y * eye.y - z.z * eye.z,
+						1.0f});
 	return M;
 }
 
@@ -403,16 +429,16 @@ inline float4x4 lookAt0(float3 eye, float3 center, float3 up) {
 }
 
 float4x4 lookAt1(float3 eye, float3 target, float3 up) {
-	
-	float3 f = normalize( (target - eye)); 
-	float3 s = normalize(cross(f, up));      
-	float3 u = cross(s, f);                 
+
+	float3 f = normalize((target - eye));
+	float3 s = normalize(cross(f, up));
+	float3 u = cross(s, f);
 
 	float4x4 res = {};
-	res.col(0) = { s.x, u.x, -f.x, 0.0f };
-	res.col(1) = { s.y, u.y, -f.y, 0.0f };
-	res.col(2) = { s.z, u.z, -f.z, 0.0f };
-	res.col(3) = { -dot(s, eye), -dot(u, eye), dot(f, eye), 1.0f };
+	res.col(0)   = {s.x, u.x, -f.x, 0.0f};
+	res.col(1)   = {s.y, u.y, -f.y, 0.0f};
+	res.col(2)   = {s.z, u.z, -f.z, 0.0f};
+	res.col(3)   = {-dot(s, eye), -dot(u, eye), dot(f, eye), 1.0f};
 	return res;
 }
 
@@ -435,10 +461,10 @@ float4x4 perspectiveG(float fov, float aspect, float znear, float zfar) {
 	float b = -(zfar * znear) / (zfar - znear);
 
 	float4x4 res = {};
-	res.col(0) = { w,    0.0f, 0.0f, 0.0f };
-	res.col(1) = { 0.0f, -h,   0.0f, 0.0f }; // -h инвертирует Y для Vulkan
-	res.col(2) = { 0.0f, 0.0f, a,    1.0f };
-	res.col(3) = { 0.0f, 0.0f, b,    0.0f };
+	res.col(0)   = {w, 0.0f, 0.0f, 0.0f};
+	res.col(1)   = {0.0f, -h, 0.0f, 0.0f}; // -h инвертирует Y для Vulkan
+	res.col(2)   = {0.0f, 0.0f, a, 1.0f};
+	res.col(3)   = {0.0f, 0.0f, b, 0.0f};
 	return res;
 }
 
@@ -468,63 +494,61 @@ inline float4x4 perspectiveY(float fov_y, float aspect, float z_near, float z_fa
 	return result;
 }
 
-inline float4x4 projectionMatrix(float fovy, float aspect, float zNear, float zFar)
-{
-float4x4 res;
-const float ymax = zNear * tanf(fovy * DEG_TO_RAD * 0.5f);
-const float xmax = ymax * aspect;
+inline float4x4 projectionMatrix(float fovy, float aspect, float zNear, float zFar) {
+	float4x4    res;
+	const float ymax = zNear * tanf(fovy * DEG_TO_RAD * 0.5f);
+	const float xmax = ymax * aspect;
 
-const float left   = -xmax;
-const float right  = +xmax;
-const float bottom = -ymax;
-const float top    = +ymax;
+	const float left   = -xmax;
+	const float right  = +xmax;
+	const float bottom = -ymax;
+	const float top    = +ymax;
 
-const float temp = 2.0f * zNear;
-const float temp2 = right - left;
-const float temp3 = top - bottom;
-const float temp4 = zFar - zNear;
+	const float temp  = 2.0f * zNear;
+	const float temp2 = right - left;
+	const float temp3 = top - bottom;
+	const float temp4 = zFar - zNear;
 
-res(0,0) = temp / temp2;
-res(1,0) = 0.0;
-res(2,0) = 0.0;
-res(3,0) = 0.0;
+	res(0, 0) = temp / temp2;
+	res(1, 0) = 0.0;
+	res(2, 0) = 0.0;
+	res(3, 0) = 0.0;
 
-res(0,1) = 0.0;
-res(1,1) = temp / temp3;
-res(2,1) = 0.0;
-res(3,1) = 0.0;
+	res(0, 1) = 0.0;
+	res(1, 1) = temp / temp3;
+	res(2, 1) = 0.0;
+	res(3, 1) = 0.0;
 
-res(0, 2) = (right + left) / temp2;
-res(1, 2) = (top + bottom) / temp3;
-res(2, 2) = (-zFar - zNear) / temp4;
-res(3, 2) = -1.0;
+	res(0, 2) = (right + left) / temp2;
+	res(1, 2) = (top + bottom) / temp3;
+	res(2, 2) = (-zFar - zNear) / temp4;
+	res(3, 2) = -1.0;
 
-res(0, 3) = 0.0;
-res(1, 3) = 0.0;
-res(2, 3) = (-temp * zFar) / temp4;
-res(3, 3) = 0.0;
+	res(0, 3) = 0.0;
+	res(1, 3) = 0.0;
+	res(2, 3) = (-temp * zFar) / temp4;
+	res(3, 3) = 0.0;
 
-return res;
+	return res;
 }
 
-inline float4x4 perspectiveMatrix(float fovy, float aspect, float zNear, float zFar)
-{
-const float ymax = zNear * tanf(fovy * 3.14159265358979323846f / 360.0f);
-const float xmax = ymax * aspect;
-const float left = -xmax;
-const float right = +xmax;
-const float bottom = -ymax;
-const float top = +ymax;
-const float temp = 2.0f * zNear;
-const float temp2 = right - left;
-const float temp3 = top - bottom;
-const float temp4 = zFar - zNear;
-float4x4 res;
-res.set_col(0, float4{ temp / temp2, 0.0f, 0.0f, 0.0f });
-res.set_col(1, float4{ 0.0f, temp / temp3, 0.0f, 0.0f });
-res.set_col(2, float4{ (right + left) / temp2,  (top + bottom) / temp3, (-zFar - zNear) / temp4, -1.0 });
-res.set_col(3, float4{ 0.0f, 0.0f, (-temp * zFar) / temp4, 0.0f });
-return res;
+inline float4x4 perspectiveMatrix(float fovy, float aspect, float zNear, float zFar) {
+	const float ymax   = zNear * tanf(fovy * 3.14159265358979323846f / 360.0f);
+	const float xmax   = ymax * aspect;
+	const float left   = -xmax;
+	const float right  = +xmax;
+	const float bottom = -ymax;
+	const float top    = +ymax;
+	const float temp   = 2.0f * zNear;
+	const float temp2  = right - left;
+	const float temp3  = top - bottom;
+	const float temp4  = zFar - zNear;
+	float4x4    res;
+	res.set_col(0, float4{temp / temp2, 0.0f, 0.0f, 0.0f});
+	res.set_col(1, float4{0.0f, temp / temp3, 0.0f, 0.0f});
+	res.set_col(2, float4{(right + left) / temp2, (top + bottom) / temp3, (-zFar - zNear) / temp4, -1.0});
+	res.set_col(3, float4{0.0f, 0.0f, (-temp * zFar) / temp4, 0.0f});
+	return res;
 }
 
 // Column-major float4x4 helper functions for Vulkan
@@ -533,30 +557,30 @@ return res;
 // Column-major layout: each float4 is a column of the matrix
 inline float4x4 lookAt(float3 eye, float3 center, float3 up) {
 	// Right-handed coordinate system
-	float3 f = normalize(center - eye);  // forward (camera looks towards +Z in view space)
-	float3 r = normalize(cross(f, up));   // right
-	float3 u = cross(r, f);               // up
-	
+	float3 f = normalize(center - eye); // forward (camera looks towards +Z in view space)
+	float3 r = normalize(cross(f, up)); // right
+	float3 u = cross(r, f);             // up
+
 	// Vulkan uses column-major matrices
 	// Column 0: right vector and -dot(right, eye)
 	// Column 1: up vector and -dot(up, eye)
 	// Column 2: -forward vector and dot(forward, eye)
 	// Column 3: translation
-	
+
 	float4x4 result;
-	
+
 	// Column 0 (right)
 	result[0] = float4(r.x, u.x, -f.x, 0.0);
-	
+
 	// Column 1 (up)
 	result[1] = float4(r.y, u.y, -f.y, 0.0);
-	
+
 	// Column 2 (forward)
 	result[2] = float4(r.z, u.z, -f.z, 0.0);
-	
+
 	// Column 3 (translation)
 	result[3] = float4(-dot(r, eye), -dot(u, eye), dot(f, eye), 1.0);
-	
+
 	return result;
 }
 
@@ -568,50 +592,47 @@ inline float4x4 lookAt(float3 eye, float3 center, float3 up) {
 inline float4x4 perspective(float fov, float aspect, float znear, float zfar) {
 	// fov is vertical field of view in radians
 	float tanHalfFov = tanf(fov * DEG_TO_RAD / 2.0);
-	
+
 	float4x4 result = float4x4(
 		float4(0.0, 0.0, 0.0, 0.0),
 		float4(0.0, 0.0, 0.0, 0.0),
 		float4(0.0, 0.0, 0.0, 0.0),
-		float4(0.0, 0.0, 0.0, 0.0)
-	);
-	
+		float4(0.0, 0.0, 0.0, 0.0));
+
 	// Column 0
 	result[0][0] = 1.0 / (aspect * tanHalfFov);
-	
+
 	// Column 1 - Vulkan Y-axis flip (negative for standard Vulkan convention)
-	result[1][1] = -1.0 / tanHalfFov;  // Flip Y for Vulkan's top-left origin
-	
+	result[1][1] = -1.0 / tanHalfFov; // Flip Y for Vulkan's top-left origin
+
 	// Column 2 - Vulkan depth mapping [0, 1]
 	result[2][2] = zfar / (znear - zfar);
 	result[2][3] = -1.0;
-	
+
 	// Column 3
 	result[3][2] = -(zfar * znear) / (zfar - znear);
-	
+
 	return result;
 }
 
 // Alternative perspective without Y-flip if you handle it in viewport
 inline float4x4 perspectiveNoFlip(float fov, float aspect, float znear, float zfar) {
 	float tanHalfFov = tanf(fov * DEG_TO_RAD / 2.0);
-	
+
 	float4x4 result = float4x4(
 		float4(0.0, 0.0, 0.0, 0.0),
 		float4(0.0, 0.0, 0.0, 0.0),
 		float4(0.0, 0.0, 0.0, 0.0),
-		float4(0.0, 0.0, 0.0, 0.0)
-	);
-	
+		float4(0.0, 0.0, 0.0, 0.0));
+
 	result[0][0] = 1.0 / (aspect * tanHalfFov);
-	result[1][1] = 1.0 / tanHalfFov;  // No Y-flip
+	result[1][1] = 1.0 / tanHalfFov; // No Y-flip
 	result[2][2] = zfar / (znear - zfar);
 	result[2][3] = -1.0;
 	result[3][2] = -(zfar * znear) / (zfar - znear);
-	
+
 	return result;
 }
-
 
 inline float3x3 transpose(float3x3 const& m1) {
 	float3x3 res;
@@ -647,8 +668,7 @@ inline float3x3 inverse(float3x3 const& m) {
 	return res;
 }
 
-inline float4x4 OpenglToVulkanProjectionMatrixFix()
-{
+inline float4x4 OpenglToVulkanProjectionMatrixFix() {
 	float4x4 res;
 	res[1][1] = -1.0f;
 	res[2][2] = 0.5f;
@@ -705,6 +725,12 @@ inline float4x4 translate4x4(float3 t) {
 	return res;
 }
 
+inline float4x4 translate4x4(float4x4 const& m, float3 const& translation) {
+	float4x4 result = m;
+	result.col(3) += float4{translation.x, translation.y, translation.z, 0.0f};
+	return result;
+}
+
 inline float4x4 scale4x4(float3 t) {
 	float4x4 res;
 	res[0] = float4{t.x, 0.0f, 0.0f, 0.0f};
@@ -714,7 +740,7 @@ inline float4x4 scale4x4(float3 t) {
 	return res;
 }
 
-inline float4x4 rotate4x4X(float phi) {
+inline float4x4 rotateX4x4(float phi) {
 	float4x4 res;
 	res[0] = float4{1.0f, 0.0f, 0.0f, 0.0f};
 	res[1] = float4{0.0f, +cosf(phi), +sinf(phi), 0.0f};
@@ -723,7 +749,7 @@ inline float4x4 rotate4x4X(float phi) {
 	return res;
 }
 
-inline float4x4 rotate4x4Y(float phi) {
+inline float4x4 rotateY4x4(float phi) {
 	float4x4 res;
 	res[0] = float4{+cosf(phi), 0.0f, -sinf(phi), 0.0f};
 	res[1] = float4{0.0f, 1.0f, 0.0f, 0.0f};
@@ -732,7 +758,7 @@ inline float4x4 rotate4x4Y(float phi) {
 	return res;
 }
 
-inline float4x4 rotate4x4Z(float phi) {
+inline float4x4 rotateZ4x4(float phi) {
 	float4x4 res;
 	res[0] = float4{+cosf(phi), sinf(phi), 0.0f, 0.0f};
 	res[1] = float4{-sinf(phi), cosf(phi), 0.0f, 0.0f};
@@ -742,16 +768,16 @@ inline float4x4 rotate4x4Z(float phi) {
 }
 
 // Rotation around an arbitrary axis
-inline float4x4 rotate4x4(float3 axis, float angle) {
-	axis      = normalize(axis);
+inline float4x4 rotate4x4(float3 const& axis, float angle) {
+	auto  ax  = normalize(axis);
 	float c   = cosf(angle);
 	float s   = sinf(angle);
 	float omc = 1.0f - c;
 
 	return float4x4{
-		{axis.x * axis.x * omc + c, axis.x * axis.y * omc - axis.z * s, axis.x * axis.z * omc + axis.y * s, 0.0f},
-		{axis.x * axis.y * omc + axis.z * s, axis.y * axis.y * omc + c, axis.y * axis.z * omc - axis.x * s, 0.0f},
-		{axis.x * axis.z * omc - axis.y * s, axis.y * axis.z * omc + axis.x * s, axis.z * axis.z * omc + c, 0.0f},
+		{ax.x * ax.x * omc + c, ax.x * ax.y * omc - ax.z * s, ax.x * ax.z * omc + ax.y * s, 0.0f},
+		{ax.x * ax.y * omc + ax.z * s, ax.y * ax.y * omc + c, ax.y * ax.z * omc - ax.x * s, 0.0f},
+		{ax.x * ax.z * omc - ax.y * s, ax.y * ax.z * omc + ax.x * s, ax.z * ax.z * omc + c, 0.0f},
 		{0.0f, 0.0f, 0.0f, 1.0f}};
 }
 
@@ -769,7 +795,7 @@ inline float4x4 mul(float4x4 m1, float4x4 m2) {
 	return res;
 }
 
-inline float4x4 operator*(float4x4 m1, float4x4 m2) {
+inline float4x4 operator*(float4x4 const& m1, float4x4 const& m2) {
 	float4 const column1 = mul(m1, m2.col(0));
 	float4 const column2 = mul(m1, m2.col(1));
 	float4 const column3 = mul(m1, m2.col(2));
@@ -784,7 +810,7 @@ inline float4x4 make_float4x4(const float* p) {
 	return r;
 }
 
-inline float4x4 transpose(float4x4 const& m1) {
+inline float4x4 transpose4x4(float4x4 const& m1) {
 	float4x4 res;
 	res.set_row(0, float4{m1(0, 0), m1(1, 0), m1(2, 0), m1(3, 0)});
 	res.set_row(1, float4{m1(0, 1), m1(1, 1), m1(2, 1), m1(3, 1)});
@@ -793,7 +819,11 @@ inline float4x4 transpose(float4x4 const& m1) {
 	return res;
 }
 
-inline float4x4 affineInverse(float4x4 const& m) {
+inline float4x4 transpose(float4x4 const& m1) {
+	return transpose4x4(m1);
+}
+
+inline float4x4 affineInverse4x4(float4x4 const& m) {
 	auto inv = inverse(float3x3(m));
 	auto l   = -(inv * m.m_col[3].xyz());
 
@@ -803,6 +833,9 @@ inline float4x4 affineInverse(float4x4 const& m) {
 		float4{inv.m_col[2], 0.0f},
 		float4{l.x, l.y, l.z, 1.0f},
 	};
+}
+inline float4x4 affineInverse(float4x4 const& m) {
+	return affineInverse4x4(m);
 }
 
 inline float4x4 inverse4x4(float4x4 const& m1) {
@@ -898,43 +931,51 @@ inline float4x4 inverse(float4x4 const& m1) {
 inline float4x4 operator|(float4x4 const& m, float4x4 (*func)(float4x4 const&)) {
 	return func(m);
 }
+
+template <typename T>
+concept float4x4_op = requires(T t) {
+	{ t.operator()(float4x4{}) } -> std::convertible_to<float4x4>;
+};
+
+inline float4x4 operator|(float4x4 const& m, float4x4_op auto const& op) { return op(m); }
+
 struct translate_op {
 	float3 translation;
 	inline translate_op(float3 t) : translation(t) {}
+	inline auto operator()(float4x4 const& m) const -> float4x4 { return translate4x4(m, translation); }
 };
 
 inline translate_op translate(float3 t) { return translate_op(t); }
-inline float4x4     operator|(float4x4 m, translate_op const& op) {
-	m.col(3) += float4{op.translation.x, op.translation.y, op.translation.z, 0.0f};
-	return m;
-}
 
-struct rotateX_op {
-	float rotation;
+struct scalar_op {
+	float value;
+};
+
+struct rotate_op : scalar_op {
+	float rotation() const { return value; }
+};
+
+struct rotateX_op : rotate_op {
+	inline auto operator()(float4x4 const& m) const -> float4x4 { return rotateX4x4(rotation()) * m; }
 };
 inline rotateX_op rotateX(float x) { return {x}; }
-inline float4x4   operator|(float4x4 m, rotateX_op const& op) { return rotate4x4X(op.rotation) * m; }
-inline float4x4&  operator|=(float4x4& m, rotateX_op const& op) { return m = rotate4x4X(op.rotation) * m; }
 
-struct rotateY_op {
-	float rotation;
+struct rotateY_op : rotate_op {
+	inline auto operator()(float4x4 const& m) const -> float4x4 { return rotateY4x4(rotation()) * m; }
 };
 inline rotateY_op rotateY(float x) { return {x}; }
-inline float4x4   operator|(float4x4 m, rotateY_op const& op) { return rotate4x4Y(op.rotation) * m; }
-inline float4x4&  operator|=(float4x4& m, rotateY_op const& op) { return m = rotate4x4Y(op.rotation) * m; }
 
-struct rotateZ_op {
-	float rotation;
+struct rotateZ_op : rotate_op {
+	inline auto operator()(float4x4 const& m) const -> float4x4 { return rotateZ4x4(rotation()) * m; }
 };
 inline rotateZ_op rotateZ(float x) { return {x}; }
-inline float4x4   operator|(float4x4 m, rotateZ_op const& op) { return rotate4x4Z(op.rotation) * m; }
-inline float4x4&  operator|=(float4x4& m, rotateZ_op const& op) { return m = rotate4x4Z(op.rotation) * m; }
 
 struct rotate_euler_op {
 	float3 axis;
 	float  rotation;
+
+	inline auto operator()(float4x4 const& m) const -> float4x4 { return rotate4x4(axis, rotation) * m; }
 };
 inline rotate_euler_op rotate(float3 a, float r) { return {a, r}; }
-inline float4x4        operator|(float4x4 const& m, rotate_euler_op const& op) { return rotate4x4(op.axis, op.rotation) * m; }
 
 } // namespace math
