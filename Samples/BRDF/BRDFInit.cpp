@@ -614,8 +614,13 @@ void BRDFSample::CreatePipelines() {
 	// if constexpr (kCreateGenerated) {
 	if (is_test_mode) {
 		CodeType shader_codes[] = {
+
 #define BRDF_NAME(x) \
-	Utils::ReadBinaryFile("Shaders/" #x ".slang.spv").or_else(LF(error_read_file(#x ".slang.spv"))),
+	[&] { \
+		constexpr std::string_view _strr = "Shaders/FASTKANf32-envmap/" #x ".slang.spv"; \
+		return Utils::ReadBinaryFile(_strr).or_else(LF(error_read_file(_strr))); \
+	}(),
+
 // #include "SINEKAN_HeaderNames.def"
 #include "FASTKAN_HeaderNames.def"
 			// #include "CHEBYKAN_HeaderNames.def"

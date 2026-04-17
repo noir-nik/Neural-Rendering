@@ -1,8 +1,8 @@
 #ifndef INC
-// #include "BRDFSINEKAN.h"
+#include "BRDFSINEKAN.h"
 
 // import rgb_decoder_gr;
-import rgb_decoder_g_SineKAN_2_3_nCps3;
+// import rgb_decoder_g_SineKAN_2_3_nCps3;
 // #include "BRDFSINEKAN.h"
 // import SineKAN_2_8_nCps6;
 // import "blue-acrylic";
@@ -12,13 +12,19 @@ import rgb_decoder_g_SineKAN_2_3_nCps3;
 import INC;
 #endif
 
+#ifndef _T
+#define _T float
+#endif
+
+typealias Tp = _T;
+
 #ifndef LAYERS
 #define LAYERS 3
 #endif
 
 #if LAYERS == 2
-void BRDFSINEKAN2(in float input[6], out float output[3]) {
-	float output0[bias0_shape0];
+void BRDFSINEKAN2(in Tp input[6], out Tp output[3]) {
+	Tp output0[bias0_shape0];
 
 	// Layer 0
 	for (int j = 0; j < bias0_shape0; j++) {
@@ -28,7 +34,7 @@ void BRDFSINEKAN2(in float input[6], out float output[3]) {
 	for (int j = 0; j < amplitudes0_shape0; j++) {
 		for (int k = 0; k < amplitudes0_shape1; k++) {
 			for (int l = 0; l < amplitudes0_shape2; l++) {
-				float s = sin(input[k] * freq0[l] + phase0[k][l]);
+				Tp s = sin(input[k] * freq0[l] + phase0[k][l]);
 				output0[j] += s * amplitudes0[j][k][l];
 			}
 		}
@@ -42,7 +48,7 @@ void BRDFSINEKAN2(in float input[6], out float output[3]) {
 	for (int j = 0; j < amplitudes1_shape0; j++) {
 		for (int k = 0; k < amplitudes1_shape1; k++) {
 			for (int l = 0; l < amplitudes1_shape2; l++) {
-				float s = sin(output0[k] * freq1[l] + phase1[k][l]);
+				Tp s = sin(output0[k] * freq1[l] + phase1[k][l]);
 				output[j] += s * amplitudes1[j][k][l];
 			}
 		}
@@ -55,9 +61,9 @@ void BRDFSINEKAN2(in float input[6], out float output[3]) {
 #endif
 
 #if LAYERS == 3
-void BRDFSINEKAN3(in float input[6], out float output[3]) {
-	float output0[bias0_shape0];
-	float output1[bias1_shape0];
+void BRDFSINEKAN3(in Tp input[6], out Tp output[3]) {
+	Tp output0[bias0_shape0];
+	Tp output1[bias1_shape0];
 
 	// Layer 0
 	for (int j = 0; j < bias0_shape0; j++) {
@@ -67,7 +73,7 @@ void BRDFSINEKAN3(in float input[6], out float output[3]) {
 	for (int j = 0; j < amplitudes0_shape0; j++) {
 		for (int k = 0; k < amplitudes0_shape1; k++) {
 			for (int l = 0; l < amplitudes0_shape2; l++) {
-				float s = sin(input[k] * freq0[l] + phase0[k][l]);
+				Tp s = sin(input[k] * freq0[l] + phase0[k][l]);
 				output0[j] += s * amplitudes0[j][k][l];
 			}
 		}
@@ -81,7 +87,7 @@ void BRDFSINEKAN3(in float input[6], out float output[3]) {
 	for (int j = 0; j < amplitudes1_shape0; j++) {
 		for (int k = 0; k < amplitudes1_shape1; k++) {
 			for (int l = 0; l < amplitudes1_shape2; l++) {
-				float s = sin(output0[k] * freq1[l] + phase1[k][l]);
+				Tp s = sin(output0[k] * freq1[l] + phase1[k][l]);
 				output1[j] += s * amplitudes1[j][k][l];
 			}
 		}
@@ -95,7 +101,7 @@ void BRDFSINEKAN3(in float input[6], out float output[3]) {
 	for (int j = 0; j < amplitudes2_shape0; j++) {
 		for (int k = 0; k < amplitudes2_shape1; k++) {
 			for (int l = 0; l < amplitudes2_shape2; l++) {
-				float s = sin(output1[k] * freq2[l] + phase2[k][l]);
+				Tp s = sin(output1[k] * freq2[l] + phase2[k][l]);
 				output[j] += s * amplitudes2[j][k][l];
 			}
 		}

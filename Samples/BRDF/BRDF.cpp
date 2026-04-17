@@ -239,7 +239,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	// auto view_proj = inverse(camera.getProjViewInv());
 	// auto view_proj = proj * (view | inverse4x4);
 	// auto view_proj = proj * (view  inverse4x4);
-	auto view_proj_base = proj * (view | affineInverse);
+	auto view_proj_base = proj * view.affineInverse();
 	auto view_proj      = OpenglToVulkanProjectionMatrixFix() * view_proj_base;
 
 	// view_proj = inverse4x4(view_proj);
@@ -333,7 +333,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 			// return res;
 		};
 
-		constants.view_proj = (ffix() * view_proj_base) | inverse;
+		constants.view_proj = (ffix() * view_proj_base).inverse();
 
 		bind_push(skybox_pipeline);
 
@@ -612,8 +612,7 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 
 	auto print_name =
 		// false
-		 true
-		;
+		true;
 	if (print_name) {
 		for (u32 t_i = first_test; t_i < last_test; ++t_i) {
 			if (contains(skip, BrdfFunctionType(t_i))) continue;
@@ -629,8 +628,7 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 
 	auto print_all =
 		// false
-		 true
-		;
+		true;
 	if (print_all)
 		for (u32 iter = 0; iter < kTestRunsCount; ++iter) {
 			auto const& tests_row = test_times[iter];
@@ -645,24 +643,25 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 
 	// print means
 	// std::printf("Classic,CoopVec,WeightsInBuffer,WeightsInBufferFloat16,WeightsInHeader\n");
-	u32 first_row = 3;
-	u64 ms_in_ns  = 1e6;
+	u32  first_row = 3;
+	u64  ms_in_ns  = 1e6;
 	auto print_means =
 		// true
-		false
-		;
-	for (u32 t_i = first_test; t_i < last_test; ++t_i) {
-		if (contains(skip, BrdfFunctionType(t_i))) continue;
-		double mean = 0;
-		for (u32 iter = first_row; iter < kTestRunsCount; ++iter) {
-			mean += double(test_times[iter][t_i]) / ms_in_ns;
+		false;
+	if (print_means) {
+		for (u32 t_i = first_test; t_i < last_test; ++t_i) {
+			if (contains(skip, BrdfFunctionType(t_i))) continue;
+			double mean = 0;
+			for (u32 iter = first_row; iter < kTestRunsCount; ++iter) {
+				mean += double(test_times[iter][t_i]) / ms_in_ns;
+			}
+			mean /= (kTestRunsCount - first_row);
+			std::printf("%f", mean);
+			if (t_i < last_test - 1 && !contains(skip, BrdfFunctionType(t_i + 1))) std::printf(",");
+			// if (t_i > 0  and (t_i + 1) % 4 == 0) std::printf("\n");
 		}
-		mean /= (kTestRunsCount - first_row);
-		std::printf("%f", mean);
-		if (t_i < last_test - 1 && !contains(skip, BrdfFunctionType(t_i + 1))) std::printf(",");
-		// if (t_i > 0  and (t_i + 1) % 4 == 0) std::printf("\n");
+		std::printf("\n");
 	}
-	std::printf("\n");
 }
 
 auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
@@ -746,7 +745,7 @@ auto PrintUsage([[maybe_unused]] int argc, char const* argv[]) -> void {
 	std::printf("\n");
 };
 
-auto main(int argc, char const* argv[]) -> int {
+extern "C++" auto main(int argc, char const* argv[]) -> int {
 	std::filesystem::current_path(std::filesystem::absolute(argv[0]).parent_path());
 	BRDFSample sample;
 

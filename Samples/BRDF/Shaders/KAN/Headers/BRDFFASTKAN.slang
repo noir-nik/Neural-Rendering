@@ -9,70 +9,77 @@ import INC;
 // #ifndef LAYERS
 // #error LAYERS not defined
 // #endif
+// typealias Tp = half;
+
+#ifndef _T
+#define _T float
+#endif
+
+typealias Tp = _T;
 
 #ifndef LAYERS
 #define LAYERS 3
 #endif
 
-inline void rbf_forward(in float x, in float grid[], in float denom_inv, out float basis[], int grid_size) {
+inline void rbf_forward(in Tp x, in Tp grid[], in Tp denom_inv, out Tp basis[], int grid_size) {
 	for (int i = 0; i < grid_size; i++) {
-		float diff = (x - grid[i]) * denom_inv;
+		Tp diff = (x - grid[i]) * denom_inv;
 		basis[i]   = exp(-diff * diff);
 	}
 }
 
-inline float spline_linear_forward(in float basis_flat[], int weight_cols /* == basis_size */, in float weights[], int out_idx) {
-	float sum = 0.0;
+inline Tp spline_linear_forward(in Tp basis_flat[], int weight_cols /* == basis_size */, in Tp weights[], int out_idx) {
+	Tp sum = 0.0;
 	for (int i = 0; i < weight_cols; i++) {
 		sum += basis_flat[i] * weights[out_idx * weight_cols + i];
 	}
 	return sum;
 }
 
-float expm10(float x) {
-	typealias T = float;
-	return pow(T(1.0) + exp(T(10.0) * x), T(0.1)) - T(1.0);
+Tp expm10(Tp x) {
+	 
+	return pow(Tp(1.0) + exp(Tp(10.0) * x), Tp(0.1)) - Tp(1.0);
 }
 
-float reluexpm1(float x) {
+Tp reluexpm1(Tp x) {
 	return max(0.0, exp(x) - 1.0);
 }
 
-float silu(float x) {
+Tp silu(Tp x) {
 	return x / (1.0 + exp(-x));
 }
 
-float base_activation(float x) {
+Tp base_activation(Tp x) {
 	return silu(x);
 	// return reluexpm1(x);
 	// return expm10(x);
 }
 
 void fastkan_layer_forward(
-	in float input[], int IN_SIZE,
-	out float output[], int OUT_SIZE,
-	in float rbf_grid[], int GRID_SIZE,
-	in float rbf_denom_inv,
-	in float spline_weights[],
-	in float base_weights[],
-	in float base_bias[]) {
+	in Tp input[], int IN_SIZE,
+	out Tp output[], int OUT_SIZE,
+	in Tp rbf_grid[], int GRID_SIZE,
+	in Tp rbf_denom_inv,
+	in Tp spline_weights[],
+	in Tp base_weights[],
+	in Tp base_bias[]) {
 
 	int FLAT_SIZE = IN_SIZE * GRID_SIZE;
 
 	for (int out_idx = 0; out_idx < OUT_SIZE; out_idx++) {
-		float val = base_bias[out_idx];
+		Tp val = base_bias[out_idx];
 
 		int sw_offset = out_idx * FLAT_SIZE;
 		int bw_offset = out_idx * IN_SIZE;
 
 		for (int i = 0; i < IN_SIZE; i++) {
-			float x = input[i];
+			Tp x = input[i];
 
 			val += base_activation(x) * base_weights[bw_offset + i];
 
 			int rbf_offset = sw_offset + i * GRID_SIZE;
 			for (int j = 0; j < GRID_SIZE; j++) {
-				float diff = (x - rbf_grid[j]) * rbf_denom_inv;
+				Tp diff = (x - rbf_grid[j]) * rbf_denom_inv;
 				val += exp(-diff * diff) * spline_weights[rbf_offset + j];
 			}
 		}
@@ -83,8 +90,8 @@ void fastkan_layer_forward(
 
 // #if 1
 #if LAYERS == 2
-void BRDFFASTKAN2(in float input[6], out float output[3]) {
-	float layer0_out[base_weight0_shape0]; // 5
+void BRDFFASTKAN2(in Tp input[6], out Tp output[3]) {
+	Tp layer0_out[base_weight0_shape0]; // 5
 
 	// Layer 0: [6] -> [5]
 	fastkan_layer_forward(
@@ -109,9 +116,9 @@ void BRDFFASTKAN2(in float input[6], out float output[3]) {
 #endif
 
 #if LAYERS == 3
-void BRDFFASTKAN3(in float input[6], out float output[3]) {
-	float layer0_out[base_weight0_shape0]; // 5
-	float layer1_out[base_weight1_shape0]; // 5
+void BRDFFASTKAN3(in Tp input[6], out Tp output[3]) {
+	Tp layer0_out[base_weight0_shape0]; // 5
+	Tp layer1_out[base_weight1_shape0]; // 5
 
 	// Layer 0: [6] -> [5]
 	fastkan_layer_forward(

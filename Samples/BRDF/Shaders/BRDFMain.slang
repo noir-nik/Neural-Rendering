@@ -61,6 +61,12 @@ import BRDFSINEKAN;
 #define NUM_SAMPLES 1
 #endif
 
+// #ifndef _T
+// #define _T float
+// #endif
+
+// typealias Tp = _T;
+
 // clang-format off
 [[vk::binding(BINDING_STORAGE_BUFFER, 0)]] StructuredBuffer<float> gWeights;
 [[vk::binding(BINDING_STORAGE_BUFFER, 0)]] StructuredBuffer<COOPVEC_TYPE> gWeightsCoopVec;
@@ -209,8 +215,8 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 		float  mis_weight;
 		bool   is_specular_sample = random_val.x < specular_weight;
 
-		bool is_point = true;
-		// bool is_point = false;
+		// bool is_point = true;
+		bool is_point = false;
 		if (is_point) {
 			float3 ldir      = ctx.light.position - ps_input.world_pos;
 			float  dist      = length(ldir);
@@ -243,9 +249,11 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 			float3 diff_vec = float3(0.f, 0.f, 0.f);
 			RusinkiewiczTransform(view_tbn, light_tbn, &half_vec, &diff_vec);
 
-			float inputf[6] = { half_vec.x, half_vec.y, half_vec.z,
+			// typealias Tp = half;
+			// typealias Tp = float;
+			Tp inputf[6] = { half_vec.x, half_vec.y, half_vec.z,
 								diff_vec.x, diff_vec.y, diff_vec.z };
-			float outputf[3];
+			Tp outputf[3];
 
 			// BRDFSINEKAN3(inputf, outputf);
 			FF(inputf, outputf);

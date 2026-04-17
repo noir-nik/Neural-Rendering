@@ -5,16 +5,16 @@ import Math;
 import std;
 
 Camera::Camera(CameraCreationInfo const& info) : focus(info.focus), fov(info.fov), z_near(info.z_near), z_far(info.z_far) {
-	view = lookAt(info.position, focus, info.up) | affineInverse;
+	view = lookAt(info.position, focus, info.up).affineInverse();
 	// view = lookAt(info.position, focus, info.up);// | affineInverse;
 	// view = lookAt(info.position, focus, info.up) ;//| inverse4x4;
 }
 
 void Camera::setProj(float fov, int width, int height, float z_near, float z_far) {
-/* 	proj = width > height
-			   ? perspectiveX(fov, (float)width / height, z_near, z_far)
-			   : perspectiveY(fov, (float)height / width, z_near, z_far);
- */
+	/* 	proj = width > height
+				   ? perspectiveX(fov, (float)width / height, z_near, z_far)
+				   : perspectiveY(fov, (float)height / width, z_near, z_far);
+	 */
 	proj = perspective(fov, (float)width / height, z_near, z_far);
 	// proj = inverse(proj);
 	this->fov    = fov;
@@ -23,7 +23,7 @@ void Camera::setProj(float fov, int width, int height, float z_near, float z_far
 }
 
 void Camera::updateProjectionViewInverse() {
-	gpuCamera.projection_view_inv = proj * (view | inverse);
+	gpuCamera.projection_view_inv = proj * view.inverse();
 	// gpuCamera.projection_view_inv =   (view) *inverse(proj) ;
 	// gpuCamera.projection_view_inv =   (view) *(proj) ;
 	// gpuCamera.projection_view_inv = (proj) * (view );
@@ -56,5 +56,5 @@ void Camera::moveWithCursor(float width, float height, float delta_x, float delt
 
 	float3 movement = camera_right * (delta_x * scale_x) - camera_up * (delta_y * scale_y);
 
-	view = view | translate(movement);
+	view = view.translate(movement);
 }
