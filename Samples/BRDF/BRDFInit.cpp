@@ -617,7 +617,7 @@ void BRDFSample::CreatePipelines() {
 
 #define BRDF_NAME(x) \
 	[&] { \
-		constexpr std::string_view _strr = "Shaders/FASTKANf32-envmap/" #x ".slang.spv"; \
+		constexpr std::string_view _strr = "Shaders/64/NEWFASTKAN-v2/" #x ".slang.spv"; \
 		return Utils::ReadBinaryFile(_strr).or_else(LF(error_read_file(_strr))); \
 	}(),
 

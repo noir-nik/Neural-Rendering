@@ -84,7 +84,7 @@ public:
 	[[nodiscard]]
 	auto CreatePipeline(vk::ShaderModule vertex_shader_module, SpecData const& info = {}) -> vk::Pipeline;
 	[[nodiscard]]
-	auto CreateSkyboxPipeline(vk::ShaderModule shader_module) -> vk::Pipeline ;
+	auto CreateSkyboxPipeline(vk::ShaderModule shader_module) -> vk::Pipeline;
 
 	// void BuildNetwork();
 	struct NetworkBufferInfo {
@@ -178,7 +178,12 @@ public:
 	std::array<vk::Pipeline, u32(BrdfFunctionType::eCount)> pipelines = {};
 	vk::Pipeline                                            skybox_pipeline{};
 
-	static constexpr int kTestFunctionsCount = 50;
+	static constexpr int _HeaderNames_count_array[] = {
+#define BRDF_NAME(x) 0,
+#include "FASTKAN_HeaderNames.def"
+	};
+
+	static constexpr int kTestFunctionsCount = std::size(_HeaderNames_count_array);
 
 	std::array<vk::Pipeline, kTestFunctionsCount> pipelines_header = {};
 
@@ -228,12 +233,12 @@ public:
 
 	Camera camera{{
 		// .position = {1.0f, -1.0f, 2.0f},
-		.position = float3{1.0f, 1.0f, 2.5f},// * 1.8,
+		.position = float3{1.0f, 1.0f, 2.5f}, // * 1.8,
 		// .position = float3{-0.82666, -0.10470,  0.55289}*3,
 		// .position = {-0.05682, 0.55289, 1.63774,}
-		.fov      = 50.0f,
-		.z_near   = 0.01f,
-		.z_far    = 100.0f,
+		.fov    = 50.0f,
+		.z_near = 0.01f,
+		.z_far  = 100.0f,
 	}};
 
 	Vertex vv{};

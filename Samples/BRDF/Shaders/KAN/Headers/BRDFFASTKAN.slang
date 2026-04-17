@@ -1,6 +1,7 @@
 #ifndef INC
 // #include "BRDFFASTKAN.h"
-import FastKAN_6_6_6_3_nCps_6;
+// import FastKAN_6_6_6_3_nCps_6;
+import cc_green_malachite_rgb_FastKAN_2_8_nCps6;
 // import rgb_decoder_fc;
 #else
 import INC;
@@ -23,8 +24,8 @@ typealias Tp = _T;
 
 inline void rbf_forward(in Tp x, in Tp grid[], in Tp denom_inv, out Tp basis[], int grid_size) {
 	for (int i = 0; i < grid_size; i++) {
-		Tp diff = (x - grid[i]) * denom_inv;
-		basis[i]   = exp(-diff * diff);
+		Tp diff  = (x - grid[i]) * denom_inv;
+		basis[i] = exp(-diff * diff);
 	}
 }
 
@@ -37,7 +38,7 @@ inline Tp spline_linear_forward(in Tp basis_flat[], int weight_cols /* == basis_
 }
 
 Tp expm10(Tp x) {
-	 
+
 	return pow(Tp(1.0) + exp(Tp(10.0) * x), Tp(0.1)) - Tp(1.0);
 }
 
@@ -51,11 +52,10 @@ Tp silu(Tp x) {
 
 Tp base_activation(Tp x) {
 	return silu(x);
-	// return reluexpm1(x);
-	// return expm10(x);
 }
 
-void fastkan_layer_forward(
+// out_idx loop is outside
+void fastkan_layer_forward_v1(
 	in Tp input[], int IN_SIZE,
 	out Tp output[], int OUT_SIZE,
 	in Tp rbf_grid[], int GRID_SIZE,
@@ -87,6 +87,48 @@ void fastkan_layer_forward(
 		output[out_idx] = val;
 	}
 }
+
+// out_idx loop is inside
+void fastkan_layer_forward_v2(
+	in Tp input[], int IN_SIZE,
+	out Tp output[], int OUT_SIZE,
+	in Tp rbf_grid[], int GRID_SIZE,
+	in Tp rbf_denom_inv,
+	in Tp spline_weights[],
+	in Tp base_weights[],
+	in Tp base_bias[]) {
+
+	int FLAT_SIZE = IN_SIZE * GRID_SIZE;
+
+	for (int out_idx = 0; out_idx < OUT_SIZE; out_idx++) {
+		output[out_idx] = base_bias[out_idx];
+	}
+
+	for (int i = 0; i < IN_SIZE; i++) {
+		Tp x  = input[i];
+		Tp tx = base_activation(x);
+
+		// Base
+		for (int out_idx = 0; out_idx < OUT_SIZE; out_idx++) {
+			output[out_idx] += tx * base_weights[out_idx * IN_SIZE + i];
+		}
+
+		// Spline
+		for (int j = 0; j < GRID_SIZE; j++) {
+			Tp  diff      = (x - rbf_grid[j]) * rbf_denom_inv;
+			Tp  rbf       = exp(-diff * diff);
+			int sw_offset = i * GRID_SIZE + j;
+
+			for (int out_idx = 0; out_idx < OUT_SIZE; out_idx++) {
+				output[out_idx] += rbf * spline_weights[out_idx * FLAT_SIZE + sw_offset];
+			}
+		}
+	}
+}
+
+#ifndef fastkan_layer_forward
+#define fastkan_layer_forward fastkan_layer_forward_v2
+#endif
 
 // #if 1
 #if LAYERS == 2

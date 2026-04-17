@@ -94,6 +94,12 @@ struct PSOutput {
 }
 // clang-format on
 
+static const bool is_point = //
+	true
+	// false
+	//
+	;
+
 [[shader("vertex")]]
 VSOutput vs_main(VSInput in_vertex) {
 	VSOutput output;
@@ -215,8 +221,6 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 		float  mis_weight;
 		bool   is_specular_sample = random_val.x < specular_weight;
 
-		// bool is_point = true;
-		bool is_point = false;
 		if (is_point) {
 			float3 ldir      = ctx.light.position - ps_input.world_pos;
 			float  dist      = length(ldir);
@@ -252,7 +256,7 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 			// typealias Tp = half;
 			// typealias Tp = float;
 			Tp inputf[6] = { half_vec.x, half_vec.y, half_vec.z,
-								diff_vec.x, diff_vec.y, diff_vec.z };
+							 diff_vec.x, diff_vec.y, diff_vec.z };
 			Tp outputf[3];
 
 			// BRDFSINEKAN3(inputf, outputf);

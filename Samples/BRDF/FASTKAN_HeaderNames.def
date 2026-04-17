@@ -1,7 +1,7 @@
 #ifndef BRDF_NAME
 #define BRDF_NAME(x)
 #endif
-
+/* 
 BRDF_NAME(FASTKAN_1_2_3_77_85)
 BRDF_NAME(FASTKAN_1_2_4_95_105)
 BRDF_NAME(FASTKAN_1_2_6_131_145)
@@ -52,5 +52,14 @@ BRDF_NAME(FASTKAN_2_6_4_465_480)
 BRDF_NAME(FASTKAN_2_6_6_645_666)
 BRDF_NAME(FASTKAN_2_6_8_825_852)
 BRDF_NAME(FASTKAN_2_6_12_1185_1224)
+ */
+BRDF_NAME(cc_green_malachite_rgb_FastKAN_2_1_nCps3)
+BRDF_NAME(cc_green_malachite_rgb_FastKAN_2_1_nCps6)
+BRDF_NAME(cc_green_malachite_rgb_FastKAN_2_2_nCps3)
+BRDF_NAME(cc_green_malachite_rgb_FastKAN_2_2_nCps6)
+BRDF_NAME(cc_green_malachite_rgb_FastKAN_2_4_nCps3)
+BRDF_NAME(cc_green_malachite_rgb_FastKAN_2_4_nCps6)
+BRDF_NAME(cc_green_malachite_rgb_FastKAN_2_8_nCps3)
+BRDF_NAME(cc_green_malachite_rgb_FastKAN_2_8_nCps6)
 
 #undef BRDF_NAME
