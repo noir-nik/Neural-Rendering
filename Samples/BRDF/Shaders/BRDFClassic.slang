@@ -1,5 +1,5 @@
 import Pbr;
-#include "BRDFConstants.h"
+import BRDFConstants;
 
 // func BRDFClassic(float3 view, Light light, float3 world_pos, float3 normal, float3 albedo, float metallic, float roughness)->float3 {
 

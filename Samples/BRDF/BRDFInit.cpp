@@ -221,7 +221,17 @@ void BRDFSample::Init() {
 		 },
 		 .aspect = vk::ImageAspectFlagBits::eColor});
 
-	CreateAndUploadBuffers({.file_name = weights_file_name.size() > 0 ? weights_file_name : "Assets/simple_brdf_weights.bin", .header = ""});
+	auto const _file_name =
+		hasattr(&BRDFSample::weights_file_name)
+			? weights_file_name
+			: "Assets/simple_brdf_weights.bin";
+
+	// auto header =
+	// 	//
+	// 	""
+	// 	//  "hydrann1"
+	// 	;
+	CreateAndUploadBuffers({.file_name = _file_name, .header = this->header});
 
 	// After depth, because depth format is need in rendering info
 	CreatePipelines();
@@ -620,25 +630,13 @@ void BRDFSample::CreatePipelines() {
 
 	using Utils::make_string;
 
-	char buffer[32];
 	char path_buffer[1024];
 
-	auto _get_res = [&] {
-		auto result = std::to_chars(buffer, buffer + sizeof(buffer), fastkan_version);
-		if (result.ec != std::errc()) {
-			std::printf("Conversion failed!\n");
-			std::exit(1);
-		}
-		return result;
-	};
-	[[maybe_unused]] auto const fastkan_version_str = std::string_view(buffer, _get_res().ptr - buffer);
-
 	auto make_path = [&](std::string_view const fname) {
-		// return make_string("Shaders/spv/FASTKAN/2604/1/v", fastkan_version_str, "/", fname, ".slang.spv");
 		auto const printed = std::snprintf(
 			path_buffer, sizeof(path_buffer),
-			"Shaders/spv/FASTKAN/2604/1/v%d1/%s.slang.spv",
-			fastkan_version, fname.data());
+			"Shaders/spv/CoopVec/%s.slang.spv",
+			/* fastkan_version, */ fname.data());
 
 		return std::string_view(path_buffer, printed);
 	};

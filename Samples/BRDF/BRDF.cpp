@@ -702,6 +702,12 @@ auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 			// if (!std::filesystem::exists(str)) return *(it + 1);
 			weights_file_name = str;
 			++it;
+		} else if (arg == "-wh") { 
+			if ((it + 1) == args_range.end()) return "expected <file>";
+			auto str = std::string_view(*(it + 1));
+			// if (!std::filesystem::exists(str)) return *(it + 1);
+			this->header = str;
+			++it;
 		} else if (arg == "-kw") { // input weights file
 			if ((it + 1) == args_range.end()) return "expected <file>";
 			auto str = std::string_view(*(it + 1));

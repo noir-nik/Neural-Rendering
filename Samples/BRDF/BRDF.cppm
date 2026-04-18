@@ -213,6 +213,8 @@ public:
 	Image depth_image;
 	bool  use_depth = true;
 
+	std::string_view header = "";
+
 	VulkanCoopVecNetwork networks[u32(BrdfFunctionType::eCount)];
 
 	void RecordCommands(vk::Pipeline pipeline);

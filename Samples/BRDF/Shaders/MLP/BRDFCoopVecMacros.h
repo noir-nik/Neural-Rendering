@@ -7,3 +7,9 @@
 #define FWD_SINE(idx, in, out, input, output) \
 	FWD(idx, in, out, input, output); \
 	output = sin(output);
+	
+// #define FWD_RELUEXPM1(idx, in, out, input, output) \
+// 	FWD(idx, in, out, input, output); \
+// 	output = relu(exp(output) - T(1.0));
+	// output = sin(output);
+	// max(T(0.0), exp(output[i] - T(1.0)));

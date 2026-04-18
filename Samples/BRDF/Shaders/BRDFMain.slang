@@ -1,7 +1,7 @@
 #include "BRDFBindings.h"
 #include "BRDFConfig.h"
-#include "BRDFConstants.h"
 
+import BRDFConstants;
 import Pbr;
 
 import Utils;
@@ -46,6 +46,10 @@ import BRDFFASTKAN;
 #define FF BRDFSINEKAN3
 #endif
 
+
+
+
+
 #ifdef NBRDF
 
 #ifndef INC
@@ -60,6 +64,13 @@ import INC;
 // #define FF irid_flake_paint2_rgb_NBRDF_2_96_
 // import FF;
 #endif
+
+
+
+
+
+
+
 
 #ifndef NUM_SAMPLES
 // #define NUM_SAMPLES 32
@@ -77,6 +88,21 @@ import INC;
 // #define _T half
 #endif
 typealias Tp = _T;
+
+import BRDFCoopVec;
+import BRDFClassic;
+
+// import BRDFCoopVec_6_4_4_3_63;
+// import BRDFCoopVec_6_6_6_3_105;
+// import BRDFCoopVec_6_8_8_3_155;
+// import BRDFCoopVec_6_12_12_3_279;
+// import BRDFCoopVec_6_16_16_3_435;
+// import BRDFCoopVec_6_24_24_3_843;
+// import BRDFCoopVec_6_32_32_3_1379;
+// import BRDFCoopVec_6_48_48_3_2835;
+// import BRDFCoopVec_6_64_64_3_4803;
+// import BRDFCoopVec_6_96_96_3_10275;
+// import BRDFCoopVec_6_128_128_3_17795;
 
 // clang-format off
 [[vk::binding(BINDING_STORAGE_BUFFER, 0)]] StructuredBuffer<float> gWeights;
@@ -114,10 +140,6 @@ VSOutput vs_main(VSInput in_vertex) {
 	output.normal    = normalize(in_vertex.normal.xyz);
 
 	return output;
-}
-
-float3 Reflect(float3 incident, float3 normal) {
-	return incident - 2.0 * dot(incident, normal) * normal;
 }
 
 [[shader("fragment")]]
@@ -206,14 +228,46 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 			float3 diff_vec = float3(0.f, 0.f, 0.f);
 			RusinkiewiczTransform(view_tbn, light_tbn, &half_vec, &diff_vec);
 
-			// typealias Tp = half;
+			typealias Tp = half;
 			// typealias Tp = float;
 			Tp inputf[6] = { half_vec.x, half_vec.y, half_vec.z,
 							 diff_vec.x, diff_vec.y, diff_vec.z };
 			Tp outputf[3];
 
 			// BRDFSINEKAN3(inputf, outputf);
-			FF(inputf, outputf);
+			if (BrdfFunctionType(shader_type) == BrdfFunctionType::eClassic) {
+			}
+
+			uint wo3[3] = { ctx.weights_offsets[0], ctx.weights_offsets[1], ctx.weights_offsets[2] };
+			uint bo3[3] = { ctx.bias_offsets[0], ctx.bias_offsets[1], ctx.bias_offsets[2] };
+
+			if (shader_type == BrdfFunctionType::eCoopVec) {
+				// FF(inputf, outputf, gWeightsCoopVec, wo3, bo3);
+				BRDFCoopVec(inputf, outputf, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
+				// BRDFCoopVec_6_4_4_3_63(inputf, outputf, gWeightsCoopVec, wo3, bo3);
+				// BRDFCoopVec_6_6_6_3_105(inputf, outputf, gWeightsCoopVec, wo3, bo3);
+				// BRDFCoopVec_6_8_8_3_155(inputf, outputf, gWeightsCoopVec, wo3, bo3);
+				// BRDFCoopVec_6_12_12_3_279(inputf, outputf, gWeightsCoopVec, wo3, bo3);
+				// BRDFCoopVec_6_16_16_3_435(inputf, outputf, gWeightsCoopVec, wo3, bo3);
+				// BRDFCoopVec_6_24_24_3_843(inputf, outputf, gWeightsCoopVec, wo3, bo3);
+				// BRDFCoopVec_6_32_32_3_1379(inputf, outputf, gWeightsCoopVec, wo3, bo3);
+				// BRDFCoopVec_6_48_48_3_2835(inputf, outputf, gWeightsCoopVec, wo3, bo3);
+				// BRDFCoopVec_6_64_64_3_4803(inputf, outputf, gWeightsCoopVec, wo3, bo3);
+				// BRDFCoopVec_6_96_96_3_10275(inputf, outputf, gWeightsCoopVec, wo3, bo3);
+				// BRDFCoopVec_6_128_128_3_17795(inputf, outputf, gWeightsCoopVec, wo3, bo3);
+
+				return float4(outputf[0], outputf[1], outputf[2], 1.0f);
+			} else {
+				float inputc[6] = { view_dir.x, view_dir.y, view_dir.z, light_dir.x, light_dir.y, light_dir.z };
+				float outputc[3];
+				BRDFClassic(inputc, outputc, ctx.light, ps_input.world_pos, normal, float3(0.8, 0.2, 0.8), 0.0, 0.5);
+				outputf[0] = Tp(outputc[0]);
+				outputf[1] = Tp(outputc[1]);
+				outputf[2] = Tp(outputc[2]);
+				// return float4(outputf[0], outputf[1], outputf[2], 1.0f);
+
+				// FF(inputf, outputf);
+			}
 
 			float3 brdf = float3(outputf[0], outputf[1], outputf[2]);
 

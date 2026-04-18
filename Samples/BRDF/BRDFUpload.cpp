@@ -1,9 +1,8 @@
 module;
-#include "Shaders/BRDFBindings.h"
 #include "CheckResult.h"
 #include "Log.h"
+#include "Shaders/BRDFBindings.h"
 #include <cassert> // assert
-
 
 module BRDFSample;
 import NeuralGraphics;
@@ -47,7 +46,6 @@ auto PrintLayerBiases(Linear layer, std::byte const* parameters) -> void {
 // void BRDFSample::ReadKANWeights(NetworkBufferInfo const& network_info) {}
 
 // std::pair<nlohmann::json, std::vector<std::map<std::string, std::vector<float>>>>
-
 
 using ReadKANResult = std::expected<FastKan, std::string>;
 [[nodiscard]] auto ReadKANWeights(std::string_view file_name) -> ReadKANResult {
@@ -518,10 +516,11 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	std::vector<LayerVariant> layers;
 	CHECK(load_weights(network_info.file_name.data(), layers, brdf_weights_vec, network_info.header.data()));
 
-	// if (layers.size() != expected_layer_count) {
-	// 	std::printf("Error loading weights : wrong number of layers\n");
-	// 	std::exit(1);
-	// }
+	if (0)
+		if (layers.size() != 5) {
+			std::printf("Error loading weights : wrong number of layers\n");
+			std::exit(1);
+		}
 
 	// Get total size for buffer
 	if (with_coop_vec()) {
