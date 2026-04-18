@@ -125,10 +125,14 @@ float2 random2D(inout uint seed) {
 }
 
 // Initialize RNG state from pixel coordinates and frame count
-uint rng_init(uint2 pixel, uint frame) {
+uint rng_init0(uint2 pixel, uint frame) {
 	// Combine pixel coordinates and frame for unique seed
 	uint seed = pixel.x + pixel.y * 8192u + frame * 67108864u;
 	return pcg_hash(seed);
+}
+
+uint rng_init(uint2 pixel, uint frame) {
+	return pcg_hash(pixel.x + pcg_hash(pixel.y + pcg_hash(frame)));
 }
 
 // Generate next random number and update state
@@ -147,13 +151,41 @@ float rng_range(inout uint state, float min_val, float max_val) {
 	return min_val + rng_float(state) * (max_val - min_val);
 }
 
-float3 TangentToWorld(float3 sample_dir, float3 normal, float3 tangent, float3 bitangent) {
+float3 TangentToWorld(float3 sample_dir, float3 tangent, float3 bitangent, float3 normal) {
 	return sample_dir.x * tangent + sample_dir.y * bitangent + sample_dir.z * normal;
 }
 
+float3 WorldToTangent(float3 world_dir, float3 tangent, float3 bitangent, float3 normal) {
+
+	float3 tangent_dir;
+	tangent_dir.x = dot(world_dir, tangent);
+	tangent_dir.y = dot(world_dir, bitangent);
+	tangent_dir.z = dot(world_dir, normal);
+
+	return tangent_dir;
+}
 // Reflect vector around normal
 float3 Reflect(float3 incident, float3 normal) {
 	return incident - 2.0 * dot(incident, normal) * normal;
+}
+
+float rng_float_range(inout uint rng_state, float min_val, float max_val) {
+	return min_val + rng_float(rng_state) * (max_val - min_val);
+}
+
+float3 EvaluateBlinnPhong(float3 view_dir, float3 light_dir, float3 normal,
+						  float3 diffuse_color, float3 specular_color, float shininess) {
+	float3 half_vec = normalize(view_dir + light_dir);
+	float  NdotL    = max(dot(normal, light_dir), 0.0);
+	float  NdotH    = max(dot(normal, half_vec), 0.0);
+
+	float3 diffuse = diffuse_color / 3.14159265359;
+
+	float  spec_factor   = pow(NdotH, shininess);
+	float  normalization = (shininess + 2.0) / (2.0 * 3.14159265359);
+	float3 specular      = specular_color * normalization * spec_factor;
+
+	return (diffuse + specular) * NdotL;
 }
 
 float3 SampleBlinnPhong0(float2 random_val, float shininess, float3 view_tbn, out float pdf) {
@@ -553,3 +585,5 @@ float PDFBlinnPhong(float3 view_tbn, float3 light_tbn, float shininess) {
 }
 
 // #endregion
+
+

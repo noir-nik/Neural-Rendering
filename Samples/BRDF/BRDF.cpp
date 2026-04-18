@@ -527,6 +527,7 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 
 	bool is_header = true;
 	// bool is_header = false;
+	
 	if (is_header) {
 		first_test = 0;
 		last_test  = kTestFunctionsCount;
@@ -719,7 +720,15 @@ auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 
 			obj_path = str;
 			++it;
-		} else return *it;
+		} else if (arg == "-fv") {
+			if ((it + 1) == args_range.end()) return "expected <id>";
+			auto str = std::string_view(*(it + 1));
+			int  value;
+			if (std::from_chars(str.data(), str.data() + str.size(), value).ec != std::errc()) return *(it + 1);
+			if (value < kMinFastKANVersion || value > kMaxFastKANVersion) return *(it + 1);
+			fastkan_version      = value;
+			++it;
+		}else return *it;
 	}
 
 	return nullptr;
@@ -742,6 +751,8 @@ auto PrintUsage([[maybe_unused]] int argc, char const* argv[]) -> void {
 	std::printf("      Run benchmark with verbose output\n");
 	std::printf("  --validation\n");
 	std::printf("      Enable validation\n");
+	std::printf("  -fv, --fastkan-version\n");
+	std::printf("      FastKAN version (int)\n");
 	std::printf("\n");
 };
 

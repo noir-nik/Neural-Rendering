@@ -618,21 +618,30 @@ void BRDFSample::CreatePipelines() {
 		Utils::ReadBinaryFile("Shaders/BRDFMain.slang.spv").or_else(LF(error_read_file("BRDFMain.slang.spv"))),
 	};
 
-	// using Utils::make_string;
-	
-	// static constexpr std::string_view folder          = "Shaders/spv/NBRDF/2604";
-	static constexpr std::string_view folder          = "Shaders/spv/FASTKAN/2604/1/v0";
-	// static constexpr std::string_view fastkan_version = "3/env";
-	static constexpr std::string_view fastkan_version = "";
-	static constexpr std::string_view _slash          = "/";
-	static constexpr std::string_view _slang_spv      = ".slang.spv";
+	using Utils::make_string;
 
-	auto make_path = [&]<std::string_view const & x>() -> std::string_view {
-		return Utils::StringViewCat<folder, fastkan_version, _slash, x, _slang_spv>::value;
+	char buffer[32];
+	char path_buffer[1024];
+
+	auto _get_res = [&] {
+		auto result = std::to_chars(buffer, buffer + sizeof(buffer), fastkan_version);
+		if (result.ec != std::errc()) {
+			std::printf("Conversion failed!\n");
+			std::exit(1);
+		}
+		return result;
 	};
-	// make_path.template operator()<_slash>();
+	[[maybe_unused]] auto const fastkan_version_str = std::string_view(buffer, _get_res().ptr - buffer);
 
-	// make_string(folder, fastkan_version, _slash, x, _slang_spv);
+	auto make_path = [&](std::string_view const fname) {
+		// return make_string("Shaders/spv/FASTKAN/2604/1/v", fastkan_version_str, "/", fname, ".slang.spv");
+		auto const printed = std::snprintf(
+			path_buffer, sizeof(path_buffer),
+			"Shaders/spv/FASTKAN/2604/1/v%d1/%s.slang.spv",
+			fastkan_version, fname.data());
+
+		return std::string_view(path_buffer, printed);
+	};
 
 	if (true) {
 		// if (is_test_mode) {
@@ -640,8 +649,7 @@ void BRDFSample::CreatePipelines() {
 		CodeType shader_codes[] = {
 #define BRDF_NAME(x) \
 	[&] { \
-		static constexpr std::string_view _x = #x; \
-		constexpr auto _strr                 = make_path.template operator()<_x>(); \
+		auto const _strr = make_path(#x); \
 		return Utils::ReadBinaryFile(_strr).or_else(LF(error_read_file(_strr))); \
 	}(),
 #include "HeaderNames.def"

@@ -64,8 +64,8 @@ import INC;
 #ifndef NUM_SAMPLES
 // #define NUM_SAMPLES 32
 // #define NUM_SAMPLES 16
-// #define NUM_SAMPLES 64
-#define NUM_SAMPLES 1
+#define NUM_SAMPLES 64
+// #define NUM_SAMPLES 1
 #endif
 
 #ifndef IS_POINT
@@ -114,58 +114,6 @@ VSOutput vs_main(VSInput in_vertex) {
 	output.normal    = normalize(in_vertex.normal.xyz);
 
 	return output;
-}
-
-uint pcg_hash(uint seed) {
-	uint state = seed * 747796405u + 2891336453u;
-	uint word  = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-	return (word >> 22u) ^ word;
-}
-
-uint rng_init(uint2 pixel, uint frame) {
-	return pcg_hash(pixel.x + pcg_hash(pixel.y + pcg_hash(frame)));
-}
-
-uint rng_next(inout uint rng_state) {
-	rng_state = pcg_hash(rng_state);
-	return rng_state;
-}
-
-float rng_float(inout uint rng_state) {
-	return float(rng_next(rng_state)) / 4294967296.0;
-}
-
-float rng_float_range(inout uint rng_state, float min_val, float max_val) {
-	return min_val + rng_float(rng_state) * (max_val - min_val);
-}
-
-float3 EvaluateBlinnPhong(float3 view_dir, float3 light_dir, float3 normal,
-						  float3 diffuse_color, float3 specular_color, float shininess) {
-	float3 half_vec = normalize(view_dir + light_dir);
-	float  NdotL    = max(dot(normal, light_dir), 0.0);
-	float  NdotH    = max(dot(normal, half_vec), 0.0);
-
-	float3 diffuse = diffuse_color / 3.14159265359;
-
-	float  spec_factor   = pow(NdotH, shininess);
-	float  normalization = (shininess + 2.0) / (2.0 * 3.14159265359);
-	float3 specular      = specular_color * normalization * spec_factor;
-
-	return (diffuse + specular) * NdotL;
-}
-
-float3 TangentToWorld(float3 sample_dir, float3 tangent, float3 bitangent, float3 normal) {
-	return sample_dir.x * tangent + sample_dir.y * bitangent + sample_dir.z * normal;
-}
-
-float3 WorldToTangent(float3 world_dir, float3 tangent, float3 bitangent, float3 normal) {
-
-	float3 tangent_dir;
-	tangent_dir.x = dot(world_dir, tangent);
-	tangent_dir.y = dot(world_dir, bitangent);
-	tangent_dir.z = dot(world_dir, normal);
-
-	return tangent_dir;
 }
 
 float3 Reflect(float3 incident, float3 normal) {
@@ -276,7 +224,7 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 				// eval = (brdf);
 				eval = (brdf * NdotL);
 			} else {
-				float4 env_sample   = gEnvMap.Sample(light_dir) * 1.;
+				float4 env_sample   = gEnvMap.Sample(light_dir) * 5.;
 				float3 env_radiance = env_sample.rgb;
 				mis_weight          = MISWeight(pdf, pdf_other, 2.0);
 				eval                = (brdf * env_radiance * NdotL * mis_weight) / pdf;

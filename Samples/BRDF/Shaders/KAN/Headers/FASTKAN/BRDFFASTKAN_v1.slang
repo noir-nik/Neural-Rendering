@@ -33,3 +33,4 @@ void fastkan_layer_forward_v1<T : __BuiltinFloatingPointType>(
 		output[out_idx] = val;
 	}
 }
+

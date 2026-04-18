@@ -10,13 +10,13 @@ import BRDFFASTKAN_v3;
 // import FastKAN_6_6_6_3_nCps_6;
 
 // import cc_green_malachite_rgb_FastKAN_2_8_nCps6;
-import cc_ibiza_sunset_rgb_FastKAN_2_8_nCps6;
+// import cc_ibiza_sunset_rgb_FastKAN_2_8_nCps6;
 // import chm_mint_rgb_FastKAN_2_8_nCps6;
 // import cm_military_green_rgb_FastKAN_2_8_nCps6;
 // import colodur_napoli_4f_rgb_FastKAN_2_8_nCps6;
 // import ilm_solo_m_68_rgb_FastKAN_2_8_nCps6;
 
-// import irid_flake_paint2_rgb_FastKAN_2_8_nCps6;
+import irid_flake_paint2_rgb_FastKAN_2_8_nCps6;
 // import irid_flake_paint3_rgb_FastKAN_2_8_nCps6_tr;
 
 // import paper_white_rgb_FastKAN_2_8_nCps6;
@@ -42,13 +42,12 @@ internal typealias Tp = _T;
 #endif
 
 #ifndef FASTKAN_VERSION
-#define FASTKAN_VERSION 0
+#define FASTKAN_VERSION 2
 #endif
 
 #ifndef fastkan_layer_forward
 
 #if FASTKAN_VERSION == 0
-/*
 #define fastkan_layer_forward( \
 	input, IN_SIZE, \
 	output, OUT_SIZE, \
@@ -57,7 +56,7 @@ internal typealias Tp = _T;
 	spline_weights, \
 	base_weights, \
 	base_bias) \
-	fastkan_layer_forward_v0<IN_SIZE, GRID_SIZE>( \
+	fastkan_layer_forward_v0<Tp, IN_SIZE, GRID_SIZE>( \
 		input, IN_SIZE, \
 		output, OUT_SIZE, \
 		rbf_grid, GRID_SIZE, \
@@ -65,19 +64,8 @@ internal typealias Tp = _T;
 		spline_weights, \
 		base_weights, \
 		base_bias)
- */
-#define fastkan_layer_forward( \
-	input, IN_SIZE, \
-	output, OUT_SIZE, \
-	rbf_grid, GRID_SIZE, \
-	...) \
-	fastkan_layer_forward_v0<Tp, IN_SIZE, GRID_SIZE>( \
-		input, IN_SIZE, \
-		output, OUT_SIZE, \
-		rbf_grid, GRID_SIZE, \
-		__VA_ARGS__)
 
-#else
+#else // FASTKAN_VERSION == 0
 #define fastkan_layer_forward PPCAT(fastkan_layer_forward_v, FASTKAN_VERSION)
 #endif // FASTKAN_VERSION == 0
 

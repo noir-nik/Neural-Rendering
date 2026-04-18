@@ -17,7 +17,7 @@ void fastkan_layer_forward_v2<T : __BuiltinFloatingPointType>(
 	}
 
 	for (int i = 0; i < IN_SIZE; i++) {
-		T x = input[i];
+		T x  = input[i];
 		T tx = fastkan_base_activation(x);
 
 		// Base
@@ -27,8 +27,8 @@ void fastkan_layer_forward_v2<T : __BuiltinFloatingPointType>(
 
 		// Spline
 		for (int j = 0; j < GRID_SIZE; j++) {
-			T diff = (x - rbf_grid[j]) * rbf_denom_inv;
-			T rbf = exp(-diff * diff);
+			T   diff      = (x - rbf_grid[j]) * rbf_denom_inv;
+			T   rbf       = exp(-diff * diff);
 			int sw_offset = i * GRID_SIZE + j;
 
 			for (int out_idx = 0; out_idx < OUT_SIZE; out_idx++) {
@@ -37,3 +37,5 @@ void fastkan_layer_forward_v2<T : __BuiltinFloatingPointType>(
 		}
 	}
 }
+
+

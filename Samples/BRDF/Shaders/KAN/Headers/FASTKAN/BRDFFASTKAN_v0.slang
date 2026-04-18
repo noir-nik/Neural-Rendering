@@ -1,6 +1,50 @@
 import BRDFFASTKAN_shared;
 
+// FASTKAN BRDF with flat internal array
+
 public void fastkan_layer_forward_v0<T : __BuiltinFloatingPointType, int IN, int GRID>(
+	in float input[], constexpr int IN_SIZE,
+	out float output[], constexpr int OUT_SIZE,
+	in float rbf_grid[], constexpr int GRID_SIZE,
+	in float rbf_denom_inv,
+	in float spline_weights[],
+	in float base_weights[],
+	in float base_bias[], ) {
+
+	float basis_flat[IN * GRID];
+	int   basis_idx = 0;
+
+	for (int i = 0; i < IN_SIZE; i++) {
+
+		float basis[GRID];
+		rbf_forward(input[i], rbf_grid, rbf_denom_inv, basis, GRID_SIZE);
+		for (int j = 0; j < GRID_SIZE; j++) {
+			basis_flat[basis_idx++] = basis[j];
+		}
+	}
+
+	// const int FLAT_SIZE = IN_SIZE * GRID_SIZE;
+	const int FLAT_SIZE = basis_idx; // -90% fps
+
+	for (int out_idx = 0; out_idx < OUT_SIZE; out_idx++) {
+
+		float spline_val = 0.0;
+
+		for (int j = 0; j < FLAT_SIZE; j++) {
+			spline_val += basis_flat[j] * spline_weights[out_idx * basis_idx + j];
+		}
+
+		float base_val = base_bias[out_idx];
+		for (int i = 0; i < IN_SIZE; i++) {
+			base_val += fastkan_base_activation(input[i]) * base_weights[out_idx * IN_SIZE + i];
+		}
+
+		output[out_idx] = spline_val + base_val;
+	}
+}
+
+// inline rbf
+public void fastkan_layer_forward_v01<T : __BuiltinFloatingPointType, int IN, int GRID>(
 	in T input[], constexpr int IN_SIZE,
 	out T output[], constexpr int OUT_SIZE,
 	in T rbf_grid[], constexpr int GRID_SIZE,
@@ -11,8 +55,7 @@ public void fastkan_layer_forward_v0<T : __BuiltinFloatingPointType, int IN, int
 
 	constexpr int FLAT_SIZE = IN_SIZE * GRID_SIZE;
 
-	T   basis_flat[IN * GRID];
-	int basis_idx = 0;
+	T basis_flat[IN * GRID];
 
 	for (int i = 0; i < IN_SIZE; i++) {
 		for (int j = 0; j < GRID_SIZE; j++) {

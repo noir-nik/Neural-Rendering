@@ -129,6 +129,11 @@ public:
 	Image       cubemap_image;
 	vk::Sampler cubemap_sampler{};
 
+	 
+	static constexpr auto kMinFastKANVersion = 0;
+	static constexpr auto kMaxFastKANVersion = 3;
+	int fastkan_version = 0;
+
 	Image accumulator_image;
 
 	// auto hasattr0(auto proj) -> bool { return !std::invoke(proj, *this).empty(); }

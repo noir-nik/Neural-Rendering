@@ -24,9 +24,9 @@ void fastkan_layer_forward_v3<T : __BuiltinFloatingPointType>(
 		}
 
 		for (int j = 0; j < GRID_SIZE; j++) {
-			T diff      = (x - rbf_grid[j]) * rbf_denom_inv;
-			T rbf       = exp(-diff * diff);
-			int   sw_offset = (i * GRID_SIZE + j) * OUT_SIZE;
+			T   diff      = (x - rbf_grid[j]) * rbf_denom_inv;
+			T   rbf       = exp(-diff * diff);
+			int sw_offset = (i * GRID_SIZE + j) * OUT_SIZE;
 
 			for (int out_idx = 0; out_idx < OUT_SIZE; out_idx++) {
 				output[out_idx] += rbf * spline_weights[sw_offset + out_idx];
@@ -34,4 +34,5 @@ void fastkan_layer_forward_v3<T : __BuiltinFloatingPointType>(
 		}
 	}
 }
+
 
