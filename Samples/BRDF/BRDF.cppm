@@ -180,7 +180,7 @@ public:
 
 	static constexpr int _HeaderNames_count_array[] = {
 #define BRDF_NAME(x) 0,
-#include "FASTKAN_HeaderNames.def"
+#include "HeaderNames.def"
 	};
 
 	static constexpr int kTestFunctionsCount = std::size(_HeaderNames_count_array);

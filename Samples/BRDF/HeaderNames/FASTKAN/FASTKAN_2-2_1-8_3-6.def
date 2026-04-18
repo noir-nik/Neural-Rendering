@@ -1,0 +1,24 @@
+#ifndef BRDF_NAME
+#define BRDF_NAME(x)
+#endif
+
+ /* 
+BRDF_NAME(cc_green_malachite_rgb_FastKAN_2_1_nCps3)
+BRDF_NAME(cc_green_malachite_rgb_FastKAN_2_1_nCps6)
+BRDF_NAME(cc_green_malachite_rgb_FastKAN_2_2_nCps3)
+BRDF_NAME(cc_green_malachite_rgb_FastKAN_2_2_nCps6)
+BRDF_NAME(cc_green_malachite_rgb_FastKAN_2_4_nCps3)
+BRDF_NAME(cc_green_malachite_rgb_FastKAN_2_4_nCps6)
+BRDF_NAME(cc_green_malachite_rgb_FastKAN_2_8_nCps3)
+BRDF_NAME(cc_green_malachite_rgb_FastKAN_2_8_nCps6)
+ */
+BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_1_nCps3)
+BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_1_nCps6)
+BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_2_nCps3)
+BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_2_nCps6)
+BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_4_nCps3)
+BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_4_nCps6)
+BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_8_nCps3)
+BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_8_nCps6)
+
+#undef BRDF_NAME

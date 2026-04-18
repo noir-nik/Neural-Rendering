@@ -1,138 +1,91 @@
+module BRDFFASTKAN;
+
+import BRDFFASTKAN_v0;
+import BRDFFASTKAN_v1;
+import BRDFFASTKAN_v2;
+import BRDFFASTKAN_v3;
+
 #ifndef INC
 // #include "BRDFFASTKAN.h"
 // import FastKAN_6_6_6_3_nCps_6;
-import cc_green_malachite_rgb_FastKAN_2_8_nCps6;
+
+// import cc_green_malachite_rgb_FastKAN_2_8_nCps6;
+import cc_ibiza_sunset_rgb_FastKAN_2_8_nCps6;
+// import chm_mint_rgb_FastKAN_2_8_nCps6;
+// import cm_military_green_rgb_FastKAN_2_8_nCps6;
+// import colodur_napoli_4f_rgb_FastKAN_2_8_nCps6;
+// import ilm_solo_m_68_rgb_FastKAN_2_8_nCps6;
+
+// import irid_flake_paint2_rgb_FastKAN_2_8_nCps6;
+// import irid_flake_paint3_rgb_FastKAN_2_8_nCps6_tr;
+
+// import paper_white_rgb_FastKAN_2_8_nCps6;
+// import satin_rosaline_rgb_FastKAN_2_8_nCps6;
+// import vch_ultra_pink_rgb_FastKAN_2_8_nCps6;
+
 // import rgb_decoder_fc;
 #else
 import INC;
 #endif
 
-// #ifndef LAYERS
-// #error LAYERS not defined
-// #endif
-// typealias Tp = half;
+#define PPCAT_NX(A, B) A##B
+#define PPCAT(A, B) PPCAT_NX(A, B)
 
 #ifndef _T
 #define _T float
 #endif
 
-typealias Tp = _T;
+internal typealias Tp = _T;
 
 #ifndef LAYERS
 #define LAYERS 3
 #endif
 
-inline void rbf_forward(in Tp x, in Tp grid[], in Tp denom_inv, out Tp basis[], int grid_size) {
-	for (int i = 0; i < grid_size; i++) {
-		Tp diff  = (x - grid[i]) * denom_inv;
-		basis[i] = exp(-diff * diff);
-	}
-}
-
-inline Tp spline_linear_forward(in Tp basis_flat[], int weight_cols /* == basis_size */, in Tp weights[], int out_idx) {
-	Tp sum = 0.0;
-	for (int i = 0; i < weight_cols; i++) {
-		sum += basis_flat[i] * weights[out_idx * weight_cols + i];
-	}
-	return sum;
-}
-
-Tp expm10(Tp x) {
-
-	return pow(Tp(1.0) + exp(Tp(10.0) * x), Tp(0.1)) - Tp(1.0);
-}
-
-Tp reluexpm1(Tp x) {
-	return max(0.0, exp(x) - 1.0);
-}
-
-Tp silu(Tp x) {
-	return x / (1.0 + exp(-x));
-}
-
-Tp base_activation(Tp x) {
-	return silu(x);
-}
-
-// out_idx loop is outside
-void fastkan_layer_forward_v1(
-	in Tp input[], int IN_SIZE,
-	out Tp output[], int OUT_SIZE,
-	in Tp rbf_grid[], int GRID_SIZE,
-	in Tp rbf_denom_inv,
-	in Tp spline_weights[],
-	in Tp base_weights[],
-	in Tp base_bias[]) {
-
-	int FLAT_SIZE = IN_SIZE * GRID_SIZE;
-
-	for (int out_idx = 0; out_idx < OUT_SIZE; out_idx++) {
-		Tp val = base_bias[out_idx];
-
-		int sw_offset = out_idx * FLAT_SIZE;
-		int bw_offset = out_idx * IN_SIZE;
-
-		for (int i = 0; i < IN_SIZE; i++) {
-			Tp x = input[i];
-
-			val += base_activation(x) * base_weights[bw_offset + i];
-
-			int rbf_offset = sw_offset + i * GRID_SIZE;
-			for (int j = 0; j < GRID_SIZE; j++) {
-				Tp diff = (x - rbf_grid[j]) * rbf_denom_inv;
-				val += exp(-diff * diff) * spline_weights[rbf_offset + j];
-			}
-		}
-
-		output[out_idx] = val;
-	}
-}
-
-// out_idx loop is inside
-void fastkan_layer_forward_v2(
-	in Tp input[], int IN_SIZE,
-	out Tp output[], int OUT_SIZE,
-	in Tp rbf_grid[], int GRID_SIZE,
-	in Tp rbf_denom_inv,
-	in Tp spline_weights[],
-	in Tp base_weights[],
-	in Tp base_bias[]) {
-
-	int FLAT_SIZE = IN_SIZE * GRID_SIZE;
-
-	for (int out_idx = 0; out_idx < OUT_SIZE; out_idx++) {
-		output[out_idx] = base_bias[out_idx];
-	}
-
-	for (int i = 0; i < IN_SIZE; i++) {
-		Tp x  = input[i];
-		Tp tx = base_activation(x);
-
-		// Base
-		for (int out_idx = 0; out_idx < OUT_SIZE; out_idx++) {
-			output[out_idx] += tx * base_weights[out_idx * IN_SIZE + i];
-		}
-
-		// Spline
-		for (int j = 0; j < GRID_SIZE; j++) {
-			Tp  diff      = (x - rbf_grid[j]) * rbf_denom_inv;
-			Tp  rbf       = exp(-diff * diff);
-			int sw_offset = i * GRID_SIZE + j;
-
-			for (int out_idx = 0; out_idx < OUT_SIZE; out_idx++) {
-				output[out_idx] += rbf * spline_weights[out_idx * FLAT_SIZE + sw_offset];
-			}
-		}
-	}
-}
+#ifndef FASTKAN_VERSION
+#define FASTKAN_VERSION 0
+#endif
 
 #ifndef fastkan_layer_forward
-#define fastkan_layer_forward fastkan_layer_forward_v2
-#endif
+
+#if FASTKAN_VERSION == 0
+/*
+#define fastkan_layer_forward( \
+	input, IN_SIZE, \
+	output, OUT_SIZE, \
+	rbf_grid, GRID_SIZE, \
+	rbf_denom_inv, \
+	spline_weights, \
+	base_weights, \
+	base_bias) \
+	fastkan_layer_forward_v0<IN_SIZE, GRID_SIZE>( \
+		input, IN_SIZE, \
+		output, OUT_SIZE, \
+		rbf_grid, GRID_SIZE, \
+		rbf_denom_inv, \
+		spline_weights, \
+		base_weights, \
+		base_bias)
+ */
+#define fastkan_layer_forward( \
+	input, IN_SIZE, \
+	output, OUT_SIZE, \
+	rbf_grid, GRID_SIZE, \
+	...) \
+	fastkan_layer_forward_v0<Tp, IN_SIZE, GRID_SIZE>( \
+		input, IN_SIZE, \
+		output, OUT_SIZE, \
+		rbf_grid, GRID_SIZE, \
+		__VA_ARGS__)
+
+#else
+#define fastkan_layer_forward PPCAT(fastkan_layer_forward_v, FASTKAN_VERSION)
+#endif // FASTKAN_VERSION == 0
+
+#endif // fastkan_layer_forward
 
 // #if 1
 #if LAYERS == 2
-void BRDFFASTKAN2(in Tp input[6], out Tp output[3]) {
+public void BRDFFASTKAN2(in Tp input[6], out Tp output[3]) {
 	Tp layer0_out[base_weight0_shape0]; // 5
 
 	// Layer 0: [6] -> [5]
@@ -158,7 +111,7 @@ void BRDFFASTKAN2(in Tp input[6], out Tp output[3]) {
 #endif
 
 #if LAYERS == 3
-void BRDFFASTKAN3(in Tp input[6], out Tp output[3]) {
+public void BRDFFASTKAN3(in Tp input[6], out Tp output[3]) {
 	Tp layer0_out[base_weight0_shape0]; // 5
 	Tp layer1_out[base_weight1_shape0]; // 5
 

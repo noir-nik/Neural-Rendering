@@ -1,0 +1,20 @@
+#ifndef BRDF_NAME
+#define BRDF_NAME(x)
+#endif
+
+BRDF_NAME(irid_flake_paint2_rgb_NBRDF_2_4_)
+BRDF_NAME(irid_flake_paint2_rgb_NBRDF_2_6_)
+BRDF_NAME(irid_flake_paint2_rgb_NBRDF_2_8_)
+BRDF_NAME(irid_flake_paint2_rgb_NBRDF_2_12_)
+BRDF_NAME(irid_flake_paint2_rgb_NBRDF_2_16_)
+BRDF_NAME(irid_flake_paint2_rgb_NBRDF_2_24_)
+BRDF_NAME(irid_flake_paint2_rgb_NBRDF_2_32_)
+BRDF_NAME(irid_flake_paint2_rgb_NBRDF_2_48_)
+
+// only half 
+
+// BRDF_NAME(irid_flake_paint2_rgb_NBRDF_2_64_)
+// BRDF_NAME(irid_flake_paint2_rgb_NBRDF_2_96_)
+// BRDF_NAME(irid_flake_paint2_rgb_NBRDF_2_128_)
+
+#undef BRDF_NAME

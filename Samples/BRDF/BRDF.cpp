@@ -581,7 +581,7 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 	char const* header_names[] = {
 #define BRDF_NAME(x) #x,
 // #include "SINEKAN_HeaderNames.def"
-#include "FASTKAN_HeaderNames.def"
+#include "HeaderNames.def"
 		// #include "CHEBYKAN_HeaderNames.def"
 		// #include "RELUKAN_HeaderNames.def"
 	};

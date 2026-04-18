@@ -593,6 +593,15 @@ void BRDFSample::CreatePipelineLayout() {
 	CHECK_VULKAN_RESULT(device.createPipelineLayout(&info, GetAllocator(), &pipeline_layout));
 }
 
+// template <typename... Args>
+// auto cat(Args&&... args)
+// requires(std::is_convertible_v<Args, std::string_view> && ...)
+// {
+// 	return Utils::StringViewCat(std::forward<Args>(args)...);
+// }
+
+// constexpr auto st = cat("Shaders/BRDFMain.slang.spv");
+
 void BRDFSample::CreatePipelines() {
 	LOG_DEBUG("BRDFSample::CreatePipelines()");
 	using CodeType = std::optional<std::vector<std::byte>>;
@@ -600,7 +609,7 @@ void BRDFSample::CreatePipelines() {
 #define LF(fn) [&](auto&&... args) { return fn; }
 
 	auto error_read_file = [](std::string_view name) -> CodeType {
-		std::printf("Failed to read shader file: %s\n", name.data());
+		std::printf("Failed to read shader file: %*s\n", int(name.size()), name.data());
 		std::exit(1);
 		return {};
 	};
@@ -609,23 +618,33 @@ void BRDFSample::CreatePipelines() {
 		Utils::ReadBinaryFile("Shaders/BRDFMain.slang.spv").or_else(LF(error_read_file("BRDFMain.slang.spv"))),
 	};
 
-	// bool constexpr kCreateGenerated = false;
-	// bool constexpr kCreateGenerated = true;
-	// if constexpr (kCreateGenerated) {
-	if (is_test_mode) {
-		CodeType shader_codes[] = {
+	// using Utils::make_string;
+	
+	// static constexpr std::string_view folder          = "Shaders/spv/NBRDF/2604";
+	static constexpr std::string_view folder          = "Shaders/spv/FASTKAN/2604/1/v0";
+	// static constexpr std::string_view fastkan_version = "3/env";
+	static constexpr std::string_view fastkan_version = "";
+	static constexpr std::string_view _slash          = "/";
+	static constexpr std::string_view _slang_spv      = ".slang.spv";
 
+	auto make_path = [&]<std::string_view const & x>() -> std::string_view {
+		return Utils::StringViewCat<folder, fastkan_version, _slash, x, _slang_spv>::value;
+	};
+	// make_path.template operator()<_slash>();
+
+	// make_string(folder, fastkan_version, _slash, x, _slang_spv);
+
+	if (true) {
+		// if (is_test_mode) {
+
+		CodeType shader_codes[] = {
 #define BRDF_NAME(x) \
 	[&] { \
-		constexpr std::string_view _strr = "Shaders/64/NEWFASTKAN-v2/" #x ".slang.spv"; \
+		static constexpr std::string_view _x = #x; \
+		constexpr auto _strr                 = make_path.template operator()<_x>(); \
 		return Utils::ReadBinaryFile(_strr).or_else(LF(error_read_file(_strr))); \
 	}(),
-
-// #include "SINEKAN_HeaderNames.def"
-#include "FASTKAN_HeaderNames.def"
-			// #include "CHEBYKAN_HeaderNames.def"
-			// #include "RELUKAN_HeaderNames.def"
-			// Utils::ReadBinaryFile("Shaders/BRDFMain.slang.spv").or_else(error_read_file),
+#include "HeaderNames.def"
 		};
 
 		vk::ShaderModuleCreateInfo shader_module_infos[std::size(shader_codes)];

@@ -6,7 +6,9 @@ import Pbr;
 
 import Utils;
 
+#if !defined(CHEBYKAN) && !defined(FASTKAN) && !defined(RELUKAN) && !defined(SINEKAN) && !defined(NBRDF)
 #define FASTKAN
+#endif
 
 #ifdef CHEBYKAN
 #define INC "CHEBYKAN_2_6_6_630_651.slang"
@@ -45,13 +47,18 @@ import BRDFFASTKAN;
 #endif
 
 #ifdef NBRDF
-import NBRDF_6_21_21_3_675_675;
-#define FF NBRDF_6_21_21_3_675_675
+
+#ifndef INC
+#define INC irid_flake_paint2_rgb_NBRDF_2_16_
 #endif
 
-#if !defined(CHEBYKAN) && !defined(FASTKAN) && !defined(RELUKAN) && !defined(SINEKAN) && !defined(NBRDF)
-import BRDFSINEKAN;
-#define FF BRDFSINEKAN3
+import INC;
+#define FF INC
+
+// #define FF irid_flake_paint2_rgb_NBRDF_2_48_
+// #define FF irid_flake_paint2_rgb_NBRDF_2_64_
+// #define FF irid_flake_paint2_rgb_NBRDF_2_96_
+// import FF;
 #endif
 
 #ifndef NUM_SAMPLES
@@ -61,17 +68,21 @@ import BRDFSINEKAN;
 #define NUM_SAMPLES 1
 #endif
 
-// #ifndef _T
-// #define _T float
-// #endif
+#ifndef IS_POINT
+#define IS_POINT false
+#endif
 
-// typealias Tp = _T;
+#ifndef _T
+#define _T float
+// #define _T half
+#endif
+typealias Tp = _T;
 
 // clang-format off
 [[vk::binding(BINDING_STORAGE_BUFFER, 0)]] StructuredBuffer<float> gWeights;
 [[vk::binding(BINDING_STORAGE_BUFFER, 0)]] StructuredBuffer<COOPVEC_TYPE> gWeightsCoopVec;
-[[vk::binding(BINDING_TEXTURE, 0)]] SamplerCube gEnvMap;
-[[vk::binding(BINDING_STORAGE_IMAGE, 0)]] RWTexture2D<float4> gAccumBuffer;	
+[[vk::binding(BINDING_TEXTURE, 0)]]        SamplerCube gEnvMap;
+[[vk::binding(BINDING_STORAGE_IMAGE, 0)]]  RWTexture2D<float4> gAccumBuffer;	
 
 [[vk::push_constant]] BRDFConstants ctx;
 
@@ -93,12 +104,6 @@ struct PSOutput {
 	float4 color : SV_TARGET0;
 }
 // clang-format on
-
-static const bool is_point = //
-	true
-	// false
-	//
-	;
 
 [[shader("vertex")]]
 VSOutput vs_main(VSInput in_vertex) {
@@ -221,7 +226,7 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 		float  mis_weight;
 		bool   is_specular_sample = random_val.x < specular_weight;
 
-		if (is_point) {
+		if (IS_POINT) {
 			float3 ldir      = ctx.light.position - ps_input.world_pos;
 			float  dist      = length(ldir);
 			float3 light_dir = normalize(ldir);
@@ -267,11 +272,11 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 			float NdotL = max(dot(normal, light_dir), 0.0);
 
 			float3 eval;
-			if (is_point) {
+			if (IS_POINT) {
 				// eval = (brdf);
 				eval = (brdf * NdotL);
 			} else {
-				float4 env_sample   = gEnvMap.Sample(light_dir) * 5.;
+				float4 env_sample   = gEnvMap.Sample(light_dir) * 1.;
 				float3 env_radiance = env_sample.rgb;
 				mis_weight          = MISWeight(pdf, pdf_other, 2.0);
 				eval                = (brdf * env_radiance * NdotL * mis_weight) / pdf;
