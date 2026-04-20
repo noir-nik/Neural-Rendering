@@ -62,8 +62,8 @@ import INC;
 #ifndef NUM_SAMPLES
 // #define NUM_SAMPLES 32
 // #define NUM_SAMPLES 16
-// #define NUM_SAMPLES 64
-#define NUM_SAMPLES 1
+#define NUM_SAMPLES 64
+// #define NUM_SAMPLES 1
 #endif
 
 #ifndef IS_POINT
@@ -221,21 +221,9 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 
 			if (shader_type == BrdfFunctionType::eCoopVec) {
 				// FF(inputf, outputf, gWeightsCoopVec, wo3, bo3);
-				// BRDFCoopVec(inputf, outputf, gWeightsCoopVec, ctx.weights_offsets, ctx.bias_offsets);
-				// BRDFCoopVec_6_4_4_3_63(inputf, outputf, gWeightsCoopVec, wo3, bo3);
-
-				return float4(outputf[0], outputf[1], outputf[2], 1.0f);
 			} else {
-				// float inputc[6] = { view_dir.x, view_dir.y, view_dir.z, light_dir.x, light_dir.y, light_dir.z };
-				// float outputc[3];
-				// BRDFClassic(inputc, outputc, ctx.light, ps_input.world_pos, normal, float3(0.8, 0.2, 0.8), 0.0, 0.5);
-				// outputf[0] = Tp(outputc[0]);
-				// outputf[1] = Tp(outputc[1]);
-				// outputf[2] = Tp(outputc[2]);
-				// return float4(outputf[0], outputf[1], outputf[2], 1.0f);
-
-				FF(inputf, outputf);
 			}
+			FF(inputf, outputf);
 
 			float3 brdf = float3(outputf[0], outputf[1], outputf[2]);
 

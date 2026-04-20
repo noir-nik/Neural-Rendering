@@ -75,10 +75,13 @@ auto BRDFSample::GetQueryResult() -> u64 {
 
 auto BRDFSample::DrawWindow() -> u64 {
 	LOG_DEBUG("BRDFSample::DrawWindow()");
-	if (function_id)
+	if (function_id) {
+		// std::printf("DrawWindow(pipelines_header[%u])\n", u32(*function_id));
 		return DrawWindow(pipelines_header[u32(*function_id)]);
-	else
+	} else {
+		// std::printf("DrawWindow(pipelines[%u])\n", u32(function_type));
 		return DrawWindow(pipelines[u32(function_type)]);
+	}
 };
 
 auto BRDFSample::DrawWindow(vk::Pipeline pipeline) -> u64 {
@@ -104,13 +107,96 @@ auto BRDFSample::DrawWindow(vk::Pipeline pipeline) -> u64 {
 	swapchain.EndFrame();
 	return elapsed;
 }
+static constexpr auto factor       = 3;
+static constexpr auto period_rot   = 120 * factor;
+static constexpr auto period_pause = 180 * factor;
+
 static u32           frame_count{};
-static constexpr u32 start_frame{120};
-static constexpr u32 end_frame{400};
+static constexpr u32 start_frame{60 * 5 * factor};
+static constexpr u32 end_frame{start_frame + (period_pause + period_rot) * BRDFSample::kTestFunctionsCount - 10};
 static float3        prev_camera_pos = {0.0f, 0.0f, 0.0f};
 
 void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	LOG_DEBUG("BRDFSample::RecordCommands()");
+
+	// bool movesine = 1;
+	bool movesine =
+		0
+		// 1
+		//
+		;
+	// bool movesine = ;
+	// std::printf("frame_count: %d\n", frame_count);
+
+	static u32 rot   = 0;
+	static u32 pause = 0;
+
+	auto const pi = 3.1415926535897932384626433832795f;
+	if (movesine) {
+
+		int diff = frame_count - start_frame;
+
+		static u32 counter = 0;
+		if (rot < period_rot) {
+			++rot;
+			// rot = 120;
+			if (rot == (period_rot / 2) && diff > 0) {
+				counter++;
+			}
+		} else {
+			if (pause == period_pause) {
+				pause = 0;
+				rot   = 0;
+			}
+
+			++pause;
+		}
+
+		auto t    = float(rot) / period_rot * pi;
+		auto sint = std::sinf(t);
+		auto l    = std::lerp(0.f, pi, sint);
+
+		auto dm = std::fmaxf(sint, 0.0f);
+
+		auto delta_x = (dm);
+
+		*function_id = counter % this->kTestFunctionsCount;
+
+		// std::printf("t: %f, sin: %f, l: %f\n", t, dm, l);
+		// std::printf("diff: %u, function_id: %u\n", diff, u32(*function_id));
+
+		float tw = float(120) / period_rot;
+
+		// tw = 1.f;
+		// tw = rt;
+
+		float2 delta_pos = {delta_x * 1.035f * 0.5f * 0.5f * tw / pi, 0.f};
+
+		// camera.moveWithCursor(width, height, delta_x, delta_y);
+
+		if (frame_count > start_frame) {
+			auto&       camera_pos     = camera.getPosition();
+			auto const& camera_right   = camera.getRight();
+			auto const& camera_up      = camera.getUp();
+			auto const& camera_forward = camera.getForward();
+			// all float3
+			camera_pos -= camera.focus;
+
+			// Correct upside down
+			float3 world_up = float3(0.0f, 1.0f, 0.0f);
+			// float rotation_sign = dot(camera_up, world_up) < 0.0f ? -1.0f : 1.0f;
+			float rotation_sign = 1.0f;
+
+			camera.view =
+				camera.view
+					// .rotate(camera_right, -delta_pos.y * camera.rotation_factor)
+					//   | rotate(camera_up, rotation_sign * delta_pos.x * camera.rotation_factor);
+					.rotate(world_up, rotation_sign * delta_pos.x);
+			// .rotate(world_up, rotation_sign * delta_pos.x);
+			camera_pos += camera.focus;
+		}
+	}
+
 	int x, y, width, height;
 	window.GetRect(x, y, width, height);
 
@@ -183,49 +269,6 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	// proj = inverse(proj);
 	// view = inverse(view);
 	// auto view_proj = (proj * view);
-
-	// bool movesine = 1;
-	bool movesine = 0;
-	// bool movesine = ;
-	// std::printf("frame_count: %d\n", frame_count);
-
-	if (movesine) {
-
-		auto dm = frame_count / 20.0f;
-
-		if (frame_count < start_frame) {
-			dm = start_frame / 20.0f;
-		}
-		auto delta_x = sinf(dm);
-		auto delta_y = cosf(dm);
-
-		// auto delta_x = 1.f;
-		// auto delta_y =  0.f;
-
-		float2 delta_pos = {delta_x * 2.0f, delta_y * 2.0f};
-
-		// camera.moveWithCursor(width, height, delta_x, delta_y);
-
-		if (frame_count > start_frame) {
-			auto&       camera_pos     = camera.getPosition();
-			auto const& camera_right   = camera.getRight();
-			auto const& camera_up      = camera.getUp();
-			auto const& camera_forward = camera.getForward();
-			// all float3
-			camera_pos -= camera.focus;
-
-			// Correct upside down
-			float3 world_up = float3(0.0f, 1.0f, 0.0f);
-			// float rotation_sign = dot(camera_up, world_up) < 0.0f ? -1.0f : 1.0f;
-			float rotation_sign = 1.0f;
-
-			camera.view = camera.view
-						  | rotate(camera_right, -delta_pos.y * camera.rotation_factor)
-						  //   | rotate(camera_up, rotation_sign * delta_pos.x * camera.rotation_factor);
-						  | rotate(world_up, rotation_sign * delta_pos.x * camera.rotation_factor);
-			camera_pos += camera.focus;
-		}
-	}
 
 	auto invv = 0;
 	if (invv)
@@ -476,10 +519,10 @@ void BRDFSample::Run() {
 		if (width <= 0 || height <= 0) continue;
 		u64       elapsed_ns = DrawWindow();
 		verbose&& std::printf("%f ms\n", elapsed_ns / 1000000.0);
-		// fix_framerate();
-		// if (frame_count > end_frame) {
-		// 	return;
-		// }
+		fix_framerate();
+		if (frame_count > end_frame) {
+			return;
+		}
 	} while (true);
 }
 
@@ -527,7 +570,7 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 
 	bool is_header = true;
 	// bool is_header = false;
-	
+
 	if (is_header) {
 		first_test = 0;
 		last_test  = kTestFunctionsCount;
@@ -702,7 +745,7 @@ auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 			// if (!std::filesystem::exists(str)) return *(it + 1);
 			weights_file_name = str;
 			++it;
-		} else if (arg == "-wh") { 
+		} else if (arg == "-wh") {
 			if ((it + 1) == args_range.end()) return "expected <file>";
 			auto str = std::string_view(*(it + 1));
 			// if (!std::filesystem::exists(str)) return *(it + 1);
@@ -732,9 +775,9 @@ auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 			int  value;
 			if (std::from_chars(str.data(), str.data() + str.size(), value).ec != std::errc()) return *(it + 1);
 			if (value < kMinFastKANVersion || value > kMaxFastKANVersion) return *(it + 1);
-			fastkan_version      = value;
+			fastkan_version = value;
 			++it;
-		}else return *it;
+		} else return *it;
 	}
 
 	return nullptr;

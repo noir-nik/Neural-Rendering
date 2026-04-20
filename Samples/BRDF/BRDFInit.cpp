@@ -635,7 +635,7 @@ void BRDFSample::CreatePipelines() {
 	auto make_path = [&](std::string_view const fname) {
 		auto const printed = std::snprintf(
 			path_buffer, sizeof(path_buffer),
-			"Shaders/spv/CoopVec/%s.slang.spv",
+			"Shaders/spv/FASTKAN3/2604/64/v2/%s.slang.spv",
 			/* fastkan_version, */ fname.data());
 
 		return std::string_view(path_buffer, printed);

@@ -2,6 +2,7 @@
 #define BRDF_NAME(x)
 #endif
 
+/*
 BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_8_nCps12)
 BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_4_nCps12)
 BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_2_nCps12)
@@ -10,5 +11,19 @@ BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_8_nCps9)
 BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_4_nCps9)
 BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_2_nCps9)
 BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_1_nCps9)
+*/
+
+BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_8_nCps6)
+BRDF_NAME(chm_mint_rgb_FastKAN_2_8_nCps6)
+BRDF_NAME(cc_green_malachite_rgb_FastKAN_2_8_nCps6)
+BRDF_NAME(cm_military_green_rgb_FastKAN_2_8_nCps6)
+BRDF_NAME(cc_ibiza_sunset_rgb_FastKAN_2_8_nCps6)
+BRDF_NAME(vch_ultra_pink_rgb_FastKAN_2_8_nCps6)
+
+BRDF_NAME(colodur_napoli_4f_rgb_FastKAN_2_8_nCps6)
+// BRDF_NAME(ilm_solo_m_68_rgb_FastKAN_2_8_nCps6)
+// BRDF_NAME(paper_white_rgb_FastKAN_2_8_nCps6)
+// BRDF_NAME(satin_rosaline_rgb_FastKAN_2_8_nCps6)
+
 
 // #undef BRDF_NAME

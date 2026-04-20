@@ -16,11 +16,23 @@ import BRDFFASTKAN_v3;
 // import colodur_napoli_4f_rgb_FastKAN_2_8_nCps6;
 // import ilm_solo_m_68_rgb_FastKAN_2_8_nCps6;
 
-import irid_flake_paint2_rgb_FastKAN_2_8_nCps6;
+// import irid_flake_paint2_rgb_FastKAN_2_8_nCps6;
+
 // import irid_flake_paint3_rgb_FastKAN_2_8_nCps6_tr;
 
 // import paper_white_rgb_FastKAN_2_8_nCps6;
 // import satin_rosaline_rgb_FastKAN_2_8_nCps6;
+// import vch_ultra_pink_rgb_FastKAN_2_8_nCps6;
+
+// import cm_military_green_rgb_FastKAN_2_8_nCps6;
+// import cc_ibiza_sunset_rgb_FastKAN_2_8_nCps6;
+// import cc_green_malachite_rgb_FastKAN_2_8_nCps6;
+// import chm_mint_rgb_FastKAN_2_8_nCps6;
+// import colodur_napoli_4f_rgb_FastKAN_2_8_nCps6;
+// import ilm_solo_m_68_rgb_FastKAN_2_8_nCps6;
+// import irid_flake_paint2_rgb_FastKAN_2_8_nCps6;
+// import paper_white_rgb_FastKAN_2_8_nCps6;
+import satin_rosaline_rgb_FastKAN_2_8_nCps6;
 // import vch_ultra_pink_rgb_FastKAN_2_8_nCps6;
 
 // import rgb_decoder_fc;
