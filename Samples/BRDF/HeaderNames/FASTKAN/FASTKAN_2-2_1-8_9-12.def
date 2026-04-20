@@ -1,0 +1,14 @@
+#ifndef BRDF_NAME
+#define BRDF_NAME(x)
+#endif
+
+BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_8_nCps12)
+BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_4_nCps12)
+BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_2_nCps12)
+BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_1_nCps12)
+BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_8_nCps9)
+BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_4_nCps9)
+BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_2_nCps9)
+BRDF_NAME(irid_flake_paint2_rgb_FastKAN_2_1_nCps9)
+
+// #undef BRDF_NAME
