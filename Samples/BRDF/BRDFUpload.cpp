@@ -441,11 +441,13 @@ auto LoadCubemap(std::string_view env_map_folder_path) -> CubeMetadata {
 			std::array data_names = {"width", "height", "channels"};
 			auto       get_data   = [&](u32 i) { return std::tuple{old_data[i], new_data[i], data_names[i]}; };
 			if (std::all_of(old_data.begin(), old_data.end(), [](auto const& i) { return i != 0; })) {
-				for (u32 i = 0; i < old_data.size(); ++i) {
+
+				bool const skip_check_channels = true;
+				for (u32 i = 0; i < old_data.size() - (skip_check_channels * 1); ++i) {
 					auto [old, new_, name] = get_data(i);
 					if (old_data[i] != new_data[i]) {
 						std::printf("Cubemap size mismatch %s Old: %u, New: %u\n", name, old, new_);
-						std::exit(1);
+						// std::exit(1);
 					}
 				}
 			}

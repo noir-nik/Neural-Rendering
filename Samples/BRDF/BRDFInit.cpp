@@ -355,9 +355,9 @@ void BRDFSample::CreateInstance() {
 						   //    vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose |
 						   //    vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo |
 						   vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
-		.messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
-					   //    vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding |
-					   vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
+		.messageType     = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
+						   //    vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding |
+						   vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
 		.pfnUserCallback = DebugUtilsCallback,
 		.pUserData       = nullptr,
 	};
@@ -589,8 +589,8 @@ void BRDFSample::CreatePipelineLayout() {
 	vk::PushConstantRange push_constant_range{
 		.stageFlags = vk::ShaderStageFlagBits::eVertex
 					  | vk::ShaderStageFlagBits::eFragment,
-		.offset = 0,
-		.size   = physical_device.GetMaxPushConstantsSize(),
+		.offset     = 0,
+		.size       = physical_device.GetMaxPushConstantsSize(),
 	};
 
 	vk::PipelineLayoutCreateInfo info{
@@ -612,6 +612,11 @@ void BRDFSample::CreatePipelineLayout() {
 
 // constexpr auto st = cat("Shaders/BRDFMain.slang.spv");
 
+namespace fs = std::filesystem;
+
+void find_files(const fs::path& dir, const std::string& extension) {
+}
+
 void BRDFSample::CreatePipelines() {
 	LOG_DEBUG("BRDFSample::CreatePipelines()");
 	using CodeType = std::optional<std::vector<std::byte>>;
@@ -630,28 +635,26 @@ void BRDFSample::CreatePipelines() {
 
 	using Utils::make_string;
 
-	char path_buffer[1024];
-
-	auto make_path = [&](std::string_view const fname) {
-		auto const printed = std::snprintf(
-			path_buffer, sizeof(path_buffer),
-			"Shaders/spv/FASTKAN3/2604/64/v2/%s.slang.spv",
-			/* fastkan_version, */ fname.data());
-
-		return std::string_view(path_buffer, printed);
-	};
-
 	if (true) {
 		// if (is_test_mode) {
 
-		CodeType shader_codes[] = {
-#define BRDF_NAME(x) \
-	[&] { \
-		auto const _strr = make_path(#x); \
-		return Utils::ReadBinaryFile(_strr).or_else(LF(error_read_file(_strr))); \
-	}(),
-#include "HeaderNames.def"
-		};
+		using SV                 = std::string_view;
+		auto const generated_dir = SV(GENERATED_DIR);
+
+		std::vector<CodeType> shader_codes;
+		shader_codes.reserve(50);
+
+		constexpr auto generated_extension = SV{".slang.spv"};
+
+		for (const auto& entry : fs::recursive_directory_iterator(generated_dir)) {
+			auto const path_str = entry.path().string();
+			auto const path_sv  = SV(path_str);
+
+			if (entry.is_regular_file() && path_sv.ends_with(generated_extension)) {
+				shader_codes.push_back(Utils::ReadBinaryFile(path_sv).or_else(LF(error_read_file(path_sv))));
+			}
+		}
+		pipelines_header.resize(shader_codes.size());
 
 		vk::ShaderModuleCreateInfo shader_module_infos[std::size(shader_codes)];
 		vk::ShaderModule           shader_modules[std::size(shader_codes)];
@@ -662,7 +665,7 @@ void BRDFSample::CreatePipelines() {
 			CHECK_VULKAN_RESULT(device.createShaderModule(&shader_module_infos[i], GetAllocator(), &shader_modules[i]));
 		}
 
-		for (auto i = 0u; i < kTestFunctionsCount; ++i) {
+		for (auto i = 0u; i < pipelines_header.size(); ++i) {
 			pipelines_header[i] = CreatePipeline(shader_modules[i], {.function_type = function_type, .function_id = i});
 		}
 
@@ -689,8 +692,8 @@ void BRDFSample::CreatePipelines() {
 		vk::ShaderModule           sm;
 		constexpr auto             sname   = std::string_view("Shaders/Skybox.slang.spv");
 		CodeType                   scode[] = {
-            Utils::ReadBinaryFile(sname).or_else(LF(error_read_file(sname.substr(sname.find_last_of("/\\") + 1)))),
-        };
+			Utils::ReadBinaryFile(sname).or_else(LF(error_read_file(sname.substr(sname.find_last_of("/\\") + 1)))),
+		};
 		ci.codeSize = ((*scode[0]).size());
 		ci.pCode    = reinterpret_cast<const u32*>((*scode[0]).data());
 		CHECK_VULKAN_RESULT(device.createShaderModule(&ci, GetAllocator(), &sm));

@@ -183,14 +183,15 @@ public:
 	std::array<vk::Pipeline, u32(BrdfFunctionType::eCount)> pipelines = {};
 	vk::Pipeline                                            skybox_pipeline{};
 
-	static constexpr int _HeaderNames_count_array[] = {
-#define BRDF_NAME(x) 0,
-#include "HeaderNames.def"
-	};
+// 	static constexpr int _HeaderNames_count_array[] = {
+// #define BRDF_NAME(x) 0,
+// #include "HeaderNames.def"
+// 	};
 
-	static constexpr int kTestFunctionsCount = std::size(_HeaderNames_count_array);
+	// static constexpr int kTestFunctionsCount = std::size(_HeaderNames_count_array);
 
-	std::array<vk::Pipeline, kTestFunctionsCount> pipelines_header = {};
+	// std::array<vk::Pipeline, kTestFunctionsCount> pipelines_header = {};
+	std::vector<vk::Pipeline> pipelines_header = {};
 
 	// vk::Pipeline getpipeline
 

@@ -82,7 +82,7 @@ float Scene(float3 pos) {
 	} else {
 		// SDFWeightsInHeader<Ty>(input, output);
 		SDFCoopVec<Ty>(input, output, gWeightsF16, wo4, bo4);
-	}
+}
 
 	if (shader_type == SdfFunctionType::eWeightsInHeader) {
 		return outputh[0];

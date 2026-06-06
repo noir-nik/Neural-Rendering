@@ -114,7 +114,7 @@ auto LoadObj(std::string_view obj_path) -> LoadObjResult {
 			index_offset += fv;
 
 			// per-face material
-			shapes[s].mesh.material_ids[f];
+			// shapes[s].mesh.material_ids[f];
 		}
 	}
 	return {std::move(vertices), std::move(indices)};

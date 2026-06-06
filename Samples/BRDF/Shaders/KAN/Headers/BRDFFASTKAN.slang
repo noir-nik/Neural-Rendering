@@ -6,8 +6,9 @@ import BRDFFASTKAN_v2;
 import BRDFFASTKAN_v3;
 
 #ifndef INC
-// #include "BRDFFASTKAN.h"
-// import FastKAN_6_6_6_3_nCps_6;
+#include "BRDFFASTKAN.h"
+
+// import cc_green_malachite_rgb_FastKAN_2_6_nCps6;
 
 // import cc_green_malachite_rgb_FastKAN_2_8_nCps6;
 // import cc_ibiza_sunset_rgb_FastKAN_2_8_nCps6;
@@ -30,7 +31,7 @@ import BRDFFASTKAN_v3;
 // import chm_mint_rgb_FastKAN_2_8_nCps6;
 // import colodur_napoli_4f_rgb_FastKAN_2_8_nCps6;
 // import ilm_solo_m_68_rgb_FastKAN_2_8_nCps6;
-import irid_flake_paint2_rgb_FastKAN_2_8_nCps6;
+// import irid_flake_paint2_rgb_FastKAN_2_8_nCps6;
 // import paper_white_rgb_FastKAN_2_8_nCps6;
 // import satin_rosaline_rgb_FastKAN_2_8_nCps6;
 // import vch_ultra_pink_rgb_FastKAN_2_8_nCps6;
