@@ -295,7 +295,7 @@ void BRDFSample::Destroy() {
 		CHECK_VULKAN_RESULT(device.waitIdle());
 
 #if defined(WITH_UI) && WITH_UI
-		device.destroyDescriptorPool(descriptor_pool, GetAllocator());
+		device.destroyDescriptorPool(imgui_descriptor_pool, GetAllocator());
 		ImGuiShutdown();
 		UI::Destroy();
 #endif
