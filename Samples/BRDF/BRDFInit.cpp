@@ -297,12 +297,13 @@ void BRDFSample::Destroy() {
 		auto mkspan        = [](auto& rng) { return std::span(rng.begin(), rng.end()); };
 		auto mkspan_single = [](auto& elem) { return std::span(&elem, 1); };
 
-		for (auto pp : {
+		for (auto pp_span : {
 				 mkspan(pipelines),
 				 mkspan(pipelines_header),
+				 mkspan(pipelines_fallback),
 				 mkspan_single(skybox_pipeline),
 			 }) {
-			for (vk::Pipeline& pipeline : pp) {
+			for (vk::Pipeline& pipeline : pp_span) {
 				if (pipeline) {
 					device.destroyPipeline(pipeline, GetAllocator());
 					pipeline = vk::Pipeline{};
@@ -612,88 +613,128 @@ void BRDFSample::CreatePipelineLayout() {
 
 // constexpr auto st = cat("Shaders/BRDFMain.slang.spv");
 
-namespace fs = std::filesystem;
+namespace fs   = std::filesystem;
+using CodeType = std::optional<std::vector<std::byte>>;
+using SV       = std::string_view;
 
-void find_files(const fs::path& dir, const std::string& extension) {
-}
+#define LF(fn) [&](auto&&... args) { return fn; }
+#define LF_PACK(fn) [&](auto&&... args) { (fn, ...); }
+
+auto error_read_file(std::string_view name) -> CodeType {
+	std::printf("Failed to read shader file: %*s\n", int(name.size()), name.data());
+	std::exit(1);
+	return {};
+};
+
+auto readfile(SV fpath) -> CodeType {
+	return Utils::ReadBinaryFile(fpath).or_else(LF(error_read_file(fpath)));
+};
+
+// glob shader codes
+void glob(SV const dir, SV const generated_extension, std::vector<CodeType>& output_codes) {
+	for (auto const& entry : fs::directory_iterator(dir)) {
+		auto const path_str = entry.path().string();
+		auto const path_sv  = SV(path_str);
+		if (entry.is_regular_file() && path_sv.ends_with(generated_extension)) {
+			output_codes.push_back(readfile(path_sv));
+		}
+	}
+};
+
+template <typename... Args>
+class Tu : std::tuple<Args...> {
+	using Base = std::tuple<Args...>;
+	// using Base::Base;
+	using std::tuple<Args...>::std::tuple;
+};
 
 void BRDFSample::CreatePipelines() {
 	LOG_DEBUG("BRDFSample::CreatePipelines()");
-	using CodeType = std::optional<std::vector<std::byte>>;
-
-#define LF(fn) [&](auto&&... args) { return fn; }
-
-	auto error_read_file = [](std::string_view name) -> CodeType {
-		std::printf("Failed to read shader file: %*s\n", int(name.size()), name.data());
-		std::exit(1);
-		return {};
-	};
-
-	CodeType shader_codes_main[] = {
-		Utils::ReadBinaryFile("Shaders/BRDFMain.slang.spv").or_else(LF(error_read_file("BRDFMain.slang.spv"))),
-	};
-
 	using Utils::make_string;
 
-	if (true) {
-		// if (is_test_mode) {
+	char path_buffer[1024];
+	auto make_path = [&](std::string_view const fname) {
+		auto const printed = std::snprintf(
+			path_buffer, sizeof(path_buffer),
+			GENERATED_DIR_RELATIVE "/%s.slang.spv",
+			fname.data());
 
-		using SV                 = std::string_view;
-		auto const generated_dir = SV(GENERATED_DIR);
+		return std::string_view(path_buffer, printed);
+	};
 
-		std::vector<CodeType> shader_codes;
-		shader_codes.reserve(50);
+	constexpr auto generated_dir       = SV{GENERATED_DIR_RELATIVE};
+	constexpr auto generated_extension = SV{".slang.spv"};
 
-		constexpr auto generated_extension = SV{".slang.spv"};
+	CodeType shader_codes_main[kPipelineFallbackCount] = {
+		readfile("Shaders/BRDFMain-point.slang.spv"),
+		readfile("Shaders/BRDFMain-env.slang.spv"),
+	};
 
-		for (const auto& entry : fs::recursive_directory_iterator(generated_dir)) {
-			auto const path_str = entry.path().string();
-			auto const path_sv  = SV(path_str);
+	// // vec
+	// std::vector<CodeType> shader_codes_generated;
+	// shader_codes_generated.reserve(50);
+	// glob(generated_dir, generated_extension, shader_codes_generated);
 
-			if (entry.is_regular_file() && path_sv.ends_with(generated_extension)) {
-				shader_codes.push_back(Utils::ReadBinaryFile(path_sv).or_else(LF(error_read_file(path_sv))));
-			}
-		}
-		pipelines_header.resize(shader_codes.size());
+	CodeType shader_codes_generated[] = {
+#define BRDF_NAME(x) readfile(make_path(#x)),
+#include "BRDFModels.def"
+	};
 
-		vk::ShaderModuleCreateInfo shader_module_infos[std::size(shader_codes)];
-		vk::ShaderModule           shader_modules[std::size(shader_codes)];
+	// point + rnv
+	static_assert(std::size(shader_codes_generated) == GENERATED_MODELS_COUNT * 2);
 
-		for (u32 i = 0; i < std::size(shader_codes); ++i) {
+	pipelines_header.resize(std::size(shader_codes_generated));
+	auto const max_f_id = pipelines_header.size() - 1;
+	if (function_id) {
+		function_id = std::min(*function_id, static_cast<decltype(function_id)::value_type>(max_f_id));
+	}
+
+	std::vector<vk::ShaderModuleCreateInfo> shader_module_infos;
+	std::vector<vk::ShaderModule>           shader_modules;
+
+	auto gen_shader_modules = [&](std::span<CodeType const> shader_codes, std::span<vk::Pipeline> out_pipelines) {
+		auto const num_codes = std::size(shader_codes);
+
+		auto const vecs = std::tuple{std::ref(shader_module_infos), std::ref(shader_modules)};
+
+		// resize
+		std::apply(LF_PACK(args.get().resize(num_codes)), vecs);
+
+		for (u32 i = 0; i < num_codes; ++i) {
 			shader_module_infos[i].codeSize = (*shader_codes[i]).size();
 			shader_module_infos[i].pCode    = reinterpret_cast<const u32*>((*shader_codes[i]).data());
 			CHECK_VULKAN_RESULT(device.createShaderModule(&shader_module_infos[i], GetAllocator(), &shader_modules[i]));
 		}
 
-		for (auto i = 0u; i < pipelines_header.size(); ++i) {
-			pipelines_header[i] = CreatePipeline(shader_modules[i], {.function_type = function_type, .function_id = i});
+		for (auto i = 0u; i < out_pipelines.size(); ++i) {
+			out_pipelines[i] = CreatePipeline(shader_modules[i], {.function_type = function_type, .function_id = i});
 		}
 
-		for (auto& shader_module : shader_modules) {
+		for (auto const& shader_module : shader_modules) {
 			device.destroyShaderModule(shader_module, GetAllocator());
 		}
-	}
 
-	{
-		vk::ShaderModuleCreateInfo shader_module_info_main;
-		vk::ShaderModule           shader_module_main;
-		shader_module_info_main.codeSize = ((*shader_codes_main[0]).size());
-		shader_module_info_main.pCode    = reinterpret_cast<const u32*>((*shader_codes_main[0]).data());
-		CHECK_VULKAN_RESULT(device.createShaderModule(&shader_module_info_main, GetAllocator(), &shader_module_main));
+		// clear
+		std::apply(LF_PACK(args.get().clear()), vecs);
+	};
+	gen_shader_modules(shader_codes_generated, pipelines_header);
+	gen_shader_modules(shader_codes_main, pipelines_fallback);
 
-		for (auto i = 0u; i < std::size(pipelines); ++i) {
-			pipelines[i] = CreatePipeline(shader_module_main, {.function_type = static_cast<BrdfFunctionType>(i)});
-		}
-		device.destroyShaderModule(shader_module_main, GetAllocator());
-	}
 	// Skybox
 	if (hasattr(&BRDFSample::cubemap_folder_path)) {
+		auto basename = [](SV sname) {
+			return sname.substr(sname.find_last_of("/\\") + 1);
+		};
+
 		vk::ShaderModuleCreateInfo ci;
 		vk::ShaderModule           sm;
-		constexpr auto             sname   = std::string_view("Shaders/Skybox.slang.spv");
-		CodeType                   scode[] = {
-			Utils::ReadBinaryFile(sname).or_else(LF(error_read_file(sname.substr(sname.find_last_of("/\\") + 1)))),
+
+		constexpr auto sname = std::string_view("Shaders/Skybox.slang.spv");
+
+		CodeType scode[] = {
+			readfile(sname),
 		};
+
 		ci.codeSize = ((*scode[0]).size());
 		ci.pCode    = reinterpret_cast<const u32*>((*scode[0]).data());
 		CHECK_VULKAN_RESULT(device.createShaderModule(&ci, GetAllocator(), &sm));

@@ -80,7 +80,13 @@ auto BRDFSample::DrawWindow() -> u64 {
 		return DrawWindow(pipelines_header[u32(*function_id)]);
 	} else {
 		// std::printf("DrawWindow(pipelines[%u])\n", u32(function_type));
-		return DrawWindow(pipelines[u32(function_type)]);
+
+		auto const pipeline_num =
+			hasattr(&BRDFSample::cubemap_folder_path)
+				? 1
+				: 0;
+		return DrawWindow(pipelines_fallback[pipeline_num]);
+		// return DrawWindow(pipelines[u32(function_type)]);
 	}
 };
 
@@ -111,9 +117,9 @@ static u32 factor       = 3;
 static u32 period_rot   = 120 * factor;
 static u32 period_pause = 180 * factor;
 
-static u32           frame_count{};
-static u32 start_frame{static_cast<u32>(60 * 5 * factor)};
-static float3        prev_camera_pos = {0.0f, 0.0f, 0.0f};
+static u32    frame_count{};
+static u32    start_frame{static_cast<u32>(60 * 5 * factor)};
+static float3 prev_camera_pos = {0.0f, 0.0f, 0.0f};
 
 void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	LOG_DEBUG("BRDFSample::RecordCommands()");
@@ -244,12 +250,12 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 			// .clearValue  = {{{{0.f, 0.f, 0.f, 1.0f}}}},
 		}}},
 		.depthAttachment  = {
-			 .imageView   = depth_image.GetView(),
-			 .imageLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal,
-			 .loadOp      = vk::AttachmentLoadOp::eClear,
-			 .storeOp     = vk::AttachmentStoreOp::eStore,
-			 .clearValue  = {{{{1.0f, 0}}}},
-        },
+			.imageView   = depth_image.GetView(),
+			.imageLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal,
+			.loadOp      = vk::AttachmentLoadOp::eClear,
+			.storeOp     = vk::AttachmentStoreOp::eStore,
+			.clearValue  = {{{{1.0f, 0}}}},
+		},
 	});
 
 	// camera.getForward() *= -1.0;
@@ -307,10 +313,10 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 		// .view_proj = camera.getProjViewInv(),
 		.view_proj = view_proj,
 		.material  = {
-			 .base_color = float4{0.8, 0.8, 0.8, 1.0},
-			 .metallic   = 0.5f,
-			 .roughness  = 0.5f,
-        },
+			.base_color = float4{0.8, 0.8, 0.8, 1.0},
+			.metallic   = 0.5f,
+			.roughness  = 0.5f,
+		},
 		.light = {
 			.position          = vec3(1.2, 1.2, -1.2),
 			.range             = 10.0,
@@ -527,4 +533,3 @@ void BRDFSample::Run() {
 		}
 	} while (true);
 }
-

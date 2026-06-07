@@ -1,5 +1,11 @@
 // #include "FASTKAN_2-2_1-8_3-6.def"
+
 #include "FASTKAN_2-2_1-8_9-12.def"
+
+// #define _PPCAT_NX(A, B) A##B
+// #define _PPCAT(A, B) PPCAT_NX(A, B)
+
+#include GENERATED_MODELS_DEF
 
 // #include "FASTKAN.def"
 // #include "CoopVec.def"

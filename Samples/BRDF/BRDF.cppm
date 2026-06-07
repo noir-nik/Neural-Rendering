@@ -129,10 +129,9 @@ public:
 	Image       cubemap_image;
 	vk::Sampler cubemap_sampler{};
 
-	 
 	static constexpr auto kMinFastKANVersion = 0;
 	static constexpr auto kMaxFastKANVersion = 3;
-	int fastkan_version = 0;
+	int                   fastkan_version    = 0;
 
 	Image accumulator_image;
 
@@ -183,10 +182,14 @@ public:
 	std::array<vk::Pipeline, u32(BrdfFunctionType::eCount)> pipelines = {};
 	vk::Pipeline                                            skybox_pipeline{};
 
-// 	static constexpr int _HeaderNames_count_array[] = {
-// #define BRDF_NAME(x) 0,
-// #include "HeaderNames.def"
-// 	};
+	static constexpr u32 kPipelineFallbackCount = 2;
+
+	std::array<vk::Pipeline, kPipelineFallbackCount> pipelines_fallback = {};
+
+	// 	static constexpr int _HeaderNames_count_array[] = {
+	// #define BRDF_NAME(x) 0,
+	// #include "HeaderNames.def"
+	// 	};
 
 	// static constexpr int kTestFunctionsCount = std::size(_HeaderNames_count_array);
 
@@ -242,7 +245,7 @@ public:
 	Camera camera{{
 		// .position = {1.0f, -1.0f, 2.0f},
 		// .position = float3{1.0f, 1.0f, 2.5f}, // * 1.8,
-		.position = float3{0.0f, 0.8f, 2.2f}  * 1.2,
+		.position = float3{0.0f, 0.8f, 2.2f} * 1.2,
 		// .position = float3{-0.82666, -0.10470,  0.55289}*3,
 		// .position = {-0.05682, 0.55289, 1.63774,}
 		.fov    = 50.0f,
