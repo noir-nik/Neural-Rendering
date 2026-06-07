@@ -140,7 +140,7 @@ void BRDFSample::Init() {
 	});
 
 	window.SetPos(0, 0);
-	
+
 	window.GetWindowCallbacks().framebufferSizeCallback = FramebufferSizeCallback;
 	if (!is_test_mode) {
 		window.GetWindowCallbacks().windowRefreshCallback = WindowRefreshCallback;
@@ -263,6 +263,10 @@ void BRDFSample::Init() {
 			std::printf("\n");
 		}
 	}
+
+#if defined(WITH_UI) && WITH_UI
+	void CreateImGui();
+#endif
 }
 
 BRDFSample::~BRDFSample() {
@@ -275,6 +279,9 @@ void BRDFSample::Destroy() {
 
 	if (device) {
 		CHECK_VULKAN_RESULT(device.waitIdle());
+#if defined(WITH_UI) && WITH_UI
+		void ImGuiShutdown();
+#endif
 
 		if (timestamp_query_pool) {
 			device.destroyQueryPool(timestamp_query_pool, GetAllocator());
@@ -655,7 +662,7 @@ static constexpr auto model_names = std::array{
 #define BRDF_NAME(x) SV(#x),
 #include "BRDFModels.def"
 #undef BRDF_NAME
-	};
+};
 
 void BRDFSample::CreatePipelines() {
 	LOG_DEBUG("BRDFSample::CreatePipelines()");

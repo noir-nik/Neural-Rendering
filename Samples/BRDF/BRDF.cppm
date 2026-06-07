@@ -107,6 +107,12 @@ public:
 
 	auto ParseArgs(int argc, char const* argv[]) -> char const*;
 
+#if defined(WITH_UI) && WITH_UI
+	void CreateImGui();
+	void ImGuiNewFrame();
+	void ImGuiShutdown();
+#endif
+
 	bool is_test_mode = false;
 	bool verbose      = false;
 	// bool use_validation = true;
