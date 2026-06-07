@@ -648,6 +648,12 @@ class Tu : std::tuple<Args...> {
 	using std::tuple<Args...>::std::tuple;
 };
 
+static constexpr auto model_names = std::array{
+#define BRDF_NAME(x) SV(#x),
+#include "BRDFModels.def"
+#undef BRDF_NAME
+	};
+
 void BRDFSample::CreatePipelines() {
 	LOG_DEBUG("BRDFSample::CreatePipelines()");
 	using Utils::make_string;
@@ -665,22 +671,24 @@ void BRDFSample::CreatePipelines() {
 	constexpr auto generated_dir       = SV{GENERATED_DIR_RELATIVE};
 	constexpr auto generated_extension = SV{".slang.spv"};
 
-	CodeType shader_codes_main[kPipelineFallbackCount] = {
+	auto const shader_codes_main = std::array{
 		readfile("Shaders/BRDFMain-point.slang.spv"),
 		readfile("Shaders/BRDFMain-env.slang.spv"),
 	};
+	static_assert(std::size(shader_codes_main) == kPipelineFallbackCount);
 
 	// // vec
 	// std::vector<CodeType> shader_codes_generated;
 	// shader_codes_generated.reserve(50);
 	// glob(generated_dir, generated_extension, shader_codes_generated);
 
-	CodeType shader_codes_generated[] = {
+	auto const shader_codes_generated = std::array{
 #define BRDF_NAME(x) readfile(make_path(#x)),
 #include "BRDFModels.def"
+#undef BRDF_NAME
 	};
 
-	// point + rnv
+	// point + env
 	static_assert(std::size(shader_codes_generated) == GENERATED_MODELS_COUNT * 2);
 
 	pipelines_header.resize(std::size(shader_codes_generated));

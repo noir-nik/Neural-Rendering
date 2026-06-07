@@ -140,17 +140,36 @@ foreach(model ${MODELS_FILES_SLANG})
 
 	# Append lists
 	list(APPEND SLANG_DEPENDS ${OUTPATH_POINT} ${OUTPATH_ENV})
-	list(APPEND BRDF_MODEL_NAMES "${model_basename_we_point}")
-	list(APPEND BRDF_MODEL_NAMES "${model_basename_we_env}")
+	list(APPEND BRDF_MODEL_NAMES_POINT "${model_basename_we_point}")
+	list(APPEND BRDF_MODEL_NAMES_ENV "${model_basename_we_env}")
+	list(APPEND BRDF_MODEL_NAMES "${model_basename_we}")
 endforeach()
+	
+# message(BRDF_MODEL_NAMES_POINT "${BRDF_MODEL_NAMES_POINT}")
+# message(BRDF_MODEL_NAMES_ENV "${BRDF_MODEL_NAMES_ENV}")
+# message(BRDF_MODEL_NAMES "${BRDF_MODEL_NAMES}")
 
-# Convert list to newline-separated string
-foreach(fname ${BRDF_MODEL_NAMES})
-    list(APPEND BRDF_MODEL_NAMES_BRDF "BRDF_NAME(${fname})")
-endforeach()
+# list(TRANSFORM my_list REPLACE "\\.txt$" ".dat")
 
-string(JOIN "\n" list_as_string_brdf ${BRDF_MODEL_NAMES_BRDF})
-file(WRITE ${${SAMPLE_NAME}_SHADERS_GENERATED_DIR}/BRDFModels.def
+function(get_def_content inlist output_var)
+
+endfunction()
+
+function(write_def_file in_brdf_models filename)
+	# get_def_content(brdf_models outstr)
+	set(brdf_models ${${in_brdf_models}})
+
+	foreach(fname ${brdf_models})
+		list(APPEND br_names "BRDF_NAME(${fname})")
+	endforeach()
+
+	# Convert list to newline-separated string
+	string(JOIN "\n" list_as_string_brdf ${br_names})
+
+# message(list_as_string_brdf ${list_as_string_brdf})
+
+	# set out
+	set(outstr
 "\
 #ifndef BRDF_NAME
 #define BRDF_NAME(x)
@@ -158,7 +177,24 @@ file(WRITE ${${SAMPLE_NAME}_SHADERS_GENERATED_DIR}/BRDFModels.def
 
 ${list_as_string_brdf}
 
-#undef BRDF_NAME
+"
+# undef BRDF_NAME
+)
+	# message(${outstr})
+	
+	file(WRITE ${${SAMPLE_NAME}_SHADERS_GENERATED_DIR}/${filename}
+		${outstr}
+	)
+	message("Wrote " ${filename})
+endfunction()
+
+write_def_file(BRDF_MODEL_NAMES_POINT BRDFModels-point.def)
+write_def_file(BRDF_MODEL_NAMES_ENV BRDFModels-env.def)
+
+file(WRITE ${${SAMPLE_NAME}_SHADERS_GENERATED_DIR}/BRDFModels.def
+"\
+#include \"BRDFModels-point.def\"
+#include \"BRDFModels-env.def\"
 "
 )
 
