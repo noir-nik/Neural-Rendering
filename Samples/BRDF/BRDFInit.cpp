@@ -265,7 +265,21 @@ void BRDFSample::Init() {
 	}
 
 #if defined(WITH_UI) && WITH_UI
-	void CreateImGui();
+	UI::Init();
+	{
+		vk::DescriptorPoolSize imguiPoolSizes[] = {
+			{vk::DescriptorType::eUniformBuffer, 1000},
+			{vk::DescriptorType::eCombinedImageSampler, 1000},
+		};
+		vk::DescriptorPoolCreateInfo info{
+			.flags         = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
+			.maxSets       = (u32)(1024),
+			.poolSizeCount = std::size(imguiPoolSizes),
+			.pPoolSizes    = imguiPoolSizes,
+		};
+		CHECK_VULKAN_RESULT(device.createDescriptorPool(&info, GetAllocator(), &imgui_descriptor_pool));
+	}
+	CreateImGui(); // <- imgui_descriptor_pool
 #endif
 }
 
@@ -279,8 +293,11 @@ void BRDFSample::Destroy() {
 
 	if (device) {
 		CHECK_VULKAN_RESULT(device.waitIdle());
+
 #if defined(WITH_UI) && WITH_UI
-		void ImGuiShutdown();
+		device.destroyDescriptorPool(descriptor_pool, GetAllocator());
+		ImGuiShutdown();
+		UI::Destroy();
 #endif
 
 		if (timestamp_query_pool) {

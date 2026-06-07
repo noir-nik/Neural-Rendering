@@ -20,6 +20,10 @@ import SamplesCommon;
 import Math;
 import std;
 
+#if defined(WITH_UI) && WITH_UI
+import imgui;
+#endif
+
 #ifdef COOPVEC_TYPE
 #undef COOPVEC_TYPE
 #endif
@@ -406,6 +410,14 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 
 		cmd.drawIndexed(index_count, 1, 0, 0, 0);
 	}
+#if defined(WITH_UI) && WITH_UI
+	ImGuiNewFrame();
+	ImGui::ShowDemoWindow();
+	
+	ImGui::Render();
+	auto data = ImGui::GetDrawData();
+	DrawImGui(cmd, data);
+#endif
 
 	cmd.endRendering();
 	cmd.Barrier2({

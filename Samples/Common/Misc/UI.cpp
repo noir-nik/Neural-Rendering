@@ -16,6 +16,8 @@ ImGuiContext* setupContext = nullptr;
 void Init(){
 	ImGui::CheckVersion();
 	setupContext = ImGui::CreateContext();
+	return;
+	
 	ImGuiIO& io = ImGui::GetIO();
 	sharedFontAtlas = io.Fonts;
 	// io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;

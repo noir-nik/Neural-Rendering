@@ -26,10 +26,11 @@ void BRDFSample::CreateImGui() {
 		.Device         = device,
 		.QueueFamily    = queue_family_index,
 		.Queue          = queue,
-		.DescriptorPool = descriptor_pool,
+		.DescriptorPool = imgui_descriptor_pool,
 		// .MinImageCount  = swapchain.surface_capabilities.minImageCount,
 		// .ImageCount     = (u32)images.size(),
-		.MinImageCount = 3,
+		// .MinImageCount = 3,
+		.MinImageCount = static_cast<uint32_t>(swapchain.GetImages().size()),
 		.ImageCount    = static_cast<uint32_t>(swapchain.GetImages().size()),
 		// .MSAASamples         = (VkSampleCountFlagBits)std::min(device->physicalDevice->maxSamples, sampleCount),
 		// .MSAASamples                 = VK_SAMPLE_COUNT_1_BIT,
@@ -53,11 +54,12 @@ void BRDFSample::CreateImGui() {
 void BRDFSample::ImGuiNewFrame() {
 	ImGui_ImplVulkan_NewFrame();
 	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
 }
 
-// void Command::DrawImGui(void* imDrawData) {
-// 	ImGui_ImplVulkan_RenderDrawData(static_cast<ImDrawData*>(imDrawData), resource->buffer);
-// }
+void BRDFSample::DrawImGui(vk::CommandBuffer cmd, ImDrawData* imDrawData) {
+	ImGui_ImplVulkan_RenderDrawData(static_cast<ImDrawData*>(imDrawData), cmd);
+}
 
 void BRDFSample::ImGuiShutdown() {
 	ImGui_ImplVulkan_Shutdown();

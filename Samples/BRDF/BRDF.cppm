@@ -51,6 +51,11 @@ struct SpecData {
 	BrdfFunctionType function_type = BrdfFunctionType::eCoopVec;
 	u32              function_id   = 0; // inline
 };
+
+#if defined(WITH_UI) && WITH_UI
+extern "C++" struct ImDrawData;
+#endif
+
 class BRDFSample {
 public:
 	static constexpr u32 kFramesInFlight = 3;
@@ -109,8 +114,11 @@ public:
 
 #if defined(WITH_UI) && WITH_UI
 	void CreateImGui();
+	void DrawImGui(vk::CommandBuffer cmd, ImDrawData* imDrawData);
 	void ImGuiNewFrame();
 	void ImGuiShutdown();
+
+	vk::DescriptorPool imgui_descriptor_pool;
 #endif
 
 	bool is_test_mode = false;
