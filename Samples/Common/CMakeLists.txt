@@ -27,6 +27,29 @@ add_subdirectory(${GLFW_DIR} ${PROJECT_SOURCE_DIR}/External/Glfw ${CMAKE_CURRENT
 target_link_libraries(${SAMPLE_NAME} PRIVATE glfw)
 endif()
 
+# ImGui
+option(WITH_UI "Enable UI" ON)
+
+if(WITH_UI)
+	target_compile_definitions(${SAMPLE_NAME} PUBLIC WITH_UI)
+	set(IMGUI_DIR ${PROJECT_SOURCE_DIR}/External/imgui)
+	set(IMGUI_SOURCES
+		${IMGUI_DIR}/imgui.cpp
+		${IMGUI_DIR}/imgui_draw.cpp
+		${IMGUI_DIR}/imgui_tables.cpp
+		${IMGUI_DIR}/imgui_widgets.cpp
+		${IMGUI_DIR}/imgui_demo.cpp
+		${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+		${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
+	)
+
+	add_library(${PROJECT_NAME}-imgui ${IMGUI_SOURCES})
+	target_include_directories(${PROJECT_NAME}-imgui PUBLIC ${IMGUI_DIR})
+	target_link_libraries(${PROJECT_NAME}-imgui PRIVATE Vulkan::Vulkan glfw)
+
+	target_link_libraries(${SAMPLE_NAME} PUBLIC ${PROJECT_NAME}-imgui)
+endif()
+
 function(generate_spv_shader_glsl input_file output_file)
 	add_custom_command(
 		OUTPUT ${output_file}
