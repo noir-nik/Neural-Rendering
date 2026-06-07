@@ -525,13 +525,17 @@ void BRDFSample::SaveSwapchainImageToFile(std::string_view filename) {
 	// pending_image_save = false;
 }
 
-void fix_framerate() {
-	auto        fps       = 144.0f;
+auto fix_framerate() -> BRDFSample::Duration {
+	auto const  max_fps   = 144.0f;
 	static auto last_time = std::chrono::steady_clock::now();
 	auto const  now       = std::chrono::steady_clock::now();
 	auto const  elapsed   = now - last_time;
-	last_time             = now;
-	std::this_thread::sleep_for(std::chrono::duration<float, std::milli>(1000.0f / fps) - elapsed);
+	// this->elapsed_cpu = now - last_time;
+
+	last_time = now;
+	std::this_thread::sleep_for(std::chrono::duration<float, std::milli>(1000.0f / max_fps) - elapsed);
+
+	return elapsed;
 }
 
 void BRDFSample::Run() {
@@ -539,6 +543,7 @@ void BRDFSample::Run() {
 
 	u32 const end_frame{static_cast<u32>(start_frame + (period_pause + period_rot) * pipelines_header.size() - 10)};
 
+	// current_fps = 1000.f / elapsed_ms;
 	do {
 		// WindowManager::WaitEvents();
 		WindowManager::PollEvents();
@@ -546,10 +551,13 @@ void BRDFSample::Run() {
 		int x, y, width, height;
 		window.GetRect(x, y, width, height);
 		if (width <= 0 || height <= 0) continue;
-		u64       elapsed_ns = DrawWindow();
-		auto      elapsed_ms = elapsed_ns / 1000000.0;
-		verbose&& std::printf("%f ms, fps: %f\n", elapsed_ms, 1000.f / elapsed_ms);
-		fix_framerate();
+		u64 elapsed_ns = DrawWindow();
+
+		this->elapsed_last_frame_ms = elapsed_ns / 1000000.0;
+		verbose&& std::printf("%f ms, fps: %f\n", this->elapsed_last_frame_ms, 1000.f / this->elapsed_last_frame_ms);
+
+		this->elapsed_cpu = fix_framerate();
+
 		if (frame_count > end_frame) {
 			return;
 		}

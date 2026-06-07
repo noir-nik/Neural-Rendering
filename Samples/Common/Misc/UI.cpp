@@ -16,13 +16,15 @@ ImGuiContext* setupContext = nullptr;
 void Init(){
 	ImGui::CheckVersion();
 	setupContext = ImGui::CreateContext();
-	return;
-	
+
 	ImGuiIO& io = ImGui::GetIO();
 	sharedFontAtlas = io.Fonts;
 	// io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 	// io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
-	io.IniFilename = "assets/imgui.ini";
+	// io.IniFilename = "assets/imgui.ini";
+	// io.FontGlobalScale;
+	ImGui::GetStyle().FontScaleMain = 1.5;
+	return;
 
 	// io.Fonts->AddFontDefault();
 	ImFontConfig config;

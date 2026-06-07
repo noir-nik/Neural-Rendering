@@ -158,6 +158,10 @@ public:
 	std::optional<u32> function_id = std::nullopt;
 	// u32 function_id = 0;
 
+	using Duration = ::std::chrono::steady_clock::duration;
+	Duration elapsed_cpu;
+	float    elapsed_last_frame_ms = 1e-3f;
+
 	GLFWWindow window{};
 
 	Mouse mouse;
