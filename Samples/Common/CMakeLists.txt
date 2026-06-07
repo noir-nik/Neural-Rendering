@@ -44,7 +44,10 @@ if(WITH_UI)
 	)
 
 	add_library(${PROJECT_NAME}-imgui ${IMGUI_SOURCES})
-	target_include_directories(${PROJECT_NAME}-imgui PUBLIC ${IMGUI_DIR})
+	target_include_directories(${PROJECT_NAME}-imgui PUBLIC
+		${IMGUI_DIR}
+		${IMGUI_DIR}/backends
+	)
 	target_link_libraries(${PROJECT_NAME}-imgui PRIVATE Vulkan::Vulkan glfw)
 
 	target_link_libraries(${SAMPLE_NAME} PUBLIC ${PROJECT_NAME}-imgui)

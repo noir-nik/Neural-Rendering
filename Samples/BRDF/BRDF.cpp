@@ -505,7 +505,7 @@ void BRDFSample::SaveSwapchainImageToFile(std::string_view filename) {
 }
 
 void fix_framerate() {
-	auto        fps       = 60.0f;
+	auto        fps       = 144.0f;
 	static auto last_time = std::chrono::steady_clock::now();
 	auto const  now       = std::chrono::steady_clock::now();
 	auto const  elapsed   = now - last_time;
@@ -526,7 +526,8 @@ void BRDFSample::Run() {
 		window.GetRect(x, y, width, height);
 		if (width <= 0 || height <= 0) continue;
 		u64       elapsed_ns = DrawWindow();
-		verbose&& std::printf("%f ms\n", elapsed_ns / 1000000.0);
+		auto      elapsed_ms = elapsed_ns / 1000000.0;
+		verbose&& std::printf("%f ms, fps: %f\n", elapsed_ms, 1000.f / elapsed_ms);
 		fix_framerate();
 		if (frame_count > end_frame) {
 			return;

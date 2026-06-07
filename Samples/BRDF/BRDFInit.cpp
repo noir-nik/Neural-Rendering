@@ -138,6 +138,9 @@ void BRDFSample::Init() {
 		.title      = "BRDF Sample",
 		.bDecorated = false,
 	});
+
+	window.SetPos(0, 0);
+	
 	window.GetWindowCallbacks().framebufferSizeCallback = FramebufferSizeCallback;
 	if (!is_test_mode) {
 		window.GetWindowCallbacks().windowRefreshCallback = WindowRefreshCallback;

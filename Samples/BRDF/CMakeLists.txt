@@ -156,7 +156,6 @@ function(get_def_content inlist output_var)
 endfunction()
 
 function(write_def_file in_brdf_models filename)
-	# get_def_content(brdf_models outstr)
 	set(brdf_models ${${in_brdf_models}})
 
 	foreach(fname ${brdf_models})
@@ -165,8 +164,6 @@ function(write_def_file in_brdf_models filename)
 
 	# Convert list to newline-separated string
 	string(JOIN "\n" list_as_string_brdf ${br_names})
-
-# message(list_as_string_brdf ${list_as_string_brdf})
 
 	# set out
 	set(outstr
@@ -180,8 +177,7 @@ ${list_as_string_brdf}
 "
 # undef BRDF_NAME
 )
-	# message(${outstr})
-	
+	# Write file
 	file(WRITE ${${SAMPLE_NAME}_SHADERS_GENERATED_DIR}/${filename}
 		${outstr}
 	)
