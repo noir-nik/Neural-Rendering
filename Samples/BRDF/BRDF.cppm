@@ -117,6 +117,7 @@ public:
 	void DrawImGui(vk::CommandBuffer cmd, ImDrawData* imDrawData);
 	void ImGuiNewFrame();
 	void ImGuiShutdown();
+	void DrawUI();
 
 	vk::DescriptorPool imgui_descriptor_pool;
 #endif

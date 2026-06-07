@@ -266,7 +266,14 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	// camera.updateProjectionViewInverse();
 	// camera.getForward() *= -1.0;
 
-	int reset_accumulation = (length(prev_camera_pos - camera.getPosition())) > 0.001f;
+	static auto old_f_id = 0;
+	auto const  f_id     = function_id.value_or(0);
+
+	int reset_accumulation =
+		((length(prev_camera_pos - camera.getPosition())) > 0.001f)
+		|| (old_f_id != f_id);
+
+	old_f_id = f_id;
 	// reset_accumulation     = 1;
 
 	prev_camera_pos = camera.getPosition();
@@ -412,11 +419,13 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	}
 #if defined(WITH_UI) && WITH_UI
 	ImGuiNewFrame();
-	ImGui::ShowDemoWindow();
-	
+
+	// ImGui::ShowDemoWindow();
+	DrawUI();
+
 	ImGui::Render();
-	auto data = ImGui::GetDrawData();
-	DrawImGui(cmd, data);
+	auto imdata = ImGui::GetDrawData();
+	DrawImGui(cmd, imdata);
 #endif
 
 	cmd.endRendering();
