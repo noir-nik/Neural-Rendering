@@ -4,6 +4,10 @@ import StbModule;
 
 using u32 = std::uint32_t;
 
+constexpr auto indices = [] [[nodiscard]] (u32 size) static {
+	return std::views::iota(decltype(size){}, size);
+};
+
 auto CubeMetadata::destroy() -> void {
 	if (!is_valid()) return;
 
@@ -22,12 +26,8 @@ auto CubeMetadata::is_valid() -> bool {
 	return std::ranges::all_of(cubemap, LIFT(bool));
 }
 
-auto LoadCubemap(std::string_view env_map_folder_path) -> CubeMetadata {
+auto CubeMetadata::init(std::string_view env_map_folder_path) -> bool {
 	// Load all the textures.
-
-	int width{0};
-	int height{0};
-	int channels{0};
 
 	char buf[512];
 
@@ -67,32 +67,22 @@ auto LoadCubemap(std::string_view env_map_folder_path) -> CubeMetadata {
 		return res;
 	};
 
-	auto cube_data = std::array{
-		loads("nx.png"),
-		loads("px.png"),
-		loads("py.png"),
-		loads("ny.png"),
-		loads("nz.png"),
-		loads("pz.png"),
+	auto fnames = std::array{
+		("nx.png"),
+		("px.png"),
+		("py.png"),
+		("ny.png"),
+		("nz.png"),
+		("pz.png"),
 	};
 
-	CubeMetadata cube{
-		.cubemap = std::array{
-			loads("nx.png"),
-			loads("px.png"),
-			loads("py.png"),
-			loads("ny.png"),
-			loads("nz.png"),
-			loads("pz.png"),
-		},
-		.width    = width,
-		.height   = height,
-		.channels = channels,
-	};
-
-	if (!cube.is_valid()) {
-		cube.destroy();
-		return {};
+	for (auto const i : indices(kNumFaces)) {
+		cubemap[i] = loads(fnames[i]);
+		if (!cubemap[i]) {
+			destroy();
+			return {};
+		}
 	}
-	return {cube_data, width, height, channels};
+
+	return true;
 }

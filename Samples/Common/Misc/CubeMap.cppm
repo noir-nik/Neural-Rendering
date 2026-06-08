@@ -13,9 +13,11 @@ export struct CubeMetadata {
 	std::array<unsigned char*, kNumFaces> cubemap;
 
 	// CubeType type{CubeType::F32};
-	int      width{0};
-	int      height{0};
-	int      channels{0};
+	int width{0};
+	int height{0};
+	int channels{0};
+
+	auto init(std::string_view env_map_folder_path) -> bool;
 
 	auto image_size() const -> std::size_t { return width * height * channels; }
 	auto image_size_bytes() const -> std::size_t { return image_size() * sizeof(*cubemap[0]); }
@@ -30,4 +32,3 @@ export struct CubeMetadata {
 private:
 	auto set_invalid() -> void;
 };
-export auto LoadCubemap(std::string_view env_map_folder_path) -> CubeMetadata;
