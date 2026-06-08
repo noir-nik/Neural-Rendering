@@ -11,12 +11,32 @@ import imgui_impl_vulkan;
 import imgui_impl_glfw;
 
 #include "Log.h"
+using SV                        = std::string_view;
+static constexpr auto kFloatMin = std::numeric_limits<float>::min();
 
-void BRDFSample::DrawUI() {
+static constexpr auto invisible_flags{
+	ImGuiWindowFlags_NoBackground
+	| ImGuiWindowFlags_NoTitleBar
+	| ImGuiWindowFlags_NoCollapse
+	| ImGuiWindowFlags_NoResize
+	| ImGuiWindowFlags_NoScrollbar
+	| ImGuiWindowFlags_NoScrollWithMouse
+	//
+};
 
-	int  selected_option = function_id.value_or(0); // or_else([]{return 0u;});
+auto color_red = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
+auto color_green = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+
+
+auto ModelsWindow(u32 old_selected_option) -> u32 {
+	float const padding = 10.0f;
+	float const width   = 400.0f; // Define your window width
+	float const height  = 300.0f; // Define your window height
+	float const pos_x   = ImGui::GetMainViewport()->WorkSize.x - width - padding;
+	float const pos_y   = padding;
+
+	int  selected_option = old_selected_option; // or_else([]{return 0u;});
 	auto option_counter  = int{0};
-	using SV             = std::string_view;
 
 	auto const list_option = [&](SV str) {
 		const bool is_selected = (selected_option == option_counter);
@@ -29,28 +49,34 @@ void BRDFSample::DrawUI() {
 		++option_counter;
 	};
 
-	auto fmin = std::numeric_limits<float>::min();
-	if (ImGui::BeginListBox("##", ImVec2(-fmin, -fmin))) {
+	ImGui::SetNextWindowPos(ImVec2(pos_x, pos_y), ImGuiCond_Always);
+	ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Always);
+	if (ImGui::Begin("Models")) {
+		if (ImGui::BeginListBox("##", ImVec2(-kFloatMin, -kFloatMin))) {
 #define BRDF_NAME(x) list_option(#x);
 #include "BRDFModels.def"
 #undef BRDF_NAME
-		ImGui::EndListBox();
-	}
+			ImGui::EndListBox();
+		}
 
-	auto is_radio = bool{false};
-	if (is_radio) {
-		option_counter = {};
+		auto is_radio = bool{false};
+		if (is_radio) {
+			option_counter = {};
 #define BRDF_NAME(x) ImGui::RadioButton(#x, &selected_option, option_counter++);
 #include "BRDFModels.def"
 #undef BRDF_NAME
+		}
+		// function_id = selected_option;
+		ImGui::End();
 	}
-	function_id = selected_option;
+	return selected_option;
+}
 
-	// ImGui::Begin("Numbered Window", nullptr, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoTitleBar);
+auto FPSWindow(float elapsed_last_frame_ms) -> void {
 	// // Calculate top-right position with padding
 	float padding = 10.0f;
-	float width   = 200.0f; // Define your window width
-	float height  = 100.0f; // Define your window height
+	float width   = 400.0f; // Define your window width
+	float height  = 200.0f; // Define your window height
 
 	// float pos_x = ImGui::GetMainViewport()->WorkSize.x - width - padding;
 	float pos_x = padding;
@@ -72,16 +98,17 @@ void BRDFSample::DrawUI() {
 		last_time    = now;
 	}
 
-	auto invisible_flags{
-		ImGuiWindowFlags_NoBackground
-		| ImGuiWindowFlags_NoTitleBar
-		| ImGuiWindowFlags_NoCollapse
-		| ImGuiWindowFlags_NoResize};
+	if (ImGui::Begin("FPS", nullptr, invisible_flags)) {
+		ImGui::PushFont(nullptr, 96);
+		ImGui::TextColored(color_green, "%u FPS", last_gpu_fps);
+		ImGui::PopFont();
+		ImGui::End();
+	}
+}
 
-	ImGui::Begin("Numbered Window", nullptr, invisible_flags);
-	ImGui::PushFont(nullptr, 32);
-	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%u FPS", last_gpu_fps);
-	ImGui::PopFont();
-	ImGui::End();
+void BRDFSample::DrawUI() {
+
+	function_id = ModelsWindow(function_id.value_or(0));
+	FPSWindow(elapsed_last_frame_ms);
 }
 #endif // WITH_UI

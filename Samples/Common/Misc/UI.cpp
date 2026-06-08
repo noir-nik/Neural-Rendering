@@ -79,7 +79,7 @@ void Init() {
 	ImFontConfig config;
 	config.MergeMode = true;
 
-	float const fontSize = 15.0f;
+	float const fontSize = 16.0f;
 
 	namespace fs = std::filesystem;
 
