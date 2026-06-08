@@ -53,16 +53,21 @@ import INC;
 
 #endif // NBRDF
 
-#ifndef NUM_SAMPLES
-// #define NUM_SAMPLES 32
-// #define NUM_SAMPLES 16
-#define NUM_SAMPLES 64
-// #define NUM_SAMPLES 1
-#endif
-
 #ifndef IS_POINT
 #define IS_POINT false
 #endif
+
+#ifndef NUM_SAMPLES
+
+#ifndef IS_POINT
+#define NUM_SAMPLES 1
+#else
+#define NUM_SAMPLES 64
+#endif
+
+#endif
+
+
 
 #ifndef _T
 #define _T float
@@ -220,14 +225,13 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 				float3 env_radiance = env_sample.rgb;
 				mis_weight          = MISWeight(pdf, pdf_other, 2.0);
 				eval                = (brdf * env_radiance * NdotL * mis_weight) / pdf;
+				// eval                = (brdf * NdotL* env_radiance);
 			}
 
 			// Tone-mapping + gamma
-			const float gamma = 2.2;
-			eval = eval / (eval + float3(1.0));
-			eval = pow(eval, float3(1. / gamma));
+			eval = ToneMapR1Gamma(eval);
 
-			eval = min(eval, float3(10.0, 10.0, 10.0));
+			// eval = min(eval, float3(10.0, 10.0, 10.0));
 			current_sample += eval;
 		}
 	}

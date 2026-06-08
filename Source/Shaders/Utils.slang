@@ -586,4 +586,44 @@ float PDFBlinnPhong(float3 view_tbn, float3 light_tbn, float shininess) {
 
 // #endregion
 
+float3 ToneMapR(float3 color) {
+	return color / (color + float3(1.0));
+}
+
+float3 ToneMapR1(float3 color, float eps = 1e-6) {
+
+	float L        = 0.2126 * color.x + 0.7152 * color.y + 0.0722 * color.z;
+	float L_mapped = L / (1.0 + L);
+	float scale    = L_mapped / (L + eps);
+	return color * scale;
+}
+
+float GammaF(float x, float gamma = 2.4) {
+	if (x <= 0.0031308) {
+		return x * 12.92;
+	}
+	return 1.055 * pow(x, (1 / gamma)) - 0.055;
+}
+
+float3 GammaF3(float3 x, float gamma = 2.4) {
+	return {
+		GammaF(x.x, gamma),
+		GammaF(x.y, gamma),
+		GammaF(x.z, gamma),
+	};
+}
+
+float3 Filmic(float3 x) {
+	float3 X      = max(float3(0.0), x - 0.004);
+	float3 result = (X * (6.2 * X + 0.5)) / (X * (6.2 * X + 1.7) + 0.06);
+	return pow(result, float3(2.2));
+}
+
+float3 ToneMapR1Gamma(float3 color, float gamma = 2.4) {
+	color = ToneMapR1(color);
+	return GammaF3(color, gamma);
+
+	// return pow(color, float3(1. / gamma));
+}
+
 
