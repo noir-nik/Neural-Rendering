@@ -114,3 +114,20 @@ add_custom_target(common_shaders_spv ALL DEPENDS
 	${COMMON_SHADERS_OUTPUT_DIR}/Quad.vert.spv
 )
 add_dependencies(${SAMPLE_NAME} common_shaders_spv)
+
+
+# Copy assets
+set(ASSETS_DIR Assets)
+
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Assets
+    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/${ASSETS_DIR} ${CMAKE_CURRENT_BINARY_DIR}/${ASSETS_DIR}
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${ASSETS_DIR}
+    VERBATIM
+)
+
+add_custom_target(${SAMPLE_NAME}_copy_assets ALL DEPENDS
+    ${CMAKE_CURRENT_BINARY_DIR}/${ASSETS_DIR}
+)
+
+add_dependencies(${SAMPLE_NAME} ${SAMPLE_NAME}_copy_assets)

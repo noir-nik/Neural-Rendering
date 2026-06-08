@@ -11,6 +11,8 @@ ImFontAtlas*  sharedFontAtlas = nullptr;
 ImFont*       defaultFont     = nullptr;
 ImGuiContext* setupContext    = nullptr;
 
+auto const assets_dir = "../Common/Assets/Fonts";
+
 static void SetStyle(ImGuiStyle& style) {
 	style.WindowRounding                       = 5.000;
 	style.WindowBorderSize                     = 0.000;
@@ -68,32 +70,28 @@ void Init() {
 	// io.FontGlobalScale;
 	auto& style = ImGui::GetStyle();
 
-	style.FontScaleMain = 1.5;
+	// style.FontScaleMain = 1.5;
 	SetStyle(style);
 
-	return;
+	// return;
 
 	// io.Fonts->AddFontDefault();
 	ImFontConfig config;
 	config.MergeMode = true;
 
 	float const fontSize = 15.0f;
-	for (auto const& entry : std::filesystem::directory_iterator("assets/fonts")) {
-		if (entry.path().extension() == ".ttf" || entry.path().extension() == ".otf") {
-			// auto font = io.Fonts->AddFontFromFileTTF(entry.path().string().c_str(), fontSize);
-			// if (font && entry.path().filename() == "InterVariable.ttf") {
-			// 	io.FontDefault = font;
-			// }
+
+	namespace fs = std::filesystem;
+
+	if (std::filesystem::exists(assets_dir)) {
+		for (auto const& entry : fs::directory_iterator(assets_dir)) {
 			if (entry.path().filename() == "InterVariable.ttf") {
 				defaultFont = sharedFontAtlas->AddFontFromFileTTF(entry.path().string().c_str(), fontSize);
+				// sharedFontAtlas->AddFontDefault()
 				if (defaultFont == nullptr) {
 					// LOG_WARN("Failed to load font: {}", entry.path().string());
 					defaultFont = sharedFontAtlas->AddFontDefault();
 				}
-			} else {
-				config.GlyphMinAdvanceX = 13.0f; // Use if you want to make the icon monospaced
-				// static const ImWchar icon_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
-				io.Fonts->AddFontFromFileTTF(entry.path().string().c_str(), 13.0f /* , &config */);
 			}
 		}
 	}
