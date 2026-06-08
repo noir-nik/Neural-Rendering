@@ -121,9 +121,9 @@ public:
 	void DrawUI();
 
 	vk::DescriptorPool imgui_descriptor_pool;
-	bool is_ui_visible = true;
-	bool is_models_visible = true;
-	bool is_fps_visible = true;
+	bool               is_ui_visible     = true;
+	bool               is_models_visible = true;
+	bool               is_fps_visible    = true;
 #endif
 
 	bool is_test_mode = false;
@@ -147,6 +147,18 @@ public:
 	// std::array<Image, kCubeSideCount> cubemap_images;
 	Image       cubemap_image;
 	vk::Sampler cubemap_sampler{};
+
+	bool is_cubemap_visible_ = true;
+	void set_cubemap_visible(bool value) {
+		is_cubemap_visible_ = value;
+	}
+	bool is_cubemap_visible() {
+		return is_cubemap_visible_;
+	}
+	bool is_cubemap_loaded_ = false;
+	auto is_cubemap_loaded() -> bool {
+		return is_cubemap_loaded_;
+	}
 
 	static constexpr auto kMinFastKANVersion = 0;
 	static constexpr auto kMaxFastKANVersion = 3;

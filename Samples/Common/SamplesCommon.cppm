@@ -18,3 +18,4 @@ export import :VulkanUtils;
 export import :LoadObj;
 export import float16;
 export import UI;
+export import CubeMap;

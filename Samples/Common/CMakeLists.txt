@@ -58,7 +58,7 @@ function(generate_spv_shader_glsl input_file output_file)
 		OUTPUT ${output_file}
 		COMMAND ${Vulkan_GLSLC_EXECUTABLE} ${input_file} -fentry-point=main --target-spv=spv1.6 -o ${output_file} -g
 		DEPENDS ${input_file}
-		COMMENT "Compiling SPIR-V: ${input_file}"
+		COMMENT "Compiling SPIR-V: ${output_file}"
 		VERBATIM
 		COMMAND_EXPAND_LISTS
 	)
@@ -98,7 +98,7 @@ function(generate_spv_shader_slang input_file output_file)
 		OUTPUT ${output_file}
 		COMMAND ${SLANGC_EXECUTABLE} ${input_file} -target spirv -o ${output_file} -depfile ${output_file}.d  ${command_options}
 		DEPENDS ${input_file}
-		COMMENT "Compiling SPIR-V: ${input_file}"
+		COMMENT "Compiling SPIR-V: ${output_file}"
 		DEPFILE ${output_file}.d
 		VERBATIM
 		COMMAND_EXPAND_LISTS

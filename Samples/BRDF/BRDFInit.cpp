@@ -108,6 +108,9 @@ static void KeyCallback(GLFWWindow* window, int key, int scancode, int action, i
 		case Key::eD: {
 			sample->is_models_visible = !sample->is_models_visible;
 		} break;
+		case Key::eC: {
+			sample->set_cubemap_visible(!sample->is_cubemap_visible_);
+		} break;
 #endif
 		default: break;
 		}

@@ -386,7 +386,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	};
 
 	// Skybox
-	if (hasattr(&BRDFSample::cubemap_folder_path)) {
+	if (is_cubemap_loaded() && is_cubemap_visible()) {
 		auto ffix = [] {
 			float4x4 res;
 			res[1][1] = -1.0f;

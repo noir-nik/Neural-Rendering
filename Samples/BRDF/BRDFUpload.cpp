@@ -19,7 +19,12 @@ using namespace mesh;
 
 using numeric::float16_t;
 
-#define LIFT(fn) [&](auto&&... args) { return fn(args...); }
+
+template <typename T>
+using CSpan = std::span<T const>;
+template <typename T>
+using Span = std::span<T>;
+
 
 void DumpVertexData(std::span<const Vertex> vertices, std::span<const UVSphere::IndexType> indices) {
 	std::printf("Vertices:\n");
@@ -398,96 +403,6 @@ auto write_fast_kan(
 	return result;
 }
 
-struct CubeMetadata {
-	static constexpr std::size_t kNumFaces = 6;
-
-	std::array<unsigned char*, kNumFaces> cubemap;
-
-	int  width{0};
-	int  height{0};
-	int  channels{0};
-	auto image_size() const -> std::size_t { return width * height * channels; }
-	auto image_size_bytes() const -> std::size_t { return image_size() * sizeof(*cubemap[0]); }
-
-	auto size() const -> std::size_t { return image_size() * kNumFaces; }
-	auto size_bytes() const -> std::size_t { return image_size_bytes() * kNumFaces; }
-	auto images() const -> std::span<const unsigned char* const> { return cubemap; }
-
-	auto destroy() -> void {
-		if (!is_valid()) return;
-
-		for (auto im : cubemap) {
-			stbi_image_free(static_cast<void*>(im));
-		}
-		set_invalid();
-	}
-
-	auto is_valid() -> bool { return cubemap[0] != nullptr; }
-	auto set_invalid() -> void { cubemap[0] = nullptr; }
-};
-template <typename T>
-using CSpan = std::span<T const>;
-template <typename T>
-using Span = std::span<T>;
-
-auto LoadCubemap(std::string_view env_map_folder_path) -> CubeMetadata {
-	// Load all the textures.
-
-	int width{0};
-	int height{0};
-	int channels{0};
-
-	char buf[512];
-
-	auto concat_str = [&](std::string_view a, std::string_view b) -> std::string_view {
-		auto const result = std::snprintf(buf, sizeof(buf), "%s/%s", a.data(), b.data());
-		return {buf, static_cast<size_t>(result)};
-	};
-
-	auto loads = [&](std::string_view filename) -> unsigned char* {
-		auto const path     = concat_str(env_map_folder_path, filename);
-		std::array old_data = {width, height, channels};
-		auto       res      = stbi_load(path.data(), &width, &height, &channels, 4);
-		if (!res) {
-			std::printf("[WARNING] Failed to load file %s\n", path.data());
-			return res;
-		}
-		// verify no difference old_data - new_data
-		auto [old_width, old_height, old_channels] = old_data;
-		{
-			std::array new_data   = {width, height, channels};
-			std::array data_names = {"width", "height", "channels"};
-			auto       get_data   = [&](u32 i) { return std::tuple{old_data[i], new_data[i], data_names[i]}; };
-			if (std::all_of(old_data.begin(), old_data.end(), [](auto const& i) { return i != 0; })) {
-
-				bool const skip_check_channels = true;
-				for (u32 i = 0; i < old_data.size() - (skip_check_channels * 1); ++i) {
-					auto [old, new_, name] = get_data(i);
-					if (old_data[i] != new_data[i]) {
-						std::printf("Cubemap size mismatch %s Old: %u, New: %u\n", name, old, new_);
-						// std::exit(1);
-					}
-				}
-			}
-		}
-		return res;
-	};
-
-	auto cube_data = std::array{
-		loads("nx.png"),
-		loads("px.png"),
-		loads("py.png"),
-		loads("ny.png"),
-		loads("nz.png"),
-		loads("pz.png"),
-	};
-
-	// if (std::ranges::any_of(cube_data, [](auto&& e) { return e == nullptr; })) {
-	if (std::ranges::any_of(cube_data, LIFT(!bool))) {
-		return {};
-	}
-	return {cube_data, width, height, channels};
-}
 
 void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	LOG_DEBUG("BRDFSample::CreateAndUploadBuffers()");
@@ -779,7 +694,9 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	// vk::BufferImageCopy cube_region{};
 	vk::BufferImageCopy cube_regions[num_cube_sides];
 
-	if (hasattr(&BRDFSample::cubemap_folder_path)) {
+	bool is_cube_copied = false;
+
+	if (cube_data.is_valid()) {
 		auto const range = [](u32 num) { return std::views::iota(0u, num); };
 
 		for (u32 const side_id : range(num_cube_sides)) {
@@ -804,6 +721,9 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 			};
 			offset = AlignUpPowerOfTwo(offset + sbytes, kVectorAlignment);
 		}
+
+		is_cube_copied = true;
+		cube_data.destroy();
 	}
 
 	// DumpVertexData({p_vertices, sphere.GetVertexCount()}, {p_indices, sphere.GetIndexCount()});
@@ -851,7 +771,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	cmd.copyBuffer(staging_buffer, device_buffer, std::size(regions), regions.data());
 
 	// Cube
-	if (hasattr(&BRDFSample::cubemap_folder_path) && cube_data.is_valid()) {
+	if (is_cube_copied) {
 		cmd.Barrier({
 			.image         = cubemap_image,
 			.aspectMask    = vk::ImageAspectFlagBits::eColor,
@@ -880,6 +800,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 			.dstStageMask  = vk::PipelineStageFlagBits2::eAllGraphics,
 			.dstAccessMask = vk::AccessFlagBits2::eShaderSampledRead,
 		});
+		this->is_cubemap_loaded_ = true;
 	}
 
 	cmd.Barrier({

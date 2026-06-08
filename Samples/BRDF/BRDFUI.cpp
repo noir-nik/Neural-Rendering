@@ -48,8 +48,8 @@ auto ModelsWindow(u32 old_selected_option) -> u32 {
 		++option_counter;
 	};
 
-	ImGui::SetNextWindowPos(ImVec2(pos_x, pos_y), ImGuiCond_Always);
-	ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Always);
+	ImGui::SetNextWindowPos(ImVec2(pos_x, pos_y), ImGuiCond_Once);
+	ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Once);
 
 	if (ImGui::Begin("Models")) {
 		if (ImGui::BeginListBox("##", ImVec2(-kFloatMin, -kFloatMin))) {
@@ -70,7 +70,7 @@ auto ModelsWindow(u32 old_selected_option) -> u32 {
 		ImGui::End();
 	}
 	if (selected_option != old_selected_option) {
-		std::printf("Model %u", selected_option);
+		std::printf("Model %u\n", selected_option);
 	}
 	return selected_option;
 }
