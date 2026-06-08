@@ -11,10 +11,9 @@ import Utils;
 #endif
 
 #ifdef CHEBYKAN
-#define INC "CHEBYKAN_2_6_6_630_651.slang"
 #include "BRDFCHEBYKAN.slang"
 #define FF BRDFCHEBYKAN3
-#endif
+#endif // CHEBYKAN
 
 #ifndef LAYERS
 #define LAYERS 3
@@ -24,42 +23,35 @@ import Utils;
 import BRDFFASTKAN;
 #if LAYERS == 3
 #define FF BRDFFASTKAN3
-#endif
+#endif // LAYERS == 3
 #if LAYERS == 2
 #define FF BRDFFASTKAN2
-#endif
-#endif
+#endif // LAYERS == 2
+#endif // FASTKAN
 
 #ifdef RELUKAN
-// #define INC "RELUKAN_2_5_3_625_643.slang"
-// #define INC "blue-acrylic-relu.slang"
-#define INC "green-metallic-paint2.slang"
 #include "BRDFRELUKAN.slang"
 #define FF BRDFRELUKAN3
-#endif
+#endif // RELUKAN
 
 #ifdef SINEKAN
-#define INC "SINEKAN_2_6_6_573_681.slang"
 #include "BRDFSINEKAN.slang"
 #define FF BRDFSINEKAN3
-#endif
+#endif // SINEKAN
 
 #ifdef NBRDF
 
 #ifndef INC
-#define INC irid_flake_paint2_rgb_NBRDF_2_16_
+#error "define INC"
 #endif
 
 import INC;
+
 #ifndef FF
 #define FF INC
 #endif
 
-// #define FF irid_flake_paint2_rgb_NBRDF_2_48_
-// #define FF irid_flake_paint2_rgb_NBRDF_2_64_
-// #define FF irid_flake_paint2_rgb_NBRDF_2_96_
-// import FF;
-#endif
+#endif // NBRDF
 
 #ifndef NUM_SAMPLES
 // #define NUM_SAMPLES 32
@@ -77,9 +69,6 @@ import INC;
 // #define _T half
 #endif
 typealias Tp = _T;
-
-// import BRDFCoopVec;
-// import BRDFClassic;
 
 // clang-format off
 [[vk::binding(BINDING_STORAGE_BUFFER, 0)]] StructuredBuffer<float> gWeights;
@@ -214,17 +203,6 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 			};
 			Tp outputf[3];
 
-			// BRDFSINEKAN3(inputf, outputf);
-			if (BrdfFunctionType(shader_type) == BrdfFunctionType::eClassic) {
-			}
-
-			uint wo3[3] = { ctx.weights_offsets[0], ctx.weights_offsets[1], ctx.weights_offsets[2] };
-			uint bo3[3] = { ctx.bias_offsets[0], ctx.bias_offsets[1], ctx.bias_offsets[2] };
-
-			if (shader_type == BrdfFunctionType::eCoopVec) {
-				// FF(inputf, outputf, gWeightsCoopVec, wo3, bo3);
-			} else {
-			}
 			FF(inputf, outputf);
 
 			float3 brdf = float3(outputf[0], outputf[1], outputf[2]);
@@ -234,13 +212,21 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 			float3 eval;
 			if (IS_POINT) {
 				// eval = (brdf);
+
 				eval = (brdf * NdotL);
+
 			} else {
 				float4 env_sample   = gEnvMap.Sample(light_dir) * 5.;
 				float3 env_radiance = env_sample.rgb;
 				mis_weight          = MISWeight(pdf, pdf_other, 2.0);
 				eval                = (brdf * env_radiance * NdotL * mis_weight) / pdf;
 			}
+
+			// Tone-mapping + gamma
+			const float gamma = 2.2;
+			eval = eval / (eval + float3(1.0));
+			eval = pow(eval, float3(1. / gamma));
+
 			eval = min(eval, float3(10.0, 10.0, 10.0));
 			current_sample += eval;
 		}
