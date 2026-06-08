@@ -640,9 +640,11 @@ void BRDFSample::CreatePipelineLayout() {
 
 // constexpr auto st = cat("Shaders/BRDFMain.slang.spv");
 
-namespace fs   = std::filesystem;
-using CodeType = std::optional<std::vector<std::byte>>;
-using SV       = std::string_view;
+namespace fs = std::filesystem;
+
+using CodeTypeRaw = std::span<std::byte const>;
+using CodeType    = std::optional<std::vector<std::byte>>;
+using SV          = std::string_view;
 
 #define LF(fn) [&](auto&&... args) { return fn; }
 #define LF_PACK(fn) [&](auto&&... args) { (fn, ...); }
@@ -680,6 +682,26 @@ static constexpr auto model_names = std::array{
 #include "BRDFModels.def"
 #undef BRDF_NAME
 };
+
+using PipelineFromModuleFN = vk::Pipeline (*)(vk::ShaderModule, void* user_data);
+
+[[nodiscard]]
+auto PipelineFromCode(
+	CodeTypeRaw                    code,
+	vk::Device                     device,
+	vk::AllocationCallbacks const* allocator,
+	PipelineFromModuleFN           create_pipeline_fn,
+	void*                          user_data) -> vk::Pipeline {
+	//
+	vk::ShaderModuleCreateInfo info;
+	vk::ShaderModule           module;
+	info.codeSize = std::size(code);
+	info.pCode    = reinterpret_cast<u32 const*>(std::data(code));
+	CHECK_VULKAN_RESULT(device.createShaderModule(&info, allocator, &module));
+	vk::Pipeline out_pipeline = create_pipeline_fn(module, user_data);
+	device.destroyShaderModule(module, allocator);
+	return out_pipeline;
+}
 
 void BRDFSample::CreatePipelines() {
 	LOG_DEBUG("BRDFSample::CreatePipelines()");
@@ -723,8 +745,12 @@ void BRDFSample::CreatePipelines() {
 		function_id = std::min(*function_id, static_cast<decltype(function_id)::value_type>(max_f_id));
 	}
 
-	std::vector<vk::ShaderModuleCreateInfo> shader_module_infos;
-	std::vector<vk::ShaderModule>           shader_modules;
+	using CreatePipelineFN = vk::Pipeline (BRDFSample::*)(vk::ShaderModule, const SpecData&);
+	struct _UserData {
+		BRDFSample*      sample;
+		CreatePipelineFN f;
+		SpecData         spec;
+	};
 
 	auto gen_shader_modules =
 		[&](
@@ -732,29 +758,18 @@ void BRDFSample::CreatePipelines() {
 			std::span<vk::Pipeline>   out_pipelines,
 			vk::Pipeline (BRDFSample::*create_pipeline_fn)(vk::ShaderModule, const SpecData&)) {
 			//
-			auto const num_codes = std::size(shader_codes);
 
-			auto const vecs = std::tuple{std::ref(shader_module_infos), std::ref(shader_modules)};
+			auto const pipeline_from_module = PipelineFromModuleFN{
+				+[](vk::ShaderModule module, void* user_data) -> vk::Pipeline {
+					_UserData* pdata = static_cast<_UserData*>(user_data);
+					return ((pdata->sample)->*(pdata->f))(module, pdata->spec);
+				}};
 
-			// resize
-			std::apply(LF_PACK(args.get().resize(num_codes)), vecs);
-
+			auto const num_codes = std::min(std::size(shader_codes), std::size(out_pipelines));
 			for (u32 i = 0; i < num_codes; ++i) {
-				shader_module_infos[i].codeSize = (*shader_codes[i]).size();
-				shader_module_infos[i].pCode    = reinterpret_cast<const u32*>((*shader_codes[i]).data());
-				CHECK_VULKAN_RESULT(device.createShaderModule(&shader_module_infos[i], GetAllocator(), &shader_modules[i]));
+				_UserData udata{this, create_pipeline_fn, {.function_type = function_type, .function_id = i}};
+				out_pipelines[i] = PipelineFromCode(*shader_codes[i], device, GetAllocator(), pipeline_from_module, &udata);
 			}
-
-			for (auto i = 0u; i < out_pipelines.size(); ++i) {
-				out_pipelines[i] = (this->*create_pipeline_fn)(shader_modules[i], {.function_type = function_type, .function_id = i});
-			}
-
-			for (auto const& shader_module : shader_modules) {
-				device.destroyShaderModule(shader_module, GetAllocator());
-			}
-
-			// clear
-			std::apply(LF_PACK(args.get().clear()), vecs);
 		};
 	gen_shader_modules(shader_codes_generated, pipelines_header, &BRDFSample::CreatePipeline);
 	gen_shader_modules(shader_codes_main, pipelines_fallback, &BRDFSample::CreatePipeline);
