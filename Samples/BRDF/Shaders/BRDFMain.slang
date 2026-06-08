@@ -51,7 +51,9 @@ import BRDFFASTKAN;
 #endif
 
 import INC;
+#ifndef FF
 #define FF INC
+#endif
 
 // #define FF irid_flake_paint2_rgb_NBRDF_2_48_
 // #define FF irid_flake_paint2_rgb_NBRDF_2_64_

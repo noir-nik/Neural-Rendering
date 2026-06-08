@@ -36,6 +36,11 @@ target_link_libraries(${SAMPLE_NAME} PRIVATE SamplesCommon)
 set(${SAMPLE_NAME}_SHADERS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Shaders CACHE PATH "${SAMPLE_NAME} shaders")
 set(${SAMPLE_NAME}_SHADERS_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/Shaders CACHE PATH "${SAMPLE_NAME} shaders output")
 
+set(${SAMPLE_NAME}_SHADERS_GENERATED_DIR ${${SAMPLE_NAME}_SHADERS_OUTPUT_DIR}/Generated)
+file(RELATIVE_PATH ${SAMPLE_NAME}_SHADERS_GENERATED_DIR_RELATIVE "${CMAKE_CURRENT_BINARY_DIR}" ${${SAMPLE_NAME}_SHADERS_GENERATED_DIR})   
+# BRDFModels.def
+set(${SAMPLE_NAME}_SHADERS_GENERATED_MODELS_DEF ${${SAMPLE_NAME}_SHADERS_GENERATED_DIR}/BRDFModels.def)
+
 set(INCLUDE_SLANG
 	${${PROJECT_NAME}_SHADERS_DIR}
 	${${SAMPLE_NAME}_SHADERS_DIR}
@@ -46,7 +51,6 @@ set(INCLUDE_SLANG
 	${${SAMPLE_NAME}_SHADERS_DIR}/KAN/Headers/FASTKAN
 	${${SAMPLE_NAME}_SHADERS_OUTPUT_DIR}
 	${${SAMPLE_NAME}_SHADERS_OUTPUT_DIR}/FASTKAN
-	${${SAMPLE_NAME}_SHADERS_OUTPUT_DIR}/FASTKAN/2604/v2
 	${${SAMPLE_NAME}_SHADERS_OUTPUT_DIR}/NEWFASTKAN
 	${${SAMPLE_NAME}_SHADERS_OUTPUT_DIR}/NBRDF
 	${${SAMPLE_NAME}_SHADERS_OUTPUT_DIR}/SINEKAN
@@ -78,84 +82,7 @@ generate_spv_shader_slang(${${SAMPLE_NAME}_SHADERS_DIR}/Skybox.slang ${${SAMPLE_
 	OPTIONS ${OPTIONS_SLANG}
 )
 
-# MODELS_PATH
-
-option(MODELS_PATH "KAN header files" OFF)
-
-
-if(MODELS_PATH)
-	file(GLOB MODELS_FILES_SLANG "${MODELS_PATH}/*.slang")
-else()
-	message(WARNING "MODELS_PATH is not set")
-	set(MODELS_FILES_SLANG ${CMAKE_CURRENT_SOURCE_DIR}/Shaders/KAN/Headers/BRDFFASTKAN_2_5_nCps8.slang)
-endif()
-
-# message(MODELS_PATH, ${MODELS_PATH})
-# message(MODELS_FILES_SLANG, ${MODELS_FILES_SLANG})
-
-
-list(LENGTH MODELS_FILES_SLANG MODELS_FILES_SLANG_length)
-if(MODELS_FILES_SLANG_length EQUAL 0)
-	message(FATAL_ERROR "No .slang models found in ${MODELS_PATH}")
-endif()
-
-set(${SAMPLE_NAME}_SHADERS_GENERATED_DIR ${${SAMPLE_NAME}_SHADERS_OUTPUT_DIR}/Generated)
-file(RELATIVE_PATH ${SAMPLE_NAME}_SHADERS_GENERATED_DIR_RELATIVE "${CMAKE_CURRENT_BINARY_DIR}" ${${SAMPLE_NAME}_SHADERS_GENERATED_DIR})   
-
-set(${SAMPLE_NAME}_SHADERS_GENERATED_MODELS_DEF ${${SAMPLE_NAME}_SHADERS_GENERATED_DIR}/BRDFModels.def)
-
-list(SORT MODELS_FILES_SLANG COMPARE NATURAL ORDER ASCENDING)
-
-foreach(model ${MODELS_FILES_SLANG})
-
-	# Get basename
-	get_filename_component(model_basename_we "${model}" NAME_WE)
-	set(model_basename_we_point ${model_basename_we}-point)
-	set(model_basename_we_env ${model_basename_we}-env)
-
-	# Get num layers
-	# string(REGEX MATCHALL "[0-9]+" all_numbers "${model_basename_we}")
-	# list(GET all_numbers -3 NUM_LAYERS)
-	# math(EXPR NUM_LAYERS "${NUM_LAYERS} + 1")
-	# message(${model_basename_we})
-	set(NUM_LAYERS 3)
-	
-	# Add options for weights header
-	set(OPTIONS_SLANG_model ${OPTIONS_SLANG})
-	list(APPEND OPTIONS_SLANG_model -DINC="${model_basename_we}" "-I${MODELS_PATH}" -DLAYERS=${NUM_LAYERS})
-
-	# Output name
-	set(OUTPATH_POINT ${${SAMPLE_NAME}_SHADERS_GENERATED_DIR}/${model_basename_we_point}.slang.spv)
-	set(OUTPATH_ENV   ${${SAMPLE_NAME}_SHADERS_GENERATED_DIR}/${model_basename_we_env}.slang.spv)
-	
-	# Generate
-    generate_spv_shader_slang(${${SAMPLE_NAME}_SHADERS_DIR}/BRDFMain.slang ${OUTPATH_POINT}
-		INCLUDE ${INCLUDE_SLANG}
-		OPTIONS ${OPTIONS_SLANG_model} -DIS_POINT=1
-	)
-
-	generate_spv_shader_slang(${${SAMPLE_NAME}_SHADERS_DIR}/BRDFMain.slang ${OUTPATH_ENV}
-		INCLUDE ${INCLUDE_SLANG}
-		OPTIONS ${OPTIONS_SLANG_model} -DIS_POINT=0
-	)
-
-	# Append lists
-	list(APPEND SLANG_DEPENDS ${OUTPATH_POINT} ${OUTPATH_ENV})
-	list(APPEND BRDF_MODEL_NAMES_POINT "${model_basename_we_point}")
-	list(APPEND BRDF_MODEL_NAMES_ENV "${model_basename_we_env}")
-	list(APPEND BRDF_MODEL_NAMES "${model_basename_we}")
-endforeach()
-	
-# message(BRDF_MODEL_NAMES_POINT "${BRDF_MODEL_NAMES_POINT}")
-# message(BRDF_MODEL_NAMES_ENV "${BRDF_MODEL_NAMES_ENV}")
-# message(BRDF_MODEL_NAMES "${BRDF_MODEL_NAMES}")
-
-# list(TRANSFORM my_list REPLACE "\\.txt$" ".dat")
-
-function(get_def_content inlist output_var)
-
-endfunction()
-
+# Function write_def_file
 function(write_def_file in_brdf_models filename)
 	set(brdf_models ${${in_brdf_models}})
 
@@ -185,6 +112,81 @@ ${list_as_string_brdf}
 	message("Wrote " ${filename})
 endfunction()
 
+# MODELS_PATH
+
+option(MODELS_PATH "KAN header files" OFF)
+
+
+if(MODELS_PATH)
+	file(GLOB MODELS_FILES_SLANG "${MODELS_PATH}/*.slang")
+else()
+	message(WARNING "MODELS_PATH is not set")
+	set(MODELS_FILES_SLANG ${CMAKE_CURRENT_SOURCE_DIR}/Shaders/KAN/Headers/BRDFFASTKAN_2_5_nCps8.slang)
+endif()
+
+# message(MODELS_PATH, ${MODELS_PATH})
+# message(MODELS_FILES_SLANG, ${MODELS_FILES_SLANG})
+
+
+
+
+list(LENGTH MODELS_FILES_SLANG MODELS_FILES_SLANG_length)
+if(MODELS_FILES_SLANG_length EQUAL 0)
+	message(FATAL_ERROR "No .slang models found in ${MODELS_PATH}")
+endif()
+
+list(SORT MODELS_FILES_SLANG COMPARE NATURAL ORDER ASCENDING)
+
+foreach(model ${MODELS_FILES_SLANG})
+
+	# Get basename
+	get_filename_component(model_basename_we "${model}" NAME_WE)
+	set(model_basename_we_point ${model_basename_we}-point)
+	set(model_basename_we_env ${model_basename_we}-env)
+
+	# Get num layers
+	# string(REGEX MATCHALL "[0-9]+" all_numbers "${model_basename_we}")
+	# list(GET all_numbers -3 NUM_LAYERS)
+	# math(EXPR NUM_LAYERS "${NUM_LAYERS} + 1")
+	# message(${model_basename_we})
+	set(NUM_LAYERS 3)
+	
+	# Add options for weights header
+	set(OPTIONS_SLANG_model ${OPTIONS_SLANG})
+	list(APPEND OPTIONS_SLANG_model -DINC="${model_basename_we}" "-I${MODELS_PATH}" -DLAYERS=${NUM_LAYERS})
+	if("${model_basename_we}" MATCHES "NBRDF")
+		message(STATUS "String contains substring")
+		list(APPEND OPTIONS_SLANG_model -DNBRDF -DFF=${model_basename_we})
+	endif() 
+
+	# Output name
+	set(OUTPATH_POINT ${${SAMPLE_NAME}_SHADERS_GENERATED_DIR}/${model_basename_we_point}.slang.spv)
+	set(OUTPATH_ENV   ${${SAMPLE_NAME}_SHADERS_GENERATED_DIR}/${model_basename_we_env}.slang.spv)
+	
+	# Generate
+    generate_spv_shader_slang(${${SAMPLE_NAME}_SHADERS_DIR}/BRDFMain.slang ${OUTPATH_POINT}
+		INCLUDE ${INCLUDE_SLANG}
+		OPTIONS ${OPTIONS_SLANG_model} -DIS_POINT=1
+	)
+
+	generate_spv_shader_slang(${${SAMPLE_NAME}_SHADERS_DIR}/BRDFMain.slang ${OUTPATH_ENV}
+		INCLUDE ${INCLUDE_SLANG}
+		OPTIONS ${OPTIONS_SLANG_model} -DIS_POINT=0
+	)
+
+	# Append lists
+	list(APPEND SLANG_DEPENDS ${OUTPATH_POINT} ${OUTPATH_ENV})
+	list(APPEND BRDF_MODEL_NAMES_POINT "${model_basename_we_point}")
+	list(APPEND BRDF_MODEL_NAMES_ENV "${model_basename_we_env}")
+	list(APPEND BRDF_MODEL_NAMES "${model_basename_we}")
+endforeach()
+	
+# message(BRDF_MODEL_NAMES_POINT "${BRDF_MODEL_NAMES_POINT}")
+# message(BRDF_MODEL_NAMES_ENV "${BRDF_MODEL_NAMES_ENV}")
+# message(BRDF_MODEL_NAMES "${BRDF_MODEL_NAMES}")
+
+# list(TRANSFORM my_list REPLACE "\\.txt$" ".dat")
+
 write_def_file(BRDF_MODEL_NAMES_POINT BRDFModels-point.def)
 write_def_file(BRDF_MODEL_NAMES_ENV BRDFModels-env.def)
 
@@ -194,8 +196,6 @@ file(WRITE ${${SAMPLE_NAME}_SHADERS_GENERATED_DIR}/BRDFModels.def
 #include \"BRDFModels-env.def\"
 "
 )
-
-
 
 add_custom_target(${SAMPLE_NAME}_shaders_spv ALL DEPENDS ${SLANG_DEPENDS})
 add_dependencies(${SAMPLE_NAME} ${SAMPLE_NAME}_shaders_spv)
