@@ -56,5 +56,5 @@ void Camera::moveWithCursor(float width, float height, float delta_x, float delt
 
 	float3 movement = camera_right * (delta_x * scale_x) - camera_up * (delta_y * scale_y);
 
-	view = view.translate(movement);
+	view = view.translate(movement * 2 /* Vulkan fix */);
 }
