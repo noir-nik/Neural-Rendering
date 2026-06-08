@@ -123,6 +123,7 @@ static void MouseButtonCallback(GLFWWindow* in_window, int in_button, int in_act
 	}
 }
 } // namespace
+
 void BRDFSample::Init() {
 	LOG_DEBUG("BRDFSample::Init()");
 	WindowManager::SetErrorCallback(WindowErrorCallback);
@@ -149,7 +150,15 @@ void BRDFSample::Init() {
 	int x, y, width, height;
 	window.GetFullScreenRect(x, y, width, height);
 
-	camera.fov = 35.0f;
+	auto invec = (float3{0.0f, 0.0f, 2.2f} * 1.2);
+	invec      = rotate(invec, {0, 1, 0}, -100 * math::DEG_TO_RAD);
+	camera     = {{
+		.position = invec,
+		.fov      = 35.0f,
+		.z_near   = 0.01f,
+		.z_far    = 100.0f,
+	}};
+
 	camera.updateProjection(initial_width, initial_height);
 
 	window.GetInputCallbacks().cursorPosCallback   = CursorPosCallback;

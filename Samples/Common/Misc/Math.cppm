@@ -359,6 +359,12 @@ inline float3 cross(float3 const a, float3 const b) {
 	return shuffle_yzx(a * b_yzx - a_yzx * b);
 }
 
+float3 rotate(float3 v, float3 axis, float angle) {
+	float c = std::cosf(angle);
+	float s = std::sinf(angle);
+	return v * c + cross(axis, v) * s + axis * dot(axis, v) * (1.0 - c);
+}
+
 inline float4x4 inverse4x4(float4x4 const& m1);
 inline float4x4 transpose4x4(float4x4 const& m1);
 inline float4x4 affineInverse4x4(float4x4 const& m);

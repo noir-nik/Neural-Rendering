@@ -157,7 +157,7 @@ foreach(model ${MODELS_FILES_SLANG})
 	set(OPTIONS_SLANG_model ${OPTIONS_SLANG})
 	list(APPEND OPTIONS_SLANG_model -DINC="${model_basename_we}" "-I${MODELS_PATH}" -DLAYERS=${NUM_LAYERS})
 	if("${model_basename_we}" MATCHES "NBRDF")
-		message(STATUS "String contains substring")
+		# message(STATUS "contains NBRDF")
 		list(APPEND OPTIONS_SLANG_model -DNBRDF -DFF=${model_basename_we})
 	endif() 
 

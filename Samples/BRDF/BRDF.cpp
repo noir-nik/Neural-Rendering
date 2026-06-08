@@ -320,6 +320,9 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 		PrintMat4(view_proj);
 		std::printf("Result: %f, %f, %f, %f\n", res.x, res.y, res.z, res.w);
 	}
+	auto lpos = (vec3(1.2, 1.2, 1.2) * 1.2);
+	lpos      = rotate(lpos, {0, 1, 0}, 180 * math::DEG_TO_RAD);
+
 	BRDFConstants constants{
 		// .view_proj = camera.getProjViewInv(),
 		.view_proj = view_proj,
@@ -328,8 +331,9 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 			.metallic   = 0.5f,
 			.roughness  = 0.5f,
 		},
+
 		.light = {
-			.position          = vec3(1.2, 1.2, -1.2),
+			.position          = lpos,
 			.range             = 10.0,
 			.color             = vec3(0.75, 0.75, 0.75),
 			.intensity         = 8.0,

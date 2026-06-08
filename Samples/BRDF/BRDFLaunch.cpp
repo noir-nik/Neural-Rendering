@@ -234,7 +234,7 @@ auto BRDFSample::ParseArgs(int argc, char const* argv[]) -> char const* {
 
 			kan_weights_file_name = str;
 			++it;
-		} else if (arg == "-cm") { // input weights file
+		} else if (arg == "-cm") { // input cubemap folder
 			if ((it + 1) == args_range.end()) return "expected <folder>";
 			auto str = std::string_view(*(it + 1));
 
