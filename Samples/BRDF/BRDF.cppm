@@ -121,6 +121,9 @@ public:
 	void DrawUI();
 
 	vk::DescriptorPool imgui_descriptor_pool;
+	bool is_ui_visible = true;
+	bool is_models_visible = true;
+	bool is_fps_visible = true;
 #endif
 
 	bool is_test_mode = false;

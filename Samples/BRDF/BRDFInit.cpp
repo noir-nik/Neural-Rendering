@@ -97,6 +97,18 @@ static void KeyCallback(GLFWWindow* window, int key, int scancode, int action, i
 			sample->SaveSwapchainImageToFile(fname);
 			// sample->SaveSwapchainImageToFile("sdf.png");
 		} break;
+
+#if defined(WITH_UI) && WITH_UI
+		case Key::eE: {
+			sample->is_ui_visible = !sample->is_ui_visible;
+		} break;
+		case Key::eF: {
+			sample->is_fps_visible = !sample->is_fps_visible;
+		} break;
+		case Key::eD: {
+			sample->is_models_visible = !sample->is_models_visible;
+		} break;
+#endif
 		default: break;
 		}
 	}

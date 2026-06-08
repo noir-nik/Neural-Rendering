@@ -422,14 +422,16 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 		cmd.drawIndexed(index_count, 1, 0, 0, 0);
 	}
 #if defined(WITH_UI) && WITH_UI
-	ImGuiNewFrame();
+	if (is_ui_visible) {
+		ImGuiNewFrame();
 
-	// ImGui::ShowDemoWindow();
-	DrawUI();
+		// ImGui::ShowDemoWindow();
+		DrawUI();
 
-	ImGui::Render();
-	auto imdata = ImGui::GetDrawData();
-	DrawImGui(cmd, imdata);
+		ImGui::Render();
+		auto imdata = ImGui::GetDrawData();
+		DrawImGui(cmd, imdata);
+	}
 #endif
 
 	cmd.endRendering();

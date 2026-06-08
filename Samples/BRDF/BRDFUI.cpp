@@ -24,9 +24,8 @@ static constexpr auto invisible_flags{
 	//
 };
 
-auto color_red = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
+auto color_red   = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
 auto color_green = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
-
 
 auto ModelsWindow(u32 old_selected_option) -> u32 {
 	float const padding = 10.0f;
@@ -51,6 +50,7 @@ auto ModelsWindow(u32 old_selected_option) -> u32 {
 
 	ImGui::SetNextWindowPos(ImVec2(pos_x, pos_y), ImGuiCond_Always);
 	ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Always);
+
 	if (ImGui::Begin("Models")) {
 		if (ImGui::BeginListBox("##", ImVec2(-kFloatMin, -kFloatMin))) {
 #define BRDF_NAME(x) list_option(#x);
@@ -68,6 +68,9 @@ auto ModelsWindow(u32 old_selected_option) -> u32 {
 		}
 		// function_id = selected_option;
 		ImGui::End();
+	}
+	if (selected_option != old_selected_option) {
+		std::printf("Model %u", selected_option);
 	}
 	return selected_option;
 }
@@ -108,7 +111,11 @@ auto FPSWindow(float elapsed_last_frame_ms) -> void {
 
 void BRDFSample::DrawUI() {
 
-	function_id = ModelsWindow(function_id.value_or(0));
-	FPSWindow(elapsed_last_frame_ms);
+	if (is_models_visible) {
+		function_id = ModelsWindow(function_id.value_or(0));
+	}
+	if (is_fps_visible) {
+		FPSWindow(elapsed_last_frame_ms);
+	}
 }
 #endif // WITH_UI
