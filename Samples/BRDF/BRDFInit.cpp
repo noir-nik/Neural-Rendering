@@ -695,9 +695,6 @@ void BRDFSample::CreatePipelines() {
 		return std::string_view(path_buffer, printed);
 	};
 
-	constexpr auto generated_dir       = SV{GENERATED_DIR_RELATIVE};
-	constexpr auto generated_extension = SV{".slang.spv"};
-
 	auto const shader_codes_main = std::array{
 		readfile("Shaders/BRDFMain-point.slang.spv"),
 		readfile("Shaders/BRDFMain-env.slang.spv"),
@@ -705,6 +702,8 @@ void BRDFSample::CreatePipelines() {
 	static_assert(std::size(shader_codes_main) == kPipelineFallbackCount);
 
 	// // vec
+	// constexpr auto generated_dir       = SV{GENERATED_DIR_RELATIVE};
+	// constexpr auto generated_extension = SV{".slang.spv"};
 	// std::vector<CodeType> shader_codes_generated;
 	// shader_codes_generated.reserve(50);
 	// glob(generated_dir, generated_extension, shader_codes_generated);
@@ -727,59 +726,52 @@ void BRDFSample::CreatePipelines() {
 	std::vector<vk::ShaderModuleCreateInfo> shader_module_infos;
 	std::vector<vk::ShaderModule>           shader_modules;
 
-	auto gen_shader_modules = [&](std::span<CodeType const> shader_codes, std::span<vk::Pipeline> out_pipelines) {
-		auto const num_codes = std::size(shader_codes);
+	auto gen_shader_modules =
+		[&](
+			std::span<CodeType const> shader_codes,
+			std::span<vk::Pipeline>   out_pipelines,
+			vk::Pipeline (BRDFSample::*create_pipeline_fn)(vk::ShaderModule, const SpecData&)) {
+			//
+			auto const num_codes = std::size(shader_codes);
 
-		auto const vecs = std::tuple{std::ref(shader_module_infos), std::ref(shader_modules)};
+			auto const vecs = std::tuple{std::ref(shader_module_infos), std::ref(shader_modules)};
 
-		// resize
-		std::apply(LF_PACK(args.get().resize(num_codes)), vecs);
+			// resize
+			std::apply(LF_PACK(args.get().resize(num_codes)), vecs);
 
-		for (u32 i = 0; i < num_codes; ++i) {
-			shader_module_infos[i].codeSize = (*shader_codes[i]).size();
-			shader_module_infos[i].pCode    = reinterpret_cast<const u32*>((*shader_codes[i]).data());
-			CHECK_VULKAN_RESULT(device.createShaderModule(&shader_module_infos[i], GetAllocator(), &shader_modules[i]));
-		}
+			for (u32 i = 0; i < num_codes; ++i) {
+				shader_module_infos[i].codeSize = (*shader_codes[i]).size();
+				shader_module_infos[i].pCode    = reinterpret_cast<const u32*>((*shader_codes[i]).data());
+				CHECK_VULKAN_RESULT(device.createShaderModule(&shader_module_infos[i], GetAllocator(), &shader_modules[i]));
+			}
 
-		for (auto i = 0u; i < out_pipelines.size(); ++i) {
-			out_pipelines[i] = CreatePipeline(shader_modules[i], {.function_type = function_type, .function_id = i});
-		}
+			for (auto i = 0u; i < out_pipelines.size(); ++i) {
+				out_pipelines[i] = (this->*create_pipeline_fn)(shader_modules[i], {.function_type = function_type, .function_id = i});
+			}
 
-		for (auto const& shader_module : shader_modules) {
-			device.destroyShaderModule(shader_module, GetAllocator());
-		}
+			for (auto const& shader_module : shader_modules) {
+				device.destroyShaderModule(shader_module, GetAllocator());
+			}
 
-		// clear
-		std::apply(LF_PACK(args.get().clear()), vecs);
-	};
-	gen_shader_modules(shader_codes_generated, pipelines_header);
-	gen_shader_modules(shader_codes_main, pipelines_fallback);
+			// clear
+			std::apply(LF_PACK(args.get().clear()), vecs);
+		};
+	gen_shader_modules(shader_codes_generated, pipelines_header, &BRDFSample::CreatePipeline);
+	gen_shader_modules(shader_codes_main, pipelines_fallback, &BRDFSample::CreatePipeline);
 
 	// Skybox
 	if (hasattr(&BRDFSample::cubemap_folder_path)) {
-		auto basename = [](SV sname) {
-			return sname.substr(sname.find_last_of("/\\") + 1);
-		};
-
-		vk::ShaderModuleCreateInfo ci;
-		vk::ShaderModule           sm;
-
-		constexpr auto sname = std::string_view("Shaders/Skybox.slang.spv");
-
-		CodeType scode[] = {
-			readfile(sname),
-		};
-
-		ci.codeSize = ((*scode[0]).size());
-		ci.pCode    = reinterpret_cast<const u32*>((*scode[0]).data());
-		CHECK_VULKAN_RESULT(device.createShaderModule(&ci, GetAllocator(), &sm));
-
-		skybox_pipeline = CreateSkyboxPipeline(sm);
-		device.destroyShaderModule(sm, GetAllocator());
+		constexpr auto s_name = std::string_view{"Shaders/Skybox.slang.spv"};
+		auto const     s_code = std::array{readfile(s_name)};
+		auto const     s_out  = std::span{&skybox_pipeline, 1};
+		gen_shader_modules(s_code, s_out, &BRDFSample::CreateSkyboxPipeline);
 	}
 }
 
-auto BRDFSample::CreateSkyboxPipeline(vk::ShaderModule shader_module) -> vk::Pipeline {
+auto BRDFSample::CreateSkyboxPipeline(vk::ShaderModule shader_module, SpecData const& info) -> vk::Pipeline {
+	return CreateSkyboxPipelinePrivate(shader_module);
+}
+auto BRDFSample::CreateSkyboxPipelinePrivate(vk::ShaderModule shader_module) -> vk::Pipeline {
 
 	vk::PipelineShaderStageCreateInfo shader_stages[] = {
 		{.stage = vk::ShaderStageFlagBits::eVertex, .module = shader_module, .pName = "vs_main"},

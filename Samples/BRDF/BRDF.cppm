@@ -89,7 +89,8 @@ public:
 	[[nodiscard]]
 	auto CreatePipeline(vk::ShaderModule vertex_shader_module, SpecData const& info = {}) -> vk::Pipeline;
 	[[nodiscard]]
-	auto CreateSkyboxPipeline(vk::ShaderModule shader_module) -> vk::Pipeline;
+	auto CreateSkyboxPipelinePrivate(vk::ShaderModule shader_module) -> vk::Pipeline;
+	auto CreateSkyboxPipeline(vk::ShaderModule shader_module, SpecData const& info) -> vk::Pipeline;
 
 	// void BuildNetwork();
 	struct NetworkBufferInfo {
