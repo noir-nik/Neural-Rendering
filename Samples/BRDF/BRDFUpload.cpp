@@ -19,6 +19,8 @@ using namespace mesh;
 
 using numeric::float16_t;
 
+#define LIFT(fn) [&](auto&&... args) { return fn(args...); }
+
 void DumpVertexData(std::span<const Vertex> vertices, std::span<const UVSphere::IndexType> indices) {
 	std::printf("Vertices:\n");
 	for (u32 i = 0; i < vertices.size(); ++i) {
@@ -410,6 +412,18 @@ struct CubeMetadata {
 	auto size() const -> std::size_t { return image_size() * kNumFaces; }
 	auto size_bytes() const -> std::size_t { return image_size_bytes() * kNumFaces; }
 	auto images() const -> std::span<const unsigned char* const> { return cubemap; }
+
+	auto destroy() -> void {
+		if (!is_valid()) return;
+
+		for (auto im : cubemap) {
+			stbi_image_free(static_cast<void*>(im));
+		}
+		set_invalid();
+	}
+
+	auto is_valid() -> bool { return cubemap[0] != nullptr; }
+	auto set_invalid() -> void { cubemap[0] = nullptr; }
 };
 template <typename T>
 using CSpan = std::span<T const>;
@@ -434,6 +448,10 @@ auto LoadCubemap(std::string_view env_map_folder_path) -> CubeMetadata {
 		auto const path     = concat_str(env_map_folder_path, filename);
 		std::array old_data = {width, height, channels};
 		auto       res      = stbi_load(path.data(), &width, &height, &channels, 4);
+		if (!res) {
+			std::printf("[WARNING] Failed to load file %s\n", path.data());
+			return res;
+		}
 		// verify no difference old_data - new_data
 		auto [old_width, old_height, old_channels] = old_data;
 		{
@@ -455,7 +473,7 @@ auto LoadCubemap(std::string_view env_map_folder_path) -> CubeMetadata {
 		return res;
 	};
 
-	std::array cube_data = {
+	auto cube_data = std::array{
 		loads("nx.png"),
 		loads("px.png"),
 		loads("py.png"),
@@ -463,6 +481,11 @@ auto LoadCubemap(std::string_view env_map_folder_path) -> CubeMetadata {
 		loads("nz.png"),
 		loads("pz.png"),
 	};
+
+	// if (std::ranges::any_of(cube_data, [](auto&& e) { return e == nullptr; })) {
+	if (std::ranges::any_of(cube_data, LIFT(!bool))) {
+		return {};
+	}
 	return {cube_data, width, height, channels};
 }
 
@@ -570,7 +593,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 							 + networks[u32(BrdfFunctionType::eWeightsInBufferF16)].GetParametersSize()
 					   : 0)
 				+ kan.size_bytes() * 5
-				+ cube_data.size_bytes() * 2);
+				+ cube_data.size_bytes() * 2 * cube_data.is_valid());
 
 	// Create buffers
 	// clang-format off
@@ -614,15 +637,15 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	{
 		vk::DescriptorBufferInfo buffer_infos[]  = {{.buffer = device_buffer, .offset = 0, .range = device_buffer.GetSize()}};
 		vk::DescriptorImageInfo  texture_infos[] = {{
-			 .sampler     = cubemap_sampler,
-			 .imageView   = cubemap_image.GetView(),
-			 .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
-        }};
+			.sampler     = cubemap_sampler,
+			.imageView   = cubemap_image.GetView(),
+			.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+		}};
 		vk::DescriptorImageInfo  image_infos[]   = {{
-			   .sampler     = cubemap_sampler,
-			   .imageView   = accumulator_image.GetView(),
-			   .imageLayout = vk::ImageLayout::eGeneral,
-        }};
+			.sampler     = cubemap_sampler,
+			.imageView   = accumulator_image.GetView(),
+			.imageLayout = vk::ImageLayout::eGeneral,
+		}};
 
 		vk::WriteDescriptorSet writes[] = {
 			{
@@ -771,11 +794,11 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 				.bufferRowLength   = 0,
 				.bufferImageHeight = 0,
 				.imageSubresource  = vk::ImageSubresourceLayers{
-					 .aspectMask     = vk::ImageAspectFlagBits::eColor,
-					 .mipLevel       = 0,
-					 .baseArrayLayer = side_id,
-					 .layerCount     = 1,
-                },
+					.aspectMask     = vk::ImageAspectFlagBits::eColor,
+					.mipLevel       = 0,
+					.baseArrayLayer = side_id,
+					.layerCount     = 1,
+				},
 				.imageOffset = vk::Offset3D{0, 0, 0},
 				.imageExtent = vk::Extent3D{static_cast<uint32_t>(cube_data.width), static_cast<uint32_t>(cube_data.height), 1},
 			};
@@ -828,7 +851,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	cmd.copyBuffer(staging_buffer, device_buffer, std::size(regions), regions.data());
 
 	// Cube
-	if (hasattr(&BRDFSample::cubemap_folder_path)) {
+	if (hasattr(&BRDFSample::cubemap_folder_path) && cube_data.is_valid()) {
 		cmd.Barrier({
 			.image         = cubemap_image,
 			.aspectMask    = vk::ImageAspectFlagBits::eColor,
