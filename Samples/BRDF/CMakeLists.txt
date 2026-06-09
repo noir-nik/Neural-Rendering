@@ -152,10 +152,11 @@ foreach(model ${MODELS_FILES_SLANG})
 	# math(EXPR NUM_LAYERS "${NUM_LAYERS} + 1")
 	# message(${model_basename_we})
 	set(NUM_LAYERS 3)
+	set(NUM_SAMPLES 32)
 	
 	# Add options for weights header
 	set(OPTIONS_SLANG_model ${OPTIONS_SLANG})
-	list(APPEND OPTIONS_SLANG_model -DINC="${model_basename_we}" "-I${MODELS_PATH}" -DLAYERS=${NUM_LAYERS})
+	list(APPEND OPTIONS_SLANG_model -DINC="${model_basename_we}" "-I${MODELS_PATH}" -DLAYERS=${NUM_LAYERS} -DNUM_SAMPLES=${NUM_SAMPLES})
 	if("${model_basename_we}" MATCHES "NBRDF")
 		# message(STATUS "contains NBRDF")
 		list(APPEND OPTIONS_SLANG_model -DNBRDF -DFF=${model_basename_we})

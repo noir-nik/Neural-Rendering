@@ -87,7 +87,14 @@ static void KeyCallback(GLFWWindow* window, int key, int scancode, int action, i
 
 			char fname[256] = {};
 
-			std::snprintf(fname, sizeof(fname), "brdf_%d.bmp", *sample->function_id);
+			// std::snprintf(fname, sizeof(fname), "brdf_%d.bmp", *sample->function_id);
+			auto const& models        = sample->GeneratedNames();
+			auto const& current_model = models[(*sample->function_id)];
+
+			auto const cube_path = sample->cubemap_folder_path;
+			auto const cube_name = cube_path.substr(cube_path.find_last_of("/\\") + 1);
+
+			std::snprintf(fname, sizeof(fname), "%s-%s.bmp", std::data(current_model.name), std::data(cube_name));
 
 			sample->SaveSwapchainImageToFile(fname);
 			// sample->SaveSwapchainImageToFile("sdf.png");
@@ -160,8 +167,8 @@ void BRDFSample::Init() {
 	int x, y, width, height;
 	window.GetFullScreenRect(x, y, width, height);
 
-	auto invec = (float3{0.0f, 0.0f, 2.2f} * 1.2);
-	invec      = rotate(invec, {0, 1, 0}, -100 * math::DEG_TO_RAD);
+	auto invec = (float3{0.0f, 0.5f, 2.2f} * 1.2);
+	invec      = rotate(invec, {0, 1, 0}, -110 * math::DEG_TO_RAD);
 	camera     = {{
 		.position = invec,
 		.fov      = 35.0f,

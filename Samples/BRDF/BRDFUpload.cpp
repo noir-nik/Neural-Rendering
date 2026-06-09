@@ -339,7 +339,9 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
  
 	CHECK_VULKAN_RESULT(staging_buffer.Create(device, vma_allocator, {
 		.size   = total_size_bytes,
-		.usage  = vk::BufferUsageFlagBits::eTransferSrc,
+		.usage  = vk::BufferUsageFlagBits::eTransferSrc
+				// | vk::BufferUsageFlagBits::eTransferDst
+				,
 		.memory = vk::MemoryPropertyFlagBits::eHostVisible 
 				| vk::MemoryPropertyFlagBits::eHostCoherent,
 	}));

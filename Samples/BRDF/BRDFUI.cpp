@@ -24,9 +24,6 @@ static constexpr auto invisible_flags{
 	//
 };
 
-auto color_red   = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
-auto color_green = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
-
 // static constexpr auto gImColors = std::array
 
 #ifdef TW_COLOR
@@ -56,12 +53,59 @@ constexpr auto GetTWImColor(TWImColor color) {
 
 } // namespace TWImColor
 
+auto color_red   = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
+auto color_green = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+// auto color_green   = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+// auto color_details = color_green;
+auto color_details = TWImColor::Black;
+// auto color_details = TWImColor::White;
+
+auto select_discrete_color(int low, int high, double t) {
+	t = std::max(double(low), std::min(double(high), t));
+
+	// auto x = (t - low) / (high - low);
+	auto x = (t);
+	// std::printf("%f\n", x);
+
+	std::pair<float, ImVec4>
+		// cols[] = {
+		// 	{0.1, TWImColor::Red700},
+		// 	{0.2, TWImColor::Red600},
+		// 	{0.5, TWImColor::Orange500},
+		// 	{0.6, TWImColor::Orange400},
+		// 	{0.7, TWImColor::Yellow400},
+		// 	{0.8, TWImColor::Green800},
+		// 	{0.9, TWImColor::Green700},
+		// 	{1, TWImColor::Green500},
+		// };
+		cols[] = {
+
+			// {0.4, TWImColor::Red},
+			// {0.6, TWImColor::Orange},
+			// {0.7, TWImColor::Yellow},
+			// {1, TWImColor::Green},
+
+			{60, TWImColor::Red},
+			{80, TWImColor::Orange},
+			{120, TWImColor::Yellow},
+			{1000, TWImColor::Green},
+		};
+
+	for (auto i : Utils::indices(std::size(cols))) {
+		auto const& pair = cols[i];
+		if (x < pair.first) {
+			return pair.second;
+		}
+	}
+	return cols[std::size(cols) - 1].second;
+}
+
 // COLOR(Gray100, #f7fafc, 247, 250, 252)
 
 auto ModelsWindow(u32 old_selected_option) -> u32 {
 	float const padding = 10.0f;
 	float const width   = 400.0f; // Define your window width
-	float const height  = 300.0f; // Define your window height
+	float const height  = 250.0f; // Define your window height
 	float const pos_x   = ImGui::GetMainViewport()->WorkSize.x - width - padding;
 	float const pos_y   = padding;
 
@@ -131,9 +175,12 @@ auto FPSWindow(float elapsed_last_frame_ms) -> void {
 		last_time    = now;
 	}
 
+	// color_details = select_discrete_color(0, 300, last_gpu_fps);
+	color_details = TWImColor::White;
+
 	if (ImGui::Begin("FPS", nullptr, invisible_flags)) {
 		ImGui::PushFont(nullptr, 96);
-		ImGui::TextColored(color_green, "%u FPS", last_gpu_fps);
+		ImGui::TextColored(color_details, "%u FPS", last_gpu_fps);
 		ImGui::PopFont();
 		ImGui::End();
 	}
@@ -146,17 +193,21 @@ auto DetailsWindow(u32 selected_option, CSpan<BRDFModelData> models) -> void {
 
 	using namespace TWImColor;
 
-	float pos_x = ImGui::GetMainViewport()->WorkSize.x - width - padding;
-	// float pos_x = padding;
-	float pos_y = padding;
+	// float pos_x = ImGui::GetMainViewport()->WorkSize.x - width - padding;
+	float pos_x = padding;
+	float pos_y = padding * 2 + height;
 
 	ImGui::SetNextWindowPos(ImVec2(pos_x, pos_y), ImGuiCond_Always);
 	ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Always);
 
 	if (ImGui::Begin("Details", nullptr, invisible_flags)) {
 		ImGui::PushFont(nullptr, 64);
-		ImGui::TextColored(color_green, "%s", std::data(models[selected_option].type)); // Type: 
-		ImGui::TextColored(color_green, "%u", (models[selected_option].learnable_params)); // Parameters: 
+		auto type = models[selected_option].type;
+		if (type == "NBRDF") {
+			type = "MLP";
+		}
+		ImGui::TextColored(color_details, "%s", std::data(type));                            // Type:
+		ImGui::TextColored(color_details, "%u", (models[selected_option].learnable_params)); // Parameters:
 		ImGui::PopFont();
 		ImGui::End();
 	}

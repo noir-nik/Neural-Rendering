@@ -226,7 +226,7 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 				// eval                = (brdf * NdotL* env_radiance);
 			}
 
-			// eval = min(eval, float3(10.0, 10.0, 10.0));
+			eval = min(eval, float3(150.0, 150.0, 150.0));
 			current_sample += eval;
 		}
 	}

@@ -250,7 +250,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 			// .clearValue  = {{{{0.5f, 0.5f, 0.5f, 0.0f}}}},
 			// .clearValue = {{{{0.2f, 0.2f, 0.2f, 0.0f}}}},
 			// .clearValue = {{{{0.1f, 0.1f, 0.1f, 0.0f}}}},
-			.clearValue = {{{{1.f, 1.f, 1.f, 1.0f}}}},
+			.clearValue = {{{{1.f, 1.f, 1.f, 0.0f}}}},
 			// .clearValue  = {{{{0.f, 0.f, 0.f, 1.0f}}}},
 		}}},
 		.depthAttachment  = {
