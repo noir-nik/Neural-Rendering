@@ -10,3 +10,8 @@
 #else
 #define LOG_DEBUG(...)
 #endif
+
+#ifndef LOG_WARN
+#define LOG_WARN(fmt, ...) \
+	std::printf(fmt, __VA_ARGS__)
+#endif

@@ -1,3 +1,5 @@
+module;
+#include <cassert>
 module VulkanRHI;
 import :Image;
 import :Enums;
@@ -53,7 +55,13 @@ auto Image::Create(vk::Device device, VmaAllocator vma_allocator, vk::Allocation
 // 	return Recreate(extent);
 // }
 
+// #define ASSERT(x) assert(x && #x)
+
 auto Image::Recreate(vk::Extent3D const& extent) -> vk::Result {
+	assert(extent.width > 0);
+	assert(extent.height > 0);
+	assert(extent.depth > 0);
+	
 	if (!IsInitialized()) {
 		return vk::Result::eErrorInitializationFailed;
 	}

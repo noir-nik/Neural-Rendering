@@ -200,28 +200,55 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	CubeMetadata         cube_data;
 	HdriToCubemap<float> hdri_cube;
 
-	bool const is_hdr_cubemap =
-		std::filesystem::is_directory(cubemap_folder_path)
-			? false
-			: true;
+	// if (std::filesystem::exists(cubemap_folder_path)){
 
-	if (hasattr(&BRDFSample::cubemap_folder_path)) {
+	// }
 
+	auto cubemap_found = true;
+
+	bool const is_hdr_cubemap = [&] {
+		auto cube_path = std::filesystem::path(cubemap_folder_path);
+		if (std::filesystem::is_directory(cube_path)) {
+			return false;
+		} else if (cube_path.extension() == ".hdr") {
+			return true;
+		} else {
+			cubemap_found = false;
+			return false;
+		}
+	}();
+
+	if (!cubemap_found) {
+		LOG_WARN("%s\n", "Valid cubemap not found");
+	}
+
+	auto const get_extent = [](auto cube) {
+		return vk::Extent3D{static_cast<u32>(cube.get_resolution()), static_cast<u32>(cube.get_resolution()), 1};
+	};
+
+	if (cubemap_found) {
 		if (is_hdr_cubemap) {
-			hdri_cube.init(cubemap_folder_path, 1024);
+			auto hdri_res = 1024;
+			hdri_cube.init(cubemap_folder_path, hdri_res);
+
+			std::printf("res: %d\n", hdri_cube.get_resolution());
+			std::printf("channels: %d\n", hdri_cube.get_num_channels());
+			assert(hdri_cube.image_size_bytes() == hdri_res * hdri_res * sizeof(float) * hdri_cube.get_num_channels());
+
 		} else {
 			cube_data.init(cubemap_folder_path);
 		}
+	}
+	auto cube_extent = is_hdr_cubemap ? get_extent(hdri_cube) : get_extent(cube_data);
+
+	if (hasattr(&BRDFSample::cubemap_folder_path)) {
 
 		auto cube_format =
 			is_hdr_cubemap
-				? vk::Format::eR8G8B8A8Unorm
+				? (hdri_cube.get_num_channels() == 4
+					   ? vk::Format::eR32G32B32A32Sfloat
+					   : vk::Format::eR32G32B32Sfloat)
 				: vk::Format::eR8G8B8A8Unorm;
-
-		auto const [width, height] =
-			is_hdr_cubemap
-				? std::tuple{hdri_cube.get_resolution(), hdri_cube.get_resolution()}
-				: std::tuple{cube_data.width, cube_data.height};
 
 		cubemap_image.Create(
 			device, vma_allocator, allocator,
@@ -229,7 +256,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 				 .flags         = vk::ImageCreateFlagBits::eCubeCompatible,
 				 .imageType     = vk::ImageType::e2D,
 				 .format        = cube_format,
-				 .extent        = {static_cast<u32>(width), static_cast<u32>(height), 1},
+				 .extent        = cube_extent,
 				 .mipLevels     = 1,
 				 .arrayLayers   = kCubeSideCount,
 				 .samples       = vk::SampleCountFlagBits::e1,
@@ -431,22 +458,20 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 
 	auto const cube_offset = offset;
 
-	constexpr auto num_cube_sides = std::size(cube_data.cubemap);
+	constexpr auto num_cube_sides = 6;
 
 	// u64 cube_offsets[num_cube_sides]{};
 
 	// vk::BufferImageCopy cube_region{};
-	vk::BufferImageCopy cube_regions[num_cube_sides];
+	auto cube_regions = std::array<vk::BufferImageCopy, num_cube_sides>{};
 
 	bool is_cube_copied = false;
 
-	if (cube_data.is_valid()) {
-		auto const range = [](u32 num) { return std::views::iota(0u, num); };
+	auto const copy_cube = [&](auto in_cube) {
+		for (u32 const side_id : Utils::indices(num_cube_sides)) {
+			auto imdata = in_cube.get_faces()[side_id];
 
-		for (u32 const side_id : range(num_cube_sides)) {
-			auto imdata = cube_data.cubemap[side_id];
-
-			auto const sbytes = cube_data.image_size_bytes();
+			auto const sbytes = in_cube.image_size_bytes();
 			std::memcpy(p_staging + offset, imdata, sbytes);
 			// cube_offsets[i] = offset;
 			// auto const cube_region = vk::BufferImageCopy{
@@ -461,14 +486,25 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 					.layerCount     = 1,
 				},
 				.imageOffset = vk::Offset3D{0, 0, 0},
-				.imageExtent = vk::Extent3D{static_cast<uint32_t>(cube_data.width), static_cast<uint32_t>(cube_data.height), 1},
+				.imageExtent = get_extent(in_cube),
 			};
 			offset = AlignUpPowerOfTwo(offset + sbytes, kVectorAlignment);
 		}
+	};
 
+	if (cube_data.is_valid()) {
+		copy_cube(cube_data);
 		is_cube_copied = true;
 		cube_data.destroy();
+	} else if (hdri_cube.is_valid()) {
+		copy_cube(hdri_cube);
+		is_cube_copied = true;
+		hdri_cube.destroy();
 	}
+
+	// auto cubes = std::tuple{cube_data, hdri_cube};
+
+	// std::apply([](auto&& cube) {}, cubes);
 
 	// DumpVertexData({p_vertices, sphere.GetVertexCount()}, {p_indices, sphere.GetIndexCount()});
 
@@ -532,7 +568,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 			cubemap_image,
 			vk::ImageLayout::eTransferDstOptimal,
 			std::size(cube_regions),
-			cube_regions);
+			std::data(cube_regions));
 
 		cmd.Barrier2({
 			.image         = cubemap_image,
