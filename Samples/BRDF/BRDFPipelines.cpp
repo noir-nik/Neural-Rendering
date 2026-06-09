@@ -3,6 +3,7 @@ module;
 #include "stddef.h" // offsetof
 // #include <cstdio>   // stdin
 #include "CheckResult.h"
+#include <cassert>
 
 module BRDFSample;
 
@@ -49,7 +50,6 @@ struct _UserData {
 	SpecData         spec;
 };
 
-
 [[nodiscard]]
 auto PipelineFromCode(
 	Utils::BinDataView             code,
@@ -79,8 +79,8 @@ auto const pipeline_from_module = PipelineFromModuleFN{
 // };
 
 auto BRDFSample::EnsurePipeline(u32 id) -> vk::Pipeline {
-	auto gdata = generated_data[id];
-	auto pid   = gdata.pipeline_id;
+	auto&      gdata = generated_data[id];
+	auto const pid   = gdata.pipeline_id;
 
 	if (pid != PipelineData::kUndefined) {
 		if (auto pipeline = generated_pipelines[pid]) {
@@ -102,7 +102,22 @@ auto BRDFSample::EnsurePipeline(u32 id) -> vk::Pipeline {
 	// readfile
 
 	_UserData udata{this, &BRDFSample::CreatePipeline, {.function_type = function_type, .function_id = id}};
-	return PipelineFromCode(s_code, device, GetAllocator(), pipeline_from_module, &udata);
+
+	// std::printf("Creating pipeline\n");
+	auto const new_pipeline = PipelineFromCode(s_code, device, GetAllocator(), pipeline_from_module, &udata);
+
+	gdata.pipeline_id = [&] -> u32 {
+		for (auto i : Utils::indices(std::size(generated_pipelines))) {
+			auto& elem = generated_pipelines[i];
+			if (elem == vk::Pipeline{}) {
+				elem = new_pipeline;
+				return i;
+			}
+		}
+		assert(0 && "No space for pipeline");
+		return -1;
+	}();
+	return new_pipeline;
 }
 
 auto BRDFSample::GeneratedPipeline(u32 id) -> vk::Pipeline {
