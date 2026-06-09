@@ -12,6 +12,7 @@ import SamplesCommon;
 import Math;
 import std;
 import FastKANCoopVec;
+import StbModule;
 
 import nlohmann.json;
 using json = nlohmann::json;
@@ -129,6 +130,29 @@ void write_network(
 // auto constexpr kVectorAlignment = std::size_t{sizeof(float) * 4};
 auto constexpr kVectorAlignment = CoopVecUtils::GetVectorAlignment();
 
+[[nodiscard]]
+auto CreateCubeSampler(vk::Device device, vk::AllocationCallbacks const* allocator) -> vk::Sampler {
+	auto const sampler_info = vk::SamplerCreateInfo{
+		// .flags        = vk::SamplerCreateFlagBits::,
+		.magFilter    = vk::Filter::eLinear,
+		.minFilter    = vk::Filter::eLinear,
+		.addressModeU = vk::SamplerAddressMode::eClampToEdge,
+		.addressModeV = vk::SamplerAddressMode::eClampToEdge,
+		.addressModeW = vk::SamplerAddressMode::eClampToEdge,
+		.mipLodBias   = 0.0f,
+		// .anisotropyEnable = vk::True,
+		.maxAnisotropy = 16.0f,
+		.compareEnable = vk::False,
+		.compareOp     = vk::CompareOp::eNever,
+		.minLod        = 0.0f,
+		.maxLod        = 1.0f,
+		.borderColor   = vk::BorderColor::eFloatOpaqueWhite,
+	};
+	vk::Sampler cubemap_sampler;
+	CHECK_VULKAN_RESULT(device.createSampler(&sampler_info, allocator, &cubemap_sampler));
+	return cubemap_sampler;
+}
+
 void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	LOG_DEBUG("BRDFSample::CreateAndUploadBuffers()");
 
@@ -199,14 +223,23 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 
 	CubeMetadata cube_data;
 	// HdriToCubemap<float> hdri_cube;
+	float* hdri_image_data{};
+	int    width, height, num_channels;
+
+	auto const hdr_image_size = [&] {
+		return width * height * num_channels;
+	};
+
+	auto const hdr_image_size_bytes = [&] {
+		return hdr_image_size() * sizeof(float);
+	};
 
 	using HDRTy =
 		//  unsigned char
 		float
 		//
 		;
-	HdriToCubemap<HDRTy> hdri_cube;
-
+	// HdriToCubemap<HDRTy> hdri_cube;
 
 	// if (std::filesystem::exists(cubemap_folder_path)){
 
@@ -231,41 +264,42 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	}
 
 	auto const get_extent = [](auto cube) {
+		// if constexpr (std::is_convertible_v<decltype(cube), u32>) {
+		// return vk::Extent3D{static_cast<u32>(cube.get_resolution()), static_cast<u32>(cube.get_resolution()), 1};
+
+		// }
 		return vk::Extent3D{static_cast<u32>(cube.get_resolution()), static_cast<u32>(cube.get_resolution()), 1};
 	};
 
 	if (cubemap_found) {
 		if (is_hdr_cubemap) {
 			auto hdri_res = 512;
-			hdri_cube.init(cubemap_folder_path, hdri_res);
+			// hdri_cube.init(cubemap_folder_path, hdri_res);
 
-			std::printf("res: %d\n", hdri_cube.get_resolution());
-			std::printf("channels: %d\n", hdri_cube.get_num_channels());
-			assert(hdri_cube.image_size_bytes() == hdri_res * hdri_res * sizeof(HDRTy) * hdri_cube.get_num_channels());
-			// hdri_cube.write_cubemap("Assets");
+			// std::printf("res: %d\n", hdri_cube.get_resolution());
+			// std::printf("channels: %d\n", hdri_cube.get_num_channels());
+			// assert(hdri_cube.image_size_bytes() == hdri_res * hdri_res * sizeof(HDRTy) * hdri_cube.get_num_channels());
+			// // hdri_cube.write_cubemap("Assets");
 
+			auto const desired_channels = int{4};
+
+			hdri_image_data = stbi_loadf(std::data(cubemap_folder_path), &width, &height, &num_channels, desired_channels);
+			num_channels    = desired_channels;
 
 		} else {
 			cube_data.init(cubemap_folder_path);
 		}
 	}
 
+	auto const cube_extent =
+		is_hdr_cubemap
+			? vk::Extent3D{static_cast<u32>(width), static_cast<u32>(height), 1}
+			: get_extent(cube_data);
 	if (hasattr(&BRDFSample::cubemap_folder_path)) {
-		auto cube_extent = is_hdr_cubemap ? get_extent(hdri_cube) : get_extent(cube_data);
 
-		auto cube_format = [&] {
+		auto const cube_format = [&] {
 			if (is_hdr_cubemap) {
-				if (hdri_cube.get_is_hdri()) {
-					if (hdri_cube.get_num_channels() == 3) {
-						return vk::Format::eR32G32B32Sfloat;
-					} else {
-						return vk::Format::eR32G32B32A32Sfloat;
-					}
-				} else {
-					if (hdri_cube.get_num_channels() == 3) {
-						return vk::Format::eR8G8B8Unorm;
-					}
-				}
+				return vk::Format::eR32G32B32A32Sfloat;
 			}
 			return vk::Format::eR8G8B8A8Unorm;
 		}();
@@ -273,12 +307,12 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 		cubemap_image.Create(
 			device, vma_allocator, allocator,
 			{.image_info = {
-				 .flags         = vk::ImageCreateFlagBits::eCubeCompatible,
+				 //  .flags         = vk::ImageCreateFlagBits::eCubeCompatible,
 				 .imageType     = vk::ImageType::e2D,
 				 .format        = cube_format,
 				 .extent        = cube_extent,
 				 .mipLevels     = 1,
-				 .arrayLayers   = kCubeSideCount,
+				 .arrayLayers   = is_hdr_cubemap ? 1u : kCubeSideCount,
 				 .samples       = vk::SampleCountFlagBits::e1,
 				 .tiling        = vk::ImageTiling::eOptimal,
 				 .usage         = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst,
@@ -301,7 +335,8 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 					   : 0)
 				+ kan.size_bytes() * 5
 				+ cube_data.size_bytes() * 2 * cube_data.is_valid()
-				+ hdri_cube.size_bytes() * 2 * hdri_cube.is_valid());
+				// + hdri_cube.size_bytes() * 2 * hdri_cube.is_valid()
+				+ hdr_image_size_bytes());
 
 	// Create buffers
 	// clang-format off
@@ -322,34 +357,20 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	}));
 	// clang-format on
 
-	vk::SamplerCreateInfo sampler_info{
-		.flags        = {},
-		.magFilter    = vk::Filter::eLinear,
-		.minFilter    = vk::Filter::eLinear,
-		.addressModeU = vk::SamplerAddressMode::eClampToEdge,
-		.addressModeV = vk::SamplerAddressMode::eClampToEdge,
-		.addressModeW = vk::SamplerAddressMode::eClampToEdge,
-		.mipLodBias   = 0.0f,
-		// .anisotropyEnable = vk::True,
-		.maxAnisotropy = 16.0f,
-		.compareEnable = vk::False,
-		.compareOp     = vk::CompareOp::eNever,
-		.minLod        = 0.0f,
-		.maxLod        = 1.0f,
-		.borderColor   = vk::BorderColor::eFloatOpaqueWhite,
-	};
-
-	CHECK_VULKAN_RESULT(device.createSampler(&sampler_info, GetAllocator(), &cubemap_sampler));
+	cubemap_sampler = CreateCubeSampler(device, GetAllocator());
+	// vk::Sampler _cube_sampler = is_hdr_cubemap ? cubemap_sampler : cubemap_sampler;
 
 	// Update descriptor set
 	{
-		vk::DescriptorBufferInfo buffer_infos[]  = {{.buffer = device_buffer, .offset = 0, .range = device_buffer.GetSize()}};
-		vk::DescriptorImageInfo  texture_infos[] = {{
+		vk::DescriptorBufferInfo const buffer_infos[] = {
+			{.buffer = device_buffer, .offset = 0, .range = device_buffer.GetSize()},
+		};
+		vk::DescriptorImageInfo const texture_infos[] = {{
 			.sampler     = cubemap_sampler,
 			.imageView   = cubemap_image.GetView(),
 			.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
 		}};
-		vk::DescriptorImageInfo  image_infos[]   = {{
+		vk::DescriptorImageInfo const image_infos[]   = {{
 			.sampler     = cubemap_sampler,
 			.imageView   = accumulator_image.GetView(),
 			.imageLayout = vk::ImageLayout::eGeneral,
@@ -483,7 +504,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	// u64 cube_offsets[num_cube_sides]{};
 
 	// vk::BufferImageCopy cube_region{};
-	auto cube_regions = std::array<vk::BufferImageCopy, num_cube_sides>{};
+	auto cube_regions_array = std::array<vk::BufferImageCopy, num_cube_sides>{};
 
 	bool is_cube_copied = false;
 
@@ -495,7 +516,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 			std::memcpy(p_staging + offset, imdata, sbytes);
 			// cube_offsets[i] = offset;
 			// auto const cube_region = vk::BufferImageCopy{
-			cube_regions[side_id] = vk::BufferImageCopy{
+			cube_regions_array[side_id] = vk::BufferImageCopy{
 				.bufferOffset      = offset,
 				.bufferRowLength   = 0,
 				.bufferImageHeight = 0,
@@ -512,14 +533,39 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 		}
 	};
 
+	auto cube_regions = std::span<vk::BufferImageCopy>{};
+
 	if (cube_data.is_valid()) {
 		copy_cube(cube_data);
 		is_cube_copied = true;
 		cube_data.destroy();
-	} else if (hdri_cube.is_valid()) {
-		copy_cube(hdri_cube);
+		cube_regions = std::span{cube_regions_array};
+
+	} else if (hdri_image_data) {
+		// copy_cube(hdri_cube);
 		is_cube_copied = true;
-		hdri_cube.destroy();
+
+		auto imdata = hdri_image_data;
+
+		auto const sbytes = hdr_image_size_bytes();
+		std::memcpy(p_staging + offset, imdata, sbytes);
+
+		cube_regions_array[0] = vk::BufferImageCopy{
+			.bufferOffset      = offset,
+			.bufferRowLength   = 0,
+			.bufferImageHeight = 0,
+			.imageSubresource  = vk::ImageSubresourceLayers{
+				.aspectMask     = vk::ImageAspectFlagBits::eColor,
+				.mipLevel       = 0,
+				.baseArrayLayer = 0,
+				.layerCount     = 1,
+			},
+			.imageOffset = vk::Offset3D{0, 0, 0},
+			.imageExtent = cube_extent,
+		};
+		offset = AlignUpPowerOfTwo(offset + sbytes, kVectorAlignment);
+
+		cube_regions = std::span{std::data(cube_regions_array), 1};
 	}
 
 	// auto cubes = std::tuple{cube_data, hdri_cube};
