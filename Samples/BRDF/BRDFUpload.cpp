@@ -55,9 +55,6 @@ auto PrintLayerBiases(Linear layer, std::byte const* parameters) -> void {
 using ComponentTy = vk::ComponentTypeKHR;
 using LayoutTy    = vk::CooperativeVectorMatrixLayoutNV;
 
-
-
-
 void write_matrix_mlp(
 	vk::Device    device,
 	void const*   src,
@@ -311,36 +308,34 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 			.imageLayout = vk::ImageLayout::eGeneral,
 		}};
 
-		vk::WriteDescriptorSet writes[] = {
-			{
-				.dstSet          = descriptor_set,
-				.dstBinding      = BINDING_STORAGE_BUFFER,
-				.dstArrayElement = 0,
-				.descriptorCount = static_cast<u32>(std::size(buffer_infos)),
-				.descriptorType  = vk::DescriptorType::eStorageBuffer,
-				.pBufferInfo     = buffer_infos,
-			},
-			{
-				.dstSet          = descriptor_set,
-				.dstBinding      = BINDING_TEXTURE,
-				.dstArrayElement = 0,
-				.descriptorCount = static_cast<u32>(std::size(texture_infos)),
-				.descriptorType  = vk::DescriptorType::eCombinedImageSampler,
-				.pImageInfo      = texture_infos,
-			},
-			{
-				.dstSet          = descriptor_set,
-				.dstBinding      = BINDING_STORAGE_IMAGE,
-				.dstArrayElement = 0,
-				.descriptorCount = static_cast<u32>(std::size(image_infos)),
-				.descriptorType  = vk::DescriptorType::eStorageImage,
-				.pImageInfo      = image_infos,
-			},
+		auto make_write =
+			[&](uint32_t                        dstBinding,
+				uint32_t                        descriptorCount,
+				vk::DescriptorType              descriptorType,
+				vk::DescriptorBufferInfo const* pBufferInfo,
+				vk::DescriptorImageInfo const*  pImageInfo) {
+				return vk::WriteDescriptorSet{
+					.dstSet          = descriptor_set,
+					.dstBinding      = dstBinding,
+					.dstArrayElement = 0,
+					.descriptorCount = descriptorCount,
+					.descriptorType  = descriptorType,
+					.pImageInfo      = pImageInfo,
+					.pBufferInfo     = pBufferInfo,
+				};
+			};
+
+		using enum vk::DescriptorType;
+
+		auto const writes = std::array{
+			make_write(BINDING_STORAGE_BUFFER, std::size(buffer_infos), eStorageBuffer, buffer_infos, {}),
+			make_write(BINDING_TEXTURE, std::size(texture_infos), eCombinedImageSampler, {}, texture_infos),
+			make_write(BINDING_STORAGE_IMAGE, std::size(image_infos), eStorageImage, {}, image_infos),
 		};
 
 		auto descriptor_copy_count = 0u;
 		auto copy_descriptor_sets  = nullptr;
-		device.updateDescriptorSets(std::size(writes), writes, descriptor_copy_count, copy_descriptor_sets);
+		device.updateDescriptorSets(std::size(writes), std::data(writes), descriptor_copy_count, copy_descriptor_sets);
 	}
 
 	std::size_t offset    = 0;
