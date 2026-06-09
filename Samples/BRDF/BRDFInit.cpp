@@ -350,13 +350,13 @@ void BRDFSample::Destroy() {
 
 		for (auto pp_span : {
 				 mkspan(pipelines),
-				 mkspan(pipelines_header),
+				 mkspan(generated_pipelines),
 				 mkspan(pipelines_fallback),
 				 mkspan_single(skybox_pipeline),
 			 }) {
 			for (vk::Pipeline& pipeline : pp_span) {
 				if (pipeline) {
-					device.destroyPipeline(pipeline, GetAllocator());
+					device.destroy(pipeline, GetAllocator());
 					pipeline = vk::Pipeline{};
 				}
 			}
@@ -666,25 +666,24 @@ void BRDFSample::CreatePipelineLayout() {
 
 namespace fs = std::filesystem;
 
-
-
 using SV = std::string_view;
 
 #define LF(fn) [&](auto&&... args) { return fn; }
 #define LF_PACK(fn) [&](auto&&... args) { (fn, ...); }
 
-auto error_read_file(std::string_view name) -> BRDFSample::ShaderCodeOption {
+auto error_read_file(std::string_view name) -> Utils::BinDataOption {
 	std::printf("Failed to read shader file: %*s\n", int(name.size()), name.data());
 	std::exit(1);
 	return {};
 };
 
-auto readfile(SV fpath) -> BRDFSample::ShaderCodeOption {
+auto readfile(SV fpath) -> Utils::BinDataOption {
+	// return Utils::ReadBinaryFile(fpath).or_else(LF(error_read_file(fpath)));
 	return Utils::ReadBinaryFile(fpath).or_else(LF(error_read_file(fpath)));
 };
 
 // glob shader codes
-void glob(SV const dir, SV const generated_extension, std::vector<BRDFSample::ShaderCodeOption>& output_codes) {
+void glob(SV const dir, SV const generated_extension, std::vector<Utils::BinDataOption>& output_codes) {
 	for (auto const& entry : fs::directory_iterator(dir)) {
 		auto const path_str = entry.path().string();
 		auto const path_sv  = SV(path_str);
@@ -701,17 +700,24 @@ class Tu : std::tuple<Args...> {
 	using std::tuple<Args...>::std::tuple;
 };
 
-static constexpr auto model_names = std::array{
+static constexpr auto gModelNames = std::array{
 #define BRDF_NAME(x) SV(#x),
 #include "BRDFModels.def"
 #undef BRDF_NAME
 };
 
+using CreatePipelineFN     = vk::Pipeline (BRDFSample::*)(vk::ShaderModule, const SpecData&);
 using PipelineFromModuleFN = vk::Pipeline (*)(vk::ShaderModule, void* user_data);
+
+struct _UserData {
+	BRDFSample*      sample;
+	CreatePipelineFN f;
+	SpecData         spec;
+};
 
 [[nodiscard]]
 auto PipelineFromCode(
-	BRDFSample::ShaderCodeView                 code,
+	Utils::BinDataView             code,
 	vk::Device                     device,
 	vk::AllocationCallbacks const* allocator,
 	PipelineFromModuleFN           create_pipeline_fn,
@@ -727,9 +733,25 @@ auto PipelineFromCode(
 	return out_pipeline;
 }
 
-void BRDFSample::CreatePipelines() {
-	LOG_DEBUG("BRDFSample::CreatePipelines()");
-	using Utils::make_string;
+auto const pipeline_from_module = PipelineFromModuleFN{
+	+[](vk::ShaderModule module, void* user_data) static -> vk::Pipeline {
+		_UserData* pdata = static_cast<_UserData*>(user_data);
+		return ((pdata->sample)->*(pdata->f))(module, pdata->spec);
+	}};
+
+// auto BRDFSample::PipelineData::GetPipeline(u32 id) -> vk::Pipeline {
+
+// };
+
+auto BRDFSample::EnsurePipeline(u32 id) -> vk::Pipeline {
+	auto gdata = generated_data[id];
+	auto pid   = gdata.pipeline_id;
+
+	if (pid != PipelineData::kUndefined) {
+		if (auto pipeline = generated_pipelines[pid]) {
+			return pipeline;
+		}
+	}
 
 	char path_buffer[1024];
 	auto make_path = [&](std::string_view const fname) {
@@ -741,53 +763,38 @@ void BRDFSample::CreatePipelines() {
 		return std::string_view(path_buffer, printed);
 	};
 
+	auto const s_code = gdata.code.value_or(readfile(make_path(gModelNames[id])).value());
+	// readfile
+
+	_UserData udata{this, &BRDFSample::CreatePipeline, {.function_type = function_type, .function_id = id}};
+	return PipelineFromCode(s_code, device, GetAllocator(), pipeline_from_module, &udata);
+}
+
+auto BRDFSample::GeneratedPipeline(u32 id) -> vk::Pipeline {
+	return EnsurePipeline(id);
+}
+
+void BRDFSample::CreatePipelines() {
+	LOG_DEBUG("BRDFSample::CreatePipelines()");
+	using Utils::make_string;
+
 	auto const shader_codes_main = std::array{
 		readfile("Shaders/BRDFMain-point.slang.spv"),
 		readfile("Shaders/BRDFMain-env.slang.spv"),
 	};
 	static_assert(std::size(shader_codes_main) == kPipelineFallbackCount);
 
-	// // vec
-	// constexpr auto generated_dir       = SV{GENERATED_DIR_RELATIVE};
-	// constexpr auto generated_extension = SV{".slang.spv"};
-	// std::vector<CodeType> shader_codes_generated;
-	// shader_codes_generated.reserve(50);
-	// glob(generated_dir, generated_extension, shader_codes_generated);
-
-	auto const shader_codes_generated = std::array{
-#define BRDF_NAME(x) readfile(make_path(#x)),
-#include "BRDFModels.def"
-#undef BRDF_NAME
-	};
-
-	// point + env
-	static_assert(std::size(shader_codes_generated) == GENERATED_MODELS_COUNT * 2);
-
-	pipelines_header.resize(std::size(shader_codes_generated));
-	auto const max_f_id = pipelines_header.size() - 1;
+	auto const max_f_id = kMaxGeneratedPipelines - 1;
 	if (function_id) {
 		function_id = std::min(*function_id, static_cast<decltype(function_id)::value_type>(max_f_id));
 	}
 
-	using CreatePipelineFN = vk::Pipeline (BRDFSample::*)(vk::ShaderModule, const SpecData&);
-	struct _UserData {
-		BRDFSample*      sample;
-		CreatePipelineFN f;
-		SpecData         spec;
-	};
-
 	auto gen_shader_modules =
 		[&](
-			std::span<ShaderCodeOption const> shader_codes,
-			std::span<vk::Pipeline>           out_pipelines,
-			vk::Pipeline (BRDFSample::*create_pipeline_fn)(vk::ShaderModule, const SpecData&)) {
+			std::span<Utils::BinDataOption const> shader_codes,
+			std::span<vk::Pipeline>               out_pipelines,
+			CreatePipelineFN                      create_pipeline_fn) {
 			//
-
-			auto const pipeline_from_module = PipelineFromModuleFN{
-				+[](vk::ShaderModule module, void* user_data) static -> vk::Pipeline {
-					_UserData* pdata = static_cast<_UserData*>(user_data);
-					return ((pdata->sample)->*(pdata->f))(module, pdata->spec);
-				}};
 
 			auto const num_codes = std::min(std::size(shader_codes), std::size(out_pipelines));
 			for (u32 i = 0; i < num_codes; ++i) {
@@ -795,7 +802,7 @@ void BRDFSample::CreatePipelines() {
 				out_pipelines[i] = PipelineFromCode(*shader_codes[i], device, GetAllocator(), pipeline_from_module, &udata);
 			}
 		};
-	gen_shader_modules(shader_codes_generated, pipelines_header, &BRDFSample::CreatePipeline);
+	// gen_shader_modules(shader_codes_generated, pipelines_header, &BRDFSample::CreatePipeline);
 	gen_shader_modules(shader_codes_main, pipelines_fallback, &BRDFSample::CreatePipeline);
 
 	// Skybox

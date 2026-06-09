@@ -29,7 +29,7 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 	constexpr u32 kTestRunsCount = 64;
 
 	// constexpr u32 kMaxTestKinds = std::to_underlying(BrdfFunctionType::eCount);
-	const u32 kMaxTestKinds = pipelines_header.size();
+	const u32 kMaxTestKinds = generated_pipelines.size();
 
 	constexpr u32 kMaxTests = 64;
 	// std::vector<std::array<u64, kMaxTestKinds>> test_times(kTestRunsCount);
@@ -65,7 +65,7 @@ void BRDFSample::RunBenchmark(TestOptions const& options) {
 
 	auto draw = [&](u32 id) {
 		if (is_header) {
-			return DrawWindow(pipelines_header[id]);
+			return DrawWindow(GeneratedPipeline(id));
 		} else {
 			return DrawWindow(pipelines[id]);
 		};

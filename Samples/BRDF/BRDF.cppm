@@ -228,17 +228,27 @@ public:
 
 	// std::array<vk::Pipeline, kTestFunctionsCount> pipelines_header = {};
 
-	std::vector<vk::Pipeline> pipelines_header = {};
-	using ShaderCodeView   = std::span<std::byte const>;
-	using ShaderCodeVec    = std::vector<std::byte>;
-	using ShaderCodeOption = std::optional<ShaderCodeVec>;
+	// std::vector<vk::Pipeline> pipelines_header = {};
+
+	static constexpr auto kMaxGeneratedPipelines = std::size_t{GENERATED_MODELS_COUNT * 2};
+
+	std::array<vk::Pipeline, kMaxGeneratedPipelines> generated_pipelines{};
 
 	struct PipelineData {
-		ShaderCodeVec code{};
-		vk::Pipeline  pipeline{};
+
+		static constexpr auto kUndefined = static_cast<u32>(-1);
+
+		Utils::BinDataOption code{};
+
+		u32 pipeline_id{kUndefined};
+
+		auto GetPipeline(u32 id) -> vk::Pipeline;
 	};
 
+	std::array<PipelineData, GENERATED_MODELS_COUNT * 2> generated_data{};
+
 	auto GeneratedPipeline(u32 i) -> vk::Pipeline;
+	auto EnsurePipeline(u32 i) -> vk::Pipeline;
 
 	// vk::Pipeline getpipeline
 

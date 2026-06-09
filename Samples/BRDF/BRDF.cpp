@@ -81,7 +81,7 @@ auto BRDFSample::DrawWindow() -> u64 {
 	LOG_DEBUG("BRDFSample::DrawWindow()");
 	if (function_id) {
 		// std::printf("DrawWindow(pipelines_header[%u])\n", u32(*function_id));
-		return DrawWindow(pipelines_header[u32(*function_id)]);
+		return DrawWindow(GeneratedPipeline(u32(*function_id)));
 	} else {
 		// std::printf("DrawWindow(pipelines[%u])\n", u32(function_type));
 
@@ -169,7 +169,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 
 		auto delta_x = (dm);
 
-		*function_id = counter % this->pipelines_header.size();
+		// *function_id = counter % this->pipelines_header.size();
 
 		// std::printf("t: %f, sin: %f, l: %f\n", t, dm, l);
 		// std::printf("diff: %u, function_id: %u\n", diff, u32(*function_id));
@@ -522,7 +522,7 @@ auto fix_framerate() -> BRDFSample::Duration {
 void BRDFSample::Run() {
 	LOG_DEBUG("BRDFSample::Run()");
 
-	u32 const end_frame{static_cast<u32>(start_frame + (period_pause + period_rot) * pipelines_header.size() - 10)};
+	u32 const end_frame{static_cast<u32>(start_frame + (period_pause + period_rot) * std::size(generated_pipelines) - 10)};
 
 	// current_fps = 1000.f / elapsed_ms;
 	do {
