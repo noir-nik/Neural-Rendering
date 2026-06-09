@@ -94,7 +94,7 @@ public:
 	auto init(std::string_view fileLocation, int cubemapResolution, bool filterLinear = true) -> bool;
 	void destroy();
 
-	auto get_faces()-> std::span<T*> { return {std::data(faces_), std::size(faces_)}; }
+	auto get_faces() -> std::span<T*> { return {std::data(faces_), std::size(faces_)}; }
 	T*   get_front() { return faces_[0]; }
 	T*   get_back() { return faces_[1]; }
 	T*   get_left() { return faces_[2]; }
@@ -170,8 +170,8 @@ template <typename T>
 void HdriToCubemap<T>::destroy() {
 	if (is_valid()) {
 		stbi_image_free(image_data_);
-		for (int i = 0; i < 6; i++) {
-			delete[] *faces_++;
+		for (auto f : get_faces()) {
+			delete[] f;
 		}
 	}
 }

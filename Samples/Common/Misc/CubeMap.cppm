@@ -19,12 +19,14 @@ export struct CubeMetadata {
 
 	auto init(std::string_view env_map_folder_path) -> bool;
 
+	auto get_resolution() const -> std::size_t { return width; }
+
 	auto image_size() const -> std::size_t { return width * height * channels; }
 	auto image_size_bytes() const -> std::size_t { return image_size() * sizeof(*cubemap[0]); }
 
 	auto size() const -> std::size_t { return image_size() * kNumFaces; }
 	auto size_bytes() const -> std::size_t { return image_size_bytes() * kNumFaces; }
-	auto images() const -> std::span<const unsigned char* const> { return cubemap; }
+	auto get_faces() const -> std::span<const unsigned char* const> { return cubemap; }
 
 	auto is_valid() -> bool;
 	auto destroy() -> void;
