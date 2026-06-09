@@ -817,30 +817,30 @@ auto BRDFSample::CreateSkyboxPipelinePrivate(vk::ShaderModule shader_module) -> 
 		{.stage = vk::ShaderStageFlagBits::eFragment, .module = shader_module, .pName = "ps_main"},
 	};
 
-	vk::PipelineVertexInputStateCreateInfo vertex_input_state{};
+	auto const vertex_input_state = vk::PipelineVertexInputStateCreateInfo{};
 
-	vk::PipelineInputAssemblyStateCreateInfo input_assembly_state{
+	auto const input_assembly_state = vk::PipelineInputAssemblyStateCreateInfo{
 		.flags                  = {},
 		.topology               = vk::PrimitiveTopology::eTriangleList,
 		.primitiveRestartEnable = vk::False,
 	};
 
-	vk::PipelineViewportStateCreateInfo viewport_state{
+	auto const viewport_state = vk::PipelineViewportStateCreateInfo{
 		.viewportCount = 1,
 		.scissorCount  = 1,
 	};
 
-	vk::PipelineRasterizationStateCreateInfo rasterization_state{
+	auto const rasterization_state = vk::PipelineRasterizationStateCreateInfo{
 		.cullMode  = vk::CullModeFlagBits::eNone,
 		.frontFace = vk::FrontFace::eCounterClockwise,
 		.lineWidth = 1.0f,
 	};
 
-	vk::PipelineMultisampleStateCreateInfo multisample_state{
+	auto const multisample_state = vk::PipelineMultisampleStateCreateInfo{
 		.rasterizationSamples = vk::SampleCountFlagBits::e1,
 	};
 
-	vk::PipelineDepthStencilStateCreateInfo depth_stencil_state{
+	auto const depth_stencil_state = vk::PipelineDepthStencilStateCreateInfo{
 		.depthTestEnable  = vk::True,
 		.depthWriteEnable = vk::False,
 		.depthCompareOp   = vk::CompareOp::eLessOrEqual,
@@ -848,40 +848,40 @@ auto BRDFSample::CreateSkyboxPipelinePrivate(vk::ShaderModule shader_module) -> 
 		.maxDepthBounds   = 1.0f,
 	};
 
-	auto color_write_mask =
+	auto const color_write_mask =
 		vk::ColorComponentFlagBits::eR
 		| vk::ColorComponentFlagBits::eG
 		| vk::ColorComponentFlagBits::eB
 		| vk::ColorComponentFlagBits::eA;
 
-	vk::PipelineColorBlendAttachmentState color_blend_attachment_state{
+	auto const color_blend_attachment_state = vk::PipelineColorBlendAttachmentState{
 		.blendEnable    = vk::False,
 		.colorWriteMask = color_write_mask,
 	};
 
-	vk::PipelineColorBlendStateCreateInfo color_blend_state{
+	auto const color_blend_state = vk::PipelineColorBlendStateCreateInfo{
 		.attachmentCount = 1,
 		.pAttachments    = &color_blend_attachment_state,
 	};
 
-	vk::DynamicState dynamic_states[] = {
+	vk::DynamicState const dynamic_states[] = {
 		vk::DynamicState::eViewport,
 		vk::DynamicState::eScissor,
 	};
 
-	vk::PipelineDynamicStateCreateInfo dynamic_state{
+	auto const dynamic_state = vk::PipelineDynamicStateCreateInfo{
 		.dynamicStateCount = static_cast<u32>(std::size(dynamic_states)),
 		.pDynamicStates    = dynamic_states,
 	};
 
-	vk::PipelineRenderingCreateInfo pipeline_rendering_info{
+	auto const pipeline_rendering_info = vk::PipelineRenderingCreateInfo{
 		.viewMask                = 0,
 		.colorAttachmentCount    = 1,
 		.pColorAttachmentFormats = &swapchain.GetFormat(),
 		.depthAttachmentFormat   = depth_image.GetFormat(),
 	};
 
-	vk::GraphicsPipelineCreateInfo create_info{
+	auto const create_info = vk::GraphicsPipelineCreateInfo{
 		.pNext               = &pipeline_rendering_info,
 		.stageCount          = static_cast<u32>(std::size(shader_stages)),
 		.pStages             = shader_stages,
@@ -907,7 +907,7 @@ auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, SpecData const& 
 	// Specialization constant for type of inferencing function
 	// BrdfFunctionType specialization_value = info.function_type;
 
-	vk::SpecializationMapEntry specialization_entries[] = {
+	vk::SpecializationMapEntry const specialization_entries[] = {
 		{
 			.constantID = 0,
 			.offset     = offsetof(SpecData, function_type),
@@ -919,58 +919,59 @@ auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, SpecData const& 
 			.size       = sizeof(info.function_id),
 		},
 	};
-	vk::SpecializationInfo specialization_info{
+	auto const specialization_info = vk::SpecializationInfo{
 		.mapEntryCount = std::size(specialization_entries),
 		.pMapEntries   = specialization_entries,
 		.dataSize      = sizeof(info),
 		.pData         = &info,
 	};
 
-	vk::PipelineShaderStageCreateInfo shader_stages[] = {
+	// auto const shader_stages = std::array<vk::PipelineShaderStageCreateInfo, 2>{
+	vk::PipelineShaderStageCreateInfo const shader_stages[] = {
 		{.stage = vk::ShaderStageFlagBits::eVertex, .module = shader_module, .pName = "vs_main"},
 		{.stage = vk::ShaderStageFlagBits::eFragment, .module = shader_module, .pName = "ps_main", .pSpecializationInfo = &specialization_info},
 	};
 
-	vk::VertexInputBindingDescription vertex_input_binding_descriptions[] = {{
+	vk::VertexInputBindingDescription const vertex_input_binding_descriptions[] = {{
 		.binding   = 0,
 		.stride    = sizeof(Vertex),
 		.inputRate = vk::VertexInputRate::eVertex,
 	}};
 
-	vk::VertexInputAttributeDescription vertex_input_attribute_descriptions[] = {
+	vk::VertexInputAttributeDescription const vertex_input_attribute_descriptions[] = {
 		{.location = 0, .binding = 0, .format = vk::Format::eR32G32B32A32Sfloat, .offset = offsetof(Vertex, pos)},
 		{.location = 1, .binding = 0, .format = vk::Format::eR32G32B32A32Sfloat, .offset = offsetof(Vertex, normal)},
 	};
 
-	vk::PipelineVertexInputStateCreateInfo vertex_input_state{
+	auto const vertex_input_state = vk::PipelineVertexInputStateCreateInfo{
 		.vertexBindingDescriptionCount   = std::size(vertex_input_binding_descriptions),
 		.pVertexBindingDescriptions      = vertex_input_binding_descriptions,
 		.vertexAttributeDescriptionCount = std::size(vertex_input_attribute_descriptions),
 		.pVertexAttributeDescriptions    = vertex_input_attribute_descriptions,
 	};
 
-	vk::PipelineInputAssemblyStateCreateInfo input_assembly_state{
+	auto const input_assembly_state = vk::PipelineInputAssemblyStateCreateInfo{
 		.flags                  = {},
 		.topology               = vk::PrimitiveTopology::eTriangleList,
 		.primitiveRestartEnable = vk::False,
 	};
 
-	vk::PipelineViewportStateCreateInfo viewport_state{
+	auto const viewport_state = vk::PipelineViewportStateCreateInfo{
 		.viewportCount = 1,
 		.scissorCount  = 1,
 	};
 
-	vk::PipelineRasterizationStateCreateInfo rasterization_state{
+	auto const rasterization_state = vk::PipelineRasterizationStateCreateInfo{
 		.cullMode  = vk::CullModeFlagBits::eBack,
 		.frontFace = vk::FrontFace::eCounterClockwise,
 		.lineWidth = 1.0f,
 	};
 
-	vk::PipelineMultisampleStateCreateInfo multisample_state{
+	auto const multisample_state = vk::PipelineMultisampleStateCreateInfo{
 		.rasterizationSamples = vk::SampleCountFlagBits::e1,
 	};
 
-	vk::PipelineDepthStencilStateCreateInfo depth_stencil_state{
+	auto const depth_stencil_state = vk::PipelineDepthStencilStateCreateInfo{
 		.depthTestEnable  = vk::True,
 		.depthWriteEnable = vk::True,
 		.depthCompareOp   = vk::CompareOp::eLess,
@@ -978,40 +979,40 @@ auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, SpecData const& 
 		.maxDepthBounds   = 1.0f,
 	};
 
-	auto color_write_mask =
+	auto const color_write_mask =
 		vk::ColorComponentFlagBits::eR
 		| vk::ColorComponentFlagBits::eG
 		| vk::ColorComponentFlagBits::eB
 		| vk::ColorComponentFlagBits::eA;
 
-	vk::PipelineColorBlendAttachmentState color_blend_attachment_state{
+	auto const color_blend_attachment_state = vk::PipelineColorBlendAttachmentState{
 		.blendEnable    = vk::False,
 		.colorWriteMask = color_write_mask,
 	};
 
-	vk::PipelineColorBlendStateCreateInfo color_blend_state{
+	auto const color_blend_state = vk::PipelineColorBlendStateCreateInfo{
 		.attachmentCount = 1,
 		.pAttachments    = &color_blend_attachment_state,
 	};
 
-	vk::DynamicState dynamic_states[] = {
+	vk::DynamicState const dynamic_states[] = {
 		vk::DynamicState::eViewport,
 		vk::DynamicState::eScissor,
 	};
 
-	vk::PipelineDynamicStateCreateInfo dynamic_state{
+	auto const dynamic_state = vk::PipelineDynamicStateCreateInfo{
 		.dynamicStateCount = static_cast<u32>(std::size(dynamic_states)),
 		.pDynamicStates    = dynamic_states,
 	};
 
-	vk::PipelineRenderingCreateInfo pipeline_rendering_info{
+	auto const pipeline_rendering_info = vk::PipelineRenderingCreateInfo{
 		.viewMask                = 0,
 		.colorAttachmentCount    = 1,
 		.pColorAttachmentFormats = &swapchain.GetFormat(),
 		.depthAttachmentFormat   = depth_image.GetFormat(),
 	};
 
-	vk::GraphicsPipelineCreateInfo create_info{
+	auto const create_info = vk::GraphicsPipelineCreateInfo{
 		.pNext               = &pipeline_rendering_info,
 		.stageCount          = static_cast<u32>(std::size(shader_stages)),
 		.pStages             = shader_stages,
