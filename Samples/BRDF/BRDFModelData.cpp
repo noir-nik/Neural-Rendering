@@ -114,18 +114,22 @@ constexpr auto parse_model = [](SV name) constexpr -> BRDFModelData {
 	// return {name, numbers[0], numbers[1], numbers[2]};
 	u32 learnable_params, total_params;
 
-	u32 input  = 6;
-	u32 output = 3;
+	u32              input  = 6;
+	u32              output = 3;
+	std::string_view type;
 	if (contains(name, "KAN")) {
+		type             = "KAN";
 		auto res         = count_fastkan_params(input, output, numbers[0], numbers[1], numbers[2]);
 		learnable_params = res.learnable;
 		total_params     = res.total;
 	} else if (contains(name, "NBRDF")) {
+		type             = "NBRDF";
 		learnable_params = total_params = count_nbrdf_params(input, output, numbers[2], numbers[1]);
 	}
 
 	return {
 		.name             = name,
+		.type             = type,
 		.layers           = numbers[0],
 		.layer_size       = numbers[1],
 		.grids            = numbers[2],

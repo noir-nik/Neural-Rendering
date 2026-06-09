@@ -27,6 +27,37 @@ static constexpr auto invisible_flags{
 auto color_red   = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
 auto color_green = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
 
+// static constexpr auto gImColors = std::array
+
+#ifdef TW_COLOR
+#undef TW_COLOR
+#endif
+
+namespace TWImColor {
+enum class TWImColor {
+#define TW_COLOR(name, hex, r, g, b) name,
+#include "TWColors.def"
+#undef TW_COLOR
+};
+
+constexpr auto GetTWImColor(TWImColor color) {
+	switch (color) {
+#define TW_COLOR(name, hex, r, g, b) \
+	case TWImColor::name: return ImVec4(r / 256.0f, g / 256.0f, b / 256.0f, 1.0);
+#include "TWColors.def"
+#undef TW_COLOR
+	}
+};
+
+#define TW_COLOR(name, hex, r, g, b) \
+	static constexpr auto name = ImVec4(r / 256.0f, g / 256.0f, b / 256.0f, 1.0);
+#include "TWColors.def"
+#undef TW_COLOR
+
+} // namespace TWImColor
+
+// COLOR(Gray100, #f7fafc, 247, 250, 252)
+
 auto ModelsWindow(u32 old_selected_option) -> u32 {
 	float const padding = 10.0f;
 	float const width   = 400.0f; // Define your window width
@@ -76,12 +107,11 @@ auto ModelsWindow(u32 old_selected_option) -> u32 {
 }
 
 auto FPSWindow(float elapsed_last_frame_ms) -> void {
-	// // Calculate top-right position with padding
-	float padding = 10.0f;
-	float width   = 400.0f; // Define your window width
-	float height  = 200.0f; // Define your window height
 
-	// float pos_x = ImGui::GetMainViewport()->WorkSize.x - width - padding;
+	float padding = 10.0f;
+	float width   = 400.0f;
+	float height  = 200.0f;
+
 	float pos_x = padding;
 	float pos_y = padding;
 
@@ -108,8 +138,31 @@ auto FPSWindow(float elapsed_last_frame_ms) -> void {
 		ImGui::End();
 	}
 }
+auto DetailsWindow(u32 selected_option, CSpan<BRDFModelData> models) -> void {
 
+	float padding = 10.0f;
+	float width   = 400.0f;
+	float height  = 200.0f;
+
+	using namespace TWImColor;
+
+	float pos_x = ImGui::GetMainViewport()->WorkSize.x - width - padding;
+	// float pos_x = padding;
+	float pos_y = padding;
+
+	ImGui::SetNextWindowPos(ImVec2(pos_x, pos_y), ImGuiCond_Always);
+	ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Always);
+
+	if (ImGui::Begin("Details", nullptr, invisible_flags)) {
+		ImGui::PushFont(nullptr, 64);
+		ImGui::TextColored(color_green, "%s", std::data(models[selected_option].type)); // Type: 
+		ImGui::TextColored(color_green, "%u", (models[selected_option].learnable_params)); // Parameters: 
+		ImGui::PopFont();
+		ImGui::End();
+	}
+}
 void BRDFSample::DrawUI() {
+	auto models = GeneratedNames();
 
 	if (is_models_visible) {
 		function_id = ModelsWindow(function_id.value_or(0));
@@ -117,5 +170,6 @@ void BRDFSample::DrawUI() {
 	if (is_fps_visible) {
 		FPSWindow(elapsed_last_frame_ms);
 	}
+	DetailsWindow(*function_id, models);
 }
 #endif // WITH_UI

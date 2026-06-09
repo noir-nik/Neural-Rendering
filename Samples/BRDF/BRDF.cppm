@@ -63,6 +63,7 @@ using SV = std::string_view;
 
 struct BRDFModelData {
 	std::string_view name;
+	std::string_view type;
 
 	u32 layers;
 	u32 layer_size;
