@@ -11,7 +11,7 @@ import WeightsLoader;
 import SamplesCommon;
 import Math;
 import std;
-import FastKan;
+import FastKANCoopVec;
 
 import nlohmann.json;
 using json = nlohmann::json;
@@ -52,147 +52,11 @@ auto PrintLayerBiases(Linear layer, std::byte const* parameters) -> void {
 
 // std::pair<nlohmann::json, std::vector<std::map<std::string, std::vector<float>>>>
 
-using ReadKANResult = std::expected<FastKan, std::string>;
-[[nodiscard]] auto ReadKANWeights(std::string_view file_name) -> ReadKANResult {
-	using namespace nlohmann;
-
-	std::string prefix = std::string(file_name);
-	// std::string prefix = (network_info.file_name);
-	if (prefix.ends_with(".json")) {
-		prefix = prefix.substr(0, prefix.size() - 5);
-	} else if (prefix.ends_with(".bin")) {
-		prefix = prefix.substr(0, prefix.size() - 4);
-	}
-
-	auto json_name = prefix + ".json";
-
-	using Utils::make_string;
-
-	std::ifstream json_file(json_name);
-	if (!json_file.is_open()) {
-		// std::cerr << "Error: Could not open " << prefix << ".json" << std::endl;
-		// std::exit(1);
-		return std::unexpected(make_string("Could not open ", json_name));
-	}
-
-	json json_manifest;
-	json_file >> json_manifest;
-
-	std::string dtype_str = json_manifest["dtype"];
-	enum class DataType {
-		Float32,
-		Float16,
-	};
-	DataType dtype;
-	if (dtype_str == "float32") {
-		dtype = DataType::Float32;
-	} else {
-		// std::cerr << "Error: Unsupported data type " << dtype_str << std::endl;
-		// std::exit(1);
-		// return std::unexpected(std::string("Unsupported data type ") + dtype_str);
-		return std::unexpected(make_string("Unsupported data type ", dtype_str));
-	}
-
-	std::ifstream bin_file(prefix + ".bin", std::ios::binary);
-	if (!bin_file.is_open()) {
-		// std::cerr << "Error: Could not open " << prefix << ".bin" << std::endl;
-		// std::exit(1);
-		return std::unexpected(make_string("Could not open ", prefix, ".bin"));
-	}
-
-	std::vector<float> bin_data; //((std::istreambuf_iterator<std::streambuf>(bin_file)), std::istreambuf_iterator<std::streambuf>());
-	bin_file.seekg(0, std::ios::end);
-	bin_data.resize(std::streamsize(bin_file.tellg()));
-	bin_file.seekg(0);
-	bin_file.read(reinterpret_cast<char*>(bin_data.data()), bin_data.size());
-	bin_file.close();
-
-	FastKan kan;
-
-	auto const& json_layers = json_manifest["layers"];
-	kan.layers_.reserve(json_layers.size());
-
-	for (const auto& json_layer : json_layers) {
-		FastKanLayer kan_layer;
-		for (const auto& param : json_layer["params"].items()) {
-			auto const& name   = param.key(); // param.first;
-			auto const& info   = param.value();
-			u32         offset = info["offset"];
-			u32         size   = info["size"];
-			auto        shape  = info["shape"];
-
-			// auto start = bin_data.data() + offset;
-
-			auto ldata = KANBuffer(offset, size);
-
-			// shape
-			// for (u32 i = 0; i < shape.size(); ++i) {
-			// 	ldata.shape_[ldata.shape_size_++] = shape[i];
-			// }
-
-			ldata.set_shape(shape);
-
-			if (name == "rbf_grid") {
-				kan_layer.rbf_grid() = ldata;
-			} else if (name == "rbf_denom_inv") {
-				kan_layer.rbf_denom_inv() = ldata;
-			} else if (name == "spline_weight") {
-				kan_layer.spline_weight() = ldata;
-			} else if (name == "base_weight") {
-				kan_layer.base_weight() = ldata;
-			} else if (name == "base_bias") {
-				kan_layer.base_bias() = ldata;
-			}
-		}
-		kan.layers_.push_back(kan_layer);
-	}
-	kan.buffer_ = std::move(bin_data);
-
-	// return {std::move(json_manifest), std::move(layers)};
-	return kan;
-}
-
 using ComponentTy = vk::ComponentTypeKHR;
 using LayoutTy    = vk::CooperativeVectorMatrixLayoutNV;
 
-struct MatrixInfo {
-	vk::Device  device;
-	void const* src;
-	std::size_t src_size;
-	std::byte*  dst;
-	LayoutTy    dst_layout;
-	ComponentTy src_component_type;
-	ComponentTy dst_matrix_type;
-	u32         rows;
-	u32         cols;
-};
 
-auto write_matrix_kan(MatrixInfo const& info) -> std::size_t {
-	std::size_t required_size;
 
-	auto const& [device, src, src_size, dst, dst_layout, src_component_type, dst_matrix_type, rows, cols] = info;
-
-	vk::ConvertCooperativeVectorMatrixInfoNV create_info{
-		.srcSize          = info.src_size,
-		.srcData          = {.hostAddress = info.src},
-		.pDstSize         = &required_size,
-		.dstData          = {.hostAddress = info.dst},
-		.srcComponentType = info.src_component_type,
-		.dstComponentType = info.dst_matrix_type,
-		.numRows          = info.rows,
-		.numColumns       = info.cols,
-		.srcLayout        = vk::CooperativeVectorMatrixLayoutNV::eRowMajor,
-		.srcStride        = info.cols * Utils::GetVulkanComponentSize(info.src_component_type),
-		.dstLayout        = info.dst_layout,
-		.dstStride        = info.cols * Utils::GetVulkanComponentSize(info.dst_matrix_type),
-	};
-
-	CHECK_VULKAN_RESULT(info.device.convertCooperativeVectorMatrixNV(&create_info));
-
-	std::printf("Src size: %zu, result size: %zu\n", info.src_size, required_size);
-
-	return required_size;
-};
 
 void write_matrix_mlp(
 	vk::Device    device,
@@ -267,139 +131,6 @@ void write_network(
 // std::vector<FastKanLayer> layers_;
 // auto constexpr kVectorAlignment = std::size_t{sizeof(float) * 4};
 auto constexpr kVectorAlignment = CoopVecUtils::GetVectorAlignment();
-
-struct FastKanLayerOffsets {
-	FastKanLayerBase<u64> offsets;
-	std::size_t           total_size = 0;
-};
-
-// using FastKanLayerOffsets = FastKanLayerBase<u64>;
-
-auto write_fast_kan_layer(
-	vk::Device             device,
-	FastKanLayer const&    layer,
-	std::span<float const> src_buffer,
-	std::byte*             dst_parameters,
-	LayoutTy               dst_layout,
-	ComponentTy            src_component_type,
-	ComponentTy            dst_matrix_type)
-	-> FastKanLayerOffsets {
-
-	FastKanLayerOffsets result;
-
-	auto& offset = result.total_size;
-	// auto offset = std::size_t{0};
-
-	auto& buffer_offsets = result.offsets;
-
-	auto wrt = [&](KANBuffer const& buffer) {
-		auto sspan    = buffer.span(src_buffer.data());
-		auto dstns    = std::distance(&layer.get_buffers()[0], &buffer);
-		auto dst_size = std::size_t{buffer.size() * sizeof(float16_t)};
-		std::printf("Writing buffer %s %td/%zu, offset: %zu, size: %zu, dst_size: %zu\n", layer.get_buffer_name(dstns).data(), dstns, layer.get_buffers().size(), offset, sspan.size_bytes(), dst_size);
-		// write_fast_kan_buffer(buffer, dst_parameters + offset);
-		{
-			if (buffer.offset() + buffer.size() > src_buffer.size()) {
-				std::printf("Buffer size too small 1\n");
-				std::printf("Buffer offset: %zu, buffer size: %zu, src_buffer size: %zu\n", buffer.offset(), buffer.size(), src_buffer.size());
-				std::exit(1);
-			}
-			std::byte* dst = dst_parameters + offset;
-			// std::memcpy(dst, sspan.data(), sspan.size_bytes());
-			// float -> float16
-			for (u32 i = 0; i < buffer.size(); ++i) {
-				*(reinterpret_cast<float16_t*>(dst) + i) = static_cast<float16_t>(sspan[i]);
-			}
-		}
-		return AlignUpPowerOfTwo(offset + dst_size, kVectorAlignment);
-	};
-
-	// std::printf("Writing rbf_grid, offset: %zu\n", offset);
-	buffer_offsets.rbf_grid() = offset;
-	offset                    = wrt(layer.rbf_grid());
-	// std::printf("Writing rbf_denom_inv, offset: %zu\n", offset);
-	buffer_offsets.rbf_denom_inv() = offset;
-	offset                         = wrt(layer.rbf_denom_inv());
-	// std::printf("Writing base_bias, offset: %zu\n", offset);
-	buffer_offsets.base_bias() = offset;
-	offset                     = wrt(layer.base_bias());
-	offset                     = AlignUpPowerOfTwo(offset, CoopVecUtils::GetMatrixAlignment());
-
-	// ret.get_spline_weight() = wrt(layer.get_spline_weight());
-	// ret.get_base_weight()   = wrt(layer.get_base_weight());
-	// for (u32 i = 0; auto const& buffer : {layer.get_rbf_grid(), layer.get_rbf_denom_inv(), layer.get_base_bias()})
-
-	// Write 2 matrices: [spline_weight base_weight]
-
-	// auto const base_inputs = layer.get_base_weight().shape()[1];
-	// auto const base_ouputs = layer.get_base_weight().shape()[0];
-	// auto const base_cols   = base_inputs;
-	// auto const base_rows   = base_ouputs;
-
-	std::size_t matrix_size;
-	std::printf("Writing spline_weight, offset: %zu\n", offset);
-	matrix_size = write_matrix_kan({
-		.device             = device,
-		.src                = layer.spline_weight().span(src_buffer.data()).data(),
-		.src_size           = layer.spline_weight().size_bytes(),
-		.dst                = dst_parameters + offset,
-		.dst_layout         = dst_layout,
-		.src_component_type = src_component_type,
-		.dst_matrix_type    = dst_matrix_type,
-		.rows               = layer.spline_weight().shape()[0],
-		.cols               = layer.spline_weight().shape()[1],
-	});
-
-	buffer_offsets.spline_weight() = offset;
-	offset                         = AlignUpPowerOfTwo(offset + matrix_size, CoopVecUtils::GetMatrixAlignment());
-
-	std::printf("Writing base_weight, offset: %zu\n", offset);
-	matrix_size = write_matrix_kan({
-		.device             = device,
-		.src                = layer.base_weight().span(src_buffer.data()).data(),
-		.src_size           = layer.base_weight().size_bytes(),
-		.dst                = dst_parameters + offset,
-		.dst_layout         = dst_layout,
-		.src_component_type = src_component_type,
-		.dst_matrix_type    = dst_matrix_type,
-		.rows               = layer.base_weight().shape()[0],
-		.cols               = layer.base_weight().shape()[1],
-	});
-
-	buffer_offsets.base_weight() = offset;
-	offset                       = AlignUpPowerOfTwo(offset + matrix_size, CoopVecUtils::GetMatrixAlignment());
-
-	return result;
-}
-
-auto write_fast_kan(
-	vk::Device     device,
-	FastKan const& kan,
-	std::byte*     dst_parameters,
-	LayoutTy       dst_layout,
-	ComponentTy    src_component_type,
-	ComponentTy    dst_matrix_type)
-	-> FastKanOffsets {
-	auto layers = kan.layers();
-
-	auto base_offset = std::size_t{0};
-
-	FastKanOffsets result;
-	result.reserve(layers.size());
-
-	for (auto& layer : layers) {
-		std::printf("Writing layer, offset: %zu\n", base_offset);
-		auto buffer_offsets = write_fast_kan_layer(device, layer, kan.buffer(), dst_parameters + base_offset, dst_layout, src_component_type, dst_matrix_type);
-		for (u32 i = 0; i < 5; ++i) {
-			buffer_offsets.offsets.get_buffer(i) += base_offset;
-		}
-
-		result.push_back(buffer_offsets.offsets);
-		base_offset += buffer_offsets.total_size;
-	}
-
-	return result;
-}
 
 void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	LOG_DEBUG("BRDFSample::CreateAndUploadBuffers()");
@@ -480,7 +211,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	if (hasattr(&BRDFSample::cubemap_folder_path)) {
 
 		if (is_hdr_cubemap) {
-			hdri_cube.Init(cubemap_folder_path, 1024);
+			hdri_cube.init(cubemap_folder_path, 1024);
 		} else {
 			cube_data.init(cubemap_folder_path);
 		}
@@ -490,13 +221,18 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 				? vk::Format::eR8G8B8A8Unorm
 				: vk::Format::eR8G8B8A8Unorm;
 
+		auto const [width, height] =
+			is_hdr_cubemap
+				? std::tuple{hdri_cube.get_resolution(), hdri_cube.get_resolution()}
+				: std::tuple{cube_data.width, cube_data.height};
+
 		cubemap_image.Create(
 			device, vma_allocator, allocator,
 			{.image_info = {
 				 .flags         = vk::ImageCreateFlagBits::eCubeCompatible,
 				 .imageType     = vk::ImageType::e2D,
 				 .format        = cube_format,
-				 .extent        = {static_cast<u32>(cube_data.width), static_cast<u32>(cube_data.height), 1},
+				 .extent        = {static_cast<u32>(width), static_cast<u32>(height), 1},
 				 .mipLevels     = 1,
 				 .arrayLayers   = kCubeSideCount,
 				 .samples       = vk::SampleCountFlagBits::e1,
@@ -520,7 +256,8 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 							 + networks[u32(BrdfFunctionType::eWeightsInBufferF16)].GetParametersSize()
 					   : 0)
 				+ kan.size_bytes() * 5
-				+ cube_data.size_bytes() * 2 * cube_data.is_valid());
+				+ cube_data.size_bytes() * 2 * cube_data.is_valid()
+				+ hdri_cube.size_bytes() * 2 * hdri_cube.is_valid());
 
 	// Create buffers
 	// clang-format off

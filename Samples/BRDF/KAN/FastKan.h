@@ -104,3 +104,6 @@ EXPORT struct FastKan {
 	auto size() const -> std::size_t;
 	auto size_bytes() const -> std::size_t { return size() * sizeof(float); }
 };
+
+EXPORT using ReadKANResult = std::expected<FastKan, std::string>;
+EXPORT [[nodiscard]] auto ReadKANWeights(std::string_view file_name) -> ReadKANResult;

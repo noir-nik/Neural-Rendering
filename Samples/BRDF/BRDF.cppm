@@ -21,7 +21,7 @@ import Vdevice;
 import vulkan;
 import std;
 
-import FastKan;
+import FastKANCoopVec;
 
 #ifdef COOPVEC_TYPE
 #undef COOPVEC_TYPE
@@ -45,7 +45,6 @@ struct TestOptions {
 	int test_count = 1;
 };
 
-using FastKanOffsets = std::vector<FastKanLayerBase<u64>>;
 
 struct SpecData {
 	BrdfFunctionType function_type = BrdfFunctionType::eCoopVec;

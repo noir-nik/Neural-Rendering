@@ -1,6 +1,6 @@
 module;
 
-export module FastKan;
+export module FastKANCoopVec:FastKAN;
 
 
 #define EXPORT export

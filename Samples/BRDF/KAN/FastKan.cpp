@@ -1,6 +1,6 @@
 module;
 #include <cassert> // assert
-module FastKan;
+module FastKANCoopVec;
 
 import NeuralGraphics;
 import std;
@@ -82,3 +82,4 @@ void FastKan::repr() const {
 	}
 	std::printf("}\n");
 }
+
