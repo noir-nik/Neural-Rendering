@@ -274,7 +274,6 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 		|| (old_f_id != f_id);
 
 	old_f_id = f_id;
-	// reset_accumulation     = 1;
 
 	prev_camera_pos = camera.getPosition();
 	// std::printf("prev_camera_pos: %f, %f, %f\n", prev_camera_pos.x, prev_camera_pos.y, prev_camera_pos.z);
@@ -282,46 +281,22 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 	// std::printf("reset_accumulation: %d\n", reset_accumulation);
 	// std::printf("frame_count: %d\n", frame_count);
 
-	// proj = inverse(proj);
-	// view = inverse(view);
-	// auto view_proj = (proj * view);
-
-	auto invv = 0;
-	if (invv)
-		camera.getForward() *= -1.0;
-
 	auto view = camera.view;
 	auto proj = camera.proj;
 
-	// auto view_proj = (view * proj);
-	// auto view_proj = affineInverse(camera.getProjViewInv());
-	// auto view_proj = inverse(camera.getProjViewInv());
-	// auto view_proj = proj * (view | inverse4x4);
-	// auto view_proj = proj * (view  inverse4x4);
 	auto view_proj_base = proj * view.affineInverse();
 	auto view_proj      = OpenglToVulkanProjectionMatrixFix() * view_proj_base;
 
-	// view_proj = inverse4x4(view_proj);
-
-	if (invv)
-		camera.getForward() *= -1.0;
-
-	// auto view_proj = (camera.getProjViewInv());
-
 	float4 test = {vv.pos[0], vv.pos[1], vv.pos[2], 1.0f};
-	// auto res =   test * view_proj;
+
 	auto res = view_proj * test;
-	// auto res =   view_proj * test ;
-	// auto res =   inverse(view_proj * test) ;
-	// auto res =  camera.getProjViewInv() * test;
-	// auto res =  test * camera.getProjViewInv();
-	// auto res =  affineInverse(camera.getProjViewInv()) * test;
+
 	if (0) {
 		PrintMat4(view_proj);
 		std::printf("Result: %f, %f, %f, %f\n", res.x, res.y, res.z, res.w);
 	}
-	auto lpos = (vec3(1.2, 1.2, 1.2) * 1.2);
-	lpos      = rotate(lpos, {0, 1, 0}, 180 * math::DEG_TO_RAD);
+	auto light_pos = (vec3(1.2, 1.2, 1.2) * 1.2);
+	light_pos      = rotate(light_pos, {0, 1, 0}, 180 * math::DEG_TO_RAD);
 
 	BRDFConstants constants{
 		// .view_proj = camera.getProjViewInv(),
@@ -333,7 +308,7 @@ void BRDFSample::RecordCommands(vk::Pipeline pipeline) {
 		},
 
 		.light = {
-			.position          = lpos,
+			.position          = light_pos,
 			.range             = 10.0,
 			.color             = vec3(0.75, 0.75, 0.75),
 			.intensity         = 8.0,

@@ -5,7 +5,7 @@ module HdriToCubemap;
 import std;
 import StbModule;
 
-void HdriToCubemapBase::write_cubemap(std::string_view const output_folder, std::span<void const*> faces) {
+void HdriToCubemapBase::write_cubemap(std::string_view const output_folder, std::span<void const* const> faces) {
 	stbi_flip_vertically_on_write(1);
 
 	auto filenames = std::array{"front", "back", "left", "right", "up", "down"};

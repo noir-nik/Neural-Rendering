@@ -598,7 +598,10 @@ float3 ToneMapR1(float3 color, float eps = 1e-6) {
 	return color * scale;
 }
 
-float GammaF(float x, float gamma = 2.4) {
+float GammaFSimple(float x, float gamma = 2.4) {
+	return pow(x, 1. / gamma);
+}
+float GammaF1(float x, float gamma = 2.4) {
 	if (x <= 0.0031308) {
 		return x * 12.92;
 	}
@@ -607,9 +610,9 @@ float GammaF(float x, float gamma = 2.4) {
 
 float3 GammaF3(float3 x, float gamma = 2.4) {
 	return {
-		GammaF(x.x, gamma),
-		GammaF(x.y, gamma),
-		GammaF(x.z, gamma),
+		GammaF1(x.x, gamma),
+		GammaF1(x.y, gamma),
+		GammaF1(x.z, gamma),
 	};
 }
 

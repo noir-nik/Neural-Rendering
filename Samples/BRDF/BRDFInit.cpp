@@ -319,9 +319,9 @@ void BRDFSample::Destroy() {
 		CHECK_VULKAN_RESULT(device.waitIdle());
 
 #if defined(WITH_UI) && WITH_UI
-		device.destroyDescriptorPool(imgui_descriptor_pool, GetAllocator());
 		ImGuiShutdown();
 		UI::Destroy();
+		device.destroyDescriptorPool(imgui_descriptor_pool, GetAllocator());
 #endif
 
 		if (timestamp_query_pool) {
@@ -784,7 +784,7 @@ void BRDFSample::CreatePipelines() {
 			//
 
 			auto const pipeline_from_module = PipelineFromModuleFN{
-				+[](vk::ShaderModule module, void* user_data) -> vk::Pipeline {
+				+[](vk::ShaderModule module, void* user_data) static -> vk::Pipeline {
 					_UserData* pdata = static_cast<_UserData*>(user_data);
 					return ((pdata->sample)->*(pdata->f))(module, pdata->spec);
 				}};
@@ -812,7 +812,7 @@ auto BRDFSample::CreateSkyboxPipeline(vk::ShaderModule shader_module, SpecData c
 }
 auto BRDFSample::CreateSkyboxPipelinePrivate(vk::ShaderModule shader_module) -> vk::Pipeline {
 
-	vk::PipelineShaderStageCreateInfo shader_stages[] = {
+	vk::PipelineShaderStageCreateInfo const shader_stages[] = {
 		{.stage = vk::ShaderStageFlagBits::eVertex, .module = shader_module, .pName = "vs_main"},
 		{.stage = vk::ShaderStageFlagBits::eFragment, .module = shader_module, .pName = "ps_main"},
 	};
@@ -884,7 +884,7 @@ auto BRDFSample::CreateSkyboxPipelinePrivate(vk::ShaderModule shader_module) -> 
 	auto const create_info = vk::GraphicsPipelineCreateInfo{
 		.pNext               = &pipeline_rendering_info,
 		.stageCount          = static_cast<u32>(std::size(shader_stages)),
-		.pStages             = shader_stages,
+		.pStages             = std::data(shader_stages),
 		.pVertexInputState   = &vertex_input_state,
 		.pInputAssemblyState = &input_assembly_state,
 		.pViewportState      = &viewport_state,
@@ -945,9 +945,9 @@ auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, SpecData const& 
 
 	auto const vertex_input_state = vk::PipelineVertexInputStateCreateInfo{
 		.vertexBindingDescriptionCount   = std::size(vertex_input_binding_descriptions),
-		.pVertexBindingDescriptions      = vertex_input_binding_descriptions,
+		.pVertexBindingDescriptions      = std::data(vertex_input_binding_descriptions),
 		.vertexAttributeDescriptionCount = std::size(vertex_input_attribute_descriptions),
-		.pVertexAttributeDescriptions    = vertex_input_attribute_descriptions,
+		.pVertexAttributeDescriptions    = std::data(vertex_input_attribute_descriptions),
 	};
 
 	auto const input_assembly_state = vk::PipelineInputAssemblyStateCreateInfo{
@@ -1015,7 +1015,7 @@ auto BRDFSample::CreatePipeline(vk::ShaderModule shader_module, SpecData const& 
 	auto const create_info = vk::GraphicsPipelineCreateInfo{
 		.pNext               = &pipeline_rendering_info,
 		.stageCount          = static_cast<u32>(std::size(shader_stages)),
-		.pStages             = shader_stages,
+		.pStages             = std::data(shader_stages),
 		.pVertexInputState   = &vertex_input_state,
 		.pInputAssemblyState = &input_assembly_state,
 		.pViewportState      = &viewport_state,

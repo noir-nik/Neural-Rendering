@@ -83,7 +83,7 @@ public:
 
 	constexpr inline auto get_num_faces() const -> std::size_t { return kNumFaces; }
 
-	void write_cubemap(std::string_view const output_folder, std::span<void const*> faces);
+	void write_cubemap(std::string_view const output_folder, std::span<void const* const> faces);
 };
 
 export template <typename T>
@@ -91,7 +91,7 @@ class HdriToCubemap : public HdriToCubemapBase {
 public:
 	using size_type = T;
 
-	auto init(std::string_view fileLocation, int cubemapResolution, bool filterLinear = true) -> bool;
+	auto init(std::string_view file_location, int desired_resolution, bool filter_linear = true) -> bool;
 	void destroy();
 
 	auto get_faces() -> std::span<T*> { return {std::data(faces_), std::size(faces_)}; }
@@ -101,7 +101,7 @@ public:
 	T*   get_right() { return faces_[3]; }
 	T*   get_up() { return faces_[4]; }
 	T*   get_down() { return faces_[5]; }
-	void write_cubemap(std::string_view const outputFolder = "");
+	void write_cubemap(std::string_view const output_folder = "");
 
 	auto image_size_bytes() const -> std::size_t { return image_size() * sizeof(size_type); }
 	auto size_bytes() const -> std::size_t { return image_size_bytes() * get_num_faces(); }
@@ -115,13 +115,15 @@ private:
 	T* image_data_;
 
 	std::array<T*, kNumFaces> faces_;
+
+	static constexpr auto desired_channels_ = int{4};
 };
 
 template <>
-auto HdriToCubemap<unsigned char>::init(std::string_view pathHdri, int cubemapResolution, bool filterLinear) -> bool {
+auto HdriToCubemap<unsigned char>::init(std::string_view pathHdri, int desired_resolution, bool filter_linear) -> bool {
 
-	set_resolution(cubemapResolution);
-	set_filter_linear(filterLinear);
+	set_resolution(desired_resolution);
+	set_filter_linear(filter_linear);
 
 	stbi_set_flip_vertically_on_load(1);
 	set_is_hdri(stbi_is_hdr(pathHdri.data()));
@@ -130,7 +132,8 @@ auto HdriToCubemap<unsigned char>::init(std::string_view pathHdri, int cubemapRe
 		LOG_WARN("%s", "Warning: image will be converted from hdr to ldr by stb_image. Use float-type template argument to create an hdr cubemap\n");
 	set_is_hdri(false);
 
-	image_data_ = stbi_load(pathHdri.data(), get_width_ptr(), get_height_ptr(), get_num_channels_ptr(), 0);
+	image_data_            = stbi_load(pathHdri.data(), get_width_ptr(), get_height_ptr(), get_num_channels_ptr(), desired_channels_);
+	get_num_channels_ref() = desired_channels_;
 	if (!image_data_) {
 		LOG_WARN("Failed to load image %*s\n", static_cast<int>(pathHdri.size()), pathHdri.data());
 		return false;
@@ -143,9 +146,9 @@ auto HdriToCubemap<unsigned char>::init(std::string_view pathHdri, int cubemapRe
 	return true;
 }
 template <>
-auto HdriToCubemap<float>::init(std::string_view pathHdri, int cubemapResolution, bool filterLinear) -> bool {
-	set_resolution(cubemapResolution);
-	set_filter_linear(filterLinear);
+auto HdriToCubemap<float>::init(std::string_view pathHdri, int desired_resolution, bool filter_linear) -> bool {
+	set_resolution(desired_resolution);
+	set_filter_linear(filter_linear);
 
 	set_is_hdri(stbi_is_hdr(pathHdri.data()));
 
@@ -153,7 +156,9 @@ auto HdriToCubemap<float>::init(std::string_view pathHdri, int cubemapResolution
 		LOG_WARN("%s", "Warning: image will be converted from ldr to hdr by stb_image. Use unsigned-char-type template argument to create an ldr cubemap\n");
 	set_is_hdri(true);
 
-	image_data_ = stbi_loadf(pathHdri.data(), get_width_ptr(), get_height_ptr(), get_num_channels_ptr(), 0);
+	image_data_            = stbi_loadf(pathHdri.data(), get_width_ptr(), get_height_ptr(), get_num_channels_ptr(), desired_channels_);
+	get_num_channels_ref() = desired_channels_;
+
 	if (!image_data_) {
 		LOG_WARN("Failed to load image %*s\n", static_cast<int>(pathHdri.size()), pathHdri.data());
 		return false;
@@ -178,7 +183,9 @@ void HdriToCubemap<T>::destroy() {
 
 template <typename T>
 void HdriToCubemap<T>::write_cubemap(std::string_view const output_folder) {
-	HdriToCubemapBase::write_cubemap(output_folder, {static_cast<void const*>(std::data(faces_)), kNumFaces});
+	auto pdata = reinterpret_cast<void const* const*>(std::data(faces_));
+	auto fspan = std::span{pdata, std::size(faces_)};
+	HdriToCubemapBase::write_cubemap(output_folder, fspan);
 }
 
 template <typename T>

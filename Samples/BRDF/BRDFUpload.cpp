@@ -197,8 +197,16 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 		CHECK_VULKAN_RESULT(networks[u32(BrdfFunctionType::eCoopVec)].UpdateOffsetsAndSize(device, LayoutTy::eInferencingOptimal, ComponentTy::eFloat16, ComponentTy::eFloat16));
 	}
 
-	CubeMetadata         cube_data;
-	HdriToCubemap<float> hdri_cube;
+	CubeMetadata cube_data;
+	// HdriToCubemap<float> hdri_cube;
+
+	using HDRTy =
+		//  unsigned char
+		float
+		//
+		;
+	HdriToCubemap<HDRTy> hdri_cube;
+
 
 	// if (std::filesystem::exists(cubemap_folder_path)){
 
@@ -228,27 +236,39 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 
 	if (cubemap_found) {
 		if (is_hdr_cubemap) {
-			auto hdri_res = 1024;
+			auto hdri_res = 512;
 			hdri_cube.init(cubemap_folder_path, hdri_res);
 
 			std::printf("res: %d\n", hdri_cube.get_resolution());
 			std::printf("channels: %d\n", hdri_cube.get_num_channels());
-			assert(hdri_cube.image_size_bytes() == hdri_res * hdri_res * sizeof(float) * hdri_cube.get_num_channels());
+			assert(hdri_cube.image_size_bytes() == hdri_res * hdri_res * sizeof(HDRTy) * hdri_cube.get_num_channels());
+			// hdri_cube.write_cubemap("Assets");
+
 
 		} else {
 			cube_data.init(cubemap_folder_path);
 		}
 	}
-	auto cube_extent = is_hdr_cubemap ? get_extent(hdri_cube) : get_extent(cube_data);
 
 	if (hasattr(&BRDFSample::cubemap_folder_path)) {
+		auto cube_extent = is_hdr_cubemap ? get_extent(hdri_cube) : get_extent(cube_data);
 
-		auto cube_format =
-			is_hdr_cubemap
-				? (hdri_cube.get_num_channels() == 4
-					   ? vk::Format::eR32G32B32A32Sfloat
-					   : vk::Format::eR32G32B32Sfloat)
-				: vk::Format::eR8G8B8A8Unorm;
+		auto cube_format = [&] {
+			if (is_hdr_cubemap) {
+				if (hdri_cube.get_is_hdri()) {
+					if (hdri_cube.get_num_channels() == 3) {
+						return vk::Format::eR32G32B32Sfloat;
+					} else {
+						return vk::Format::eR32G32B32A32Sfloat;
+					}
+				} else {
+					if (hdri_cube.get_num_channels() == 3) {
+						return vk::Format::eR8G8B8Unorm;
+					}
+				}
+			}
+			return vk::Format::eR8G8B8A8Unorm;
+		}();
 
 		cubemap_image.Create(
 			device, vma_allocator, allocator,

@@ -130,7 +130,7 @@ public:
 	// bool use_validation = true;
 	bool use_validation = false;
 
-	BrdfFunctionType function_type = BrdfFunctionType::eCoopVec;
+	BrdfFunctionType function_type = BrdfFunctionType::eClassic;
 	// std::optional<BrdfFunctionType> function_type = std::nullopt;
 	std::string_view weights_file_name;
 	std::string_view kan_weights_file_name;
