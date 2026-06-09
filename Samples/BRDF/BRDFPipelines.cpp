@@ -8,13 +8,11 @@ module BRDFSample;
 
 namespace fs = std::filesystem;
 
-using SV = std::string_view;
-
 #define LF(fn) [&](auto&&... args) { return fn; }
 #define LF_PACK(fn) [&](auto&&... args) { (fn, ...); }
 
 auto error_read_file(std::string_view name) -> Utils::BinDataOption {
-	std::printf("Failed to read shader file: %*s\n", int(name.size()), name.data());
+	std::printf("Failed to read shader file: %*s\n", int(std::size(name)), std::data(name));
 	std::exit(1);
 	return {};
 };
@@ -42,12 +40,6 @@ class Tu : std::tuple<Args...> {
 	using std::tuple<Args...>::std::tuple;
 };
 
-static constexpr auto gModelNames = std::array{
-#define BRDF_NAME(x) SV(#x),
-#include "BRDFModels.def"
-#undef BRDF_NAME
-};
-
 using CreatePipelineFN     = vk::Pipeline (BRDFSample::*)(vk::ShaderModule, const SpecData&);
 using PipelineFromModuleFN = vk::Pipeline (*)(vk::ShaderModule, void* user_data);
 
@@ -56,6 +48,7 @@ struct _UserData {
 	CreatePipelineFN f;
 	SpecData         spec;
 };
+
 
 [[nodiscard]]
 auto PipelineFromCode(
@@ -105,7 +98,7 @@ auto BRDFSample::EnsurePipeline(u32 id) -> vk::Pipeline {
 		return std::string_view(path_buffer, printed);
 	};
 
-	auto const s_code = gdata.code.value_or(readfile(make_path(gModelNames[id])).value());
+	auto const s_code = gdata.code.value_or(readfile(make_path(GeneratedNames()[id].name)).value());
 	// readfile
 
 	_UserData udata{this, &BRDFSample::CreatePipeline, {.function_type = function_type, .function_id = id}};

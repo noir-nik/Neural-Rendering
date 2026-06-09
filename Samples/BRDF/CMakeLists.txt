@@ -159,6 +159,8 @@ foreach(model ${MODELS_FILES_SLANG})
 	if("${model_basename_we}" MATCHES "NBRDF")
 		# message(STATUS "contains NBRDF")
 		list(APPEND OPTIONS_SLANG_model -DNBRDF -DFF=${model_basename_we})
+	elseif("${model_basename_we}" MATCHES "KAN")
+
 	endif() 
 
 	# Output name

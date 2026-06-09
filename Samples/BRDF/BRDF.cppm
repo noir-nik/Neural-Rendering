@@ -54,6 +54,23 @@ struct SpecData {
 extern "C++" struct ImDrawData;
 #endif
 
+template <typename T>
+using CSpan = std::span<T const>;
+template <typename T>
+using Span = std::span<T>;
+
+using SV = std::string_view;
+
+struct BRDFModelData {
+	std::string_view name;
+
+	u32 layers;
+	u32 layer_size;
+	u32 grids;
+	u32 learnable_params;
+	u32 total_params;
+};
+
 class BRDFSample {
 public:
 	static constexpr u32 kFramesInFlight = 3;
@@ -249,6 +266,8 @@ public:
 
 	auto GeneratedPipeline(u32 i) -> vk::Pipeline;
 	auto EnsurePipeline(u32 i) -> vk::Pipeline;
+
+	auto GeneratedNames() -> CSpan<BRDFModelData>;
 
 	// vk::Pipeline getpipeline
 

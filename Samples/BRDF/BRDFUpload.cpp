@@ -20,11 +20,6 @@ using namespace mesh;
 
 using numeric::float16_t;
 
-template <typename T>
-using CSpan = std::span<T const>;
-template <typename T>
-using Span = std::span<T>;
-
 void DumpVertexData(std::span<const Vertex> vertices, std::span<const UVSphere::IndexType> indices) {
 	std::printf("Vertices:\n");
 	for (u32 i = 0; i < vertices.size(); ++i) {
@@ -273,8 +268,8 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 
 	if (cubemap_found) {
 		if (is_hdr_cubemap) {
-			auto hdri_res = 512;
- 			auto const desired_channels = int{4};
+			auto       hdri_res         = 512;
+			auto const desired_channels = int{4};
 
 			hdri_image_data = stbi_loadf(std::data(cubemap_folder_path), &width, &height, &num_channels, desired_channels);
 			num_channels    = desired_channels;
