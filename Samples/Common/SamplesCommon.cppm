@@ -19,3 +19,4 @@ export import :LoadObj;
 export import float16;
 export import UI;
 export import CubeMap;
+export import HdriToCubemap;

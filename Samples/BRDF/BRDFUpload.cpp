@@ -19,12 +19,10 @@ using namespace mesh;
 
 using numeric::float16_t;
 
-
 template <typename T>
 using CSpan = std::span<T const>;
 template <typename T>
 using Span = std::span<T>;
-
 
 void DumpVertexData(std::span<const Vertex> vertices, std::span<const UVSphere::IndexType> indices) {
 	std::printf("Vertices:\n");
@@ -403,7 +401,6 @@ auto write_fast_kan(
 	return result;
 }
 
-
 void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	LOG_DEBUG("BRDFSample::CreateAndUploadBuffers()");
 
@@ -472,18 +469,33 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 		CHECK_VULKAN_RESULT(networks[u32(BrdfFunctionType::eCoopVec)].UpdateOffsetsAndSize(device, LayoutTy::eInferencingOptimal, ComponentTy::eFloat16, ComponentTy::eFloat16));
 	}
 
-	CubeMetadata cube_data;
+	CubeMetadata         cube_data;
+	HdriToCubemap<float> hdri_cube;
+
+	bool const is_hdr_cubemap =
+		std::filesystem::is_directory(cubemap_folder_path)
+			? false
+			: true;
 
 	if (hasattr(&BRDFSample::cubemap_folder_path)) {
 
-		cube_data = LoadCubemap(cubemap_folder_path);
+		if (is_hdr_cubemap) {
+			hdri_cube.Init(cubemap_folder_path, 1024);
+		} else {
+			cube_data.init(cubemap_folder_path);
+		}
+
+		auto cube_format =
+			is_hdr_cubemap
+				? vk::Format::eR8G8B8A8Unorm
+				: vk::Format::eR8G8B8A8Unorm;
 
 		cubemap_image.Create(
 			device, vma_allocator, allocator,
 			{.image_info = {
 				 .flags         = vk::ImageCreateFlagBits::eCubeCompatible,
 				 .imageType     = vk::ImageType::e2D,
-				 .format        = vk::Format::eR8G8B8A8Unorm,
+				 .format        = cube_format,
 				 .extent        = {static_cast<u32>(cube_data.width), static_cast<u32>(cube_data.height), 1},
 				 .mipLevels     = 1,
 				 .arrayLayers   = kCubeSideCount,
