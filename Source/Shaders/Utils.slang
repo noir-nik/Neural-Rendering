@@ -623,10 +623,23 @@ float3 Filmic(float3 x) {
 }
 
 float3 ToneMapR1Gamma(float3 color, float gamma = 2.4) {
-	color = ToneMapR1(color);
+	color = ToneMapR(color);
+	// color = ToneMapR1(color);
 	return GammaF3(color, gamma);
 
 	// return pow(color, float3(1. / gamma));
 }
 
+float2 SampleEquirectangular(float3 dir) {
+	const float PI = 3.1415926535897932384626433832795;
+	// Horizontal angle (longitude) and vertical angle (latitude)
+	float phi   = atan2(dir.z, dir.x);
+	float theta = acos(dir.y);
+
+	// Map angles to [0.0, 1.0] range
+	// phi outputs [-PI, PI] -> map to [0, 1]
+	// theta outputs [0, PI] -> map to [0, 1]
+	float2 uv = float2(phi / (2.0 * PI) + 0.5, theta / PI);
+	return uv;
+}
 

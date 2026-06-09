@@ -67,8 +67,6 @@ import INC;
 
 #endif
 
-
-
 #ifndef _T
 #define _T float
 // #define _T half
@@ -78,7 +76,7 @@ typealias Tp = _T;
 // clang-format off
 [[vk::binding(BINDING_STORAGE_BUFFER, 0)]] StructuredBuffer<float> gWeights;
 [[vk::binding(BINDING_STORAGE_BUFFER, 0)]] StructuredBuffer<COOPVEC_TYPE> gWeightsCoopVec;
-[[vk::binding(BINDING_TEXTURE, 0)]]        SamplerCube gEnvMap;
+[[vk::binding(BINDING_TEXTURE, 0)]]        Sampler2D gEnvMap;
 [[vk::binding(BINDING_STORAGE_IMAGE, 0)]]  RWTexture2D<float4> gAccumBuffer;	
 
 [[vk::push_constant]] BRDFConstants ctx;
@@ -221,15 +219,12 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 				eval = (brdf * NdotL);
 
 			} else {
-				float4 env_sample   = gEnvMap.Sample(light_dir) * 5.;
+				float4 env_sample   = gEnvMap.Sample(SampleEquirectangular(light_dir));
 				float3 env_radiance = env_sample.rgb;
 				mis_weight          = MISWeight(pdf, pdf_other, 2.0);
 				eval                = (brdf * env_radiance * NdotL * mis_weight) / pdf;
 				// eval                = (brdf * NdotL* env_radiance);
 			}
-
-			// Tone-mapping + gamma
-			eval = ToneMapR1Gamma(eval);
 
 			// eval = min(eval, float3(10.0, 10.0, 10.0));
 			current_sample += eval;
@@ -241,7 +236,10 @@ float4 ps_main(VSOutput ps_input) : SV_TARGET {
 
 	gAccumBuffer[pixel_coord] = float4(accumulated_color, new_sample_count);
 
-	return (float4(accumulated_color, 1.0));
+	// Tone-mapping + gamma
+	float3 out_color = ToneMapR1Gamma(accumulated_color);
+
+	return (float4(out_color, 1.0));
 }
 
 

@@ -45,7 +45,6 @@ struct TestOptions {
 	int test_count = 1;
 };
 
-
 struct SpecData {
 	BrdfFunctionType function_type = BrdfFunctionType::eCoopVec;
 	u32              function_id   = 0; // inline
@@ -228,7 +227,18 @@ public:
 	// static constexpr int kTestFunctionsCount = std::size(_HeaderNames_count_array);
 
 	// std::array<vk::Pipeline, kTestFunctionsCount> pipelines_header = {};
+
 	std::vector<vk::Pipeline> pipelines_header = {};
+	using ShaderCodeView   = std::span<std::byte const>;
+	using ShaderCodeVec    = std::vector<std::byte>;
+	using ShaderCodeOption = std::optional<ShaderCodeVec>;
+
+	struct PipelineData {
+		ShaderCodeVec code{};
+		vk::Pipeline  pipeline{};
+	};
+
+	auto GeneratedPipeline(u32 i) -> vk::Pipeline;
 
 	// vk::Pipeline getpipeline
 

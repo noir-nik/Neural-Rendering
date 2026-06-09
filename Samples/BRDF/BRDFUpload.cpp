@@ -274,14 +274,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 	if (cubemap_found) {
 		if (is_hdr_cubemap) {
 			auto hdri_res = 512;
-			// hdri_cube.init(cubemap_folder_path, hdri_res);
-
-			// std::printf("res: %d\n", hdri_cube.get_resolution());
-			// std::printf("channels: %d\n", hdri_cube.get_num_channels());
-			// assert(hdri_cube.image_size_bytes() == hdri_res * hdri_res * sizeof(HDRTy) * hdri_cube.get_num_channels());
-			// // hdri_cube.write_cubemap("Assets");
-
-			auto const desired_channels = int{4};
+ 			auto const desired_channels = int{4};
 
 			hdri_image_data = stbi_loadf(std::data(cubemap_folder_path), &width, &height, &num_channels, desired_channels);
 			num_channels    = desired_channels;
@@ -336,7 +329,7 @@ void BRDFSample::CreateAndUploadBuffers(NetworkBufferInfo const& network_info) {
 				+ kan.size_bytes() * 5
 				+ cube_data.size_bytes() * 2 * cube_data.is_valid()
 				// + hdri_cube.size_bytes() * 2 * hdri_cube.is_valid()
-				+ hdr_image_size_bytes());
+				+ hdr_image_size_bytes() * 2);
 
 	// Create buffers
 	// clang-format off

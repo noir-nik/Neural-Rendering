@@ -39,18 +39,6 @@ VSOutput vs_main(uint vertexId: SV_VertexID) {
 	return output;
 }
 
-float2 SampleEquirectangular(float3 dir) {
-	const float PI = 3.1415926535897932384626433832795;
-	// Horizontal angle (longitude) and vertical angle (latitude)
-	float phi   = atan2(dir.z, dir.x);
-	float theta = acos(dir.y);
-
-	// Map angles to [0.0, 1.0] range
-	// phi outputs [-PI, PI] -> map to [0, 1]
-	// theta outputs [0, PI] -> map to [0, 1]
-	float2 uv = float2(phi / (2.0 * PI) + 0.5, theta / PI);
-	return uv;
-}
 
 [[shader("fragment")]]
 float4 ps_main(VSOutput input) : SV_TARGET {
@@ -75,7 +63,8 @@ float4 ps_main(VSOutput input) : SV_TARGET {
 	// out = pow(out, 1);
 	// out = GammaF3(out, 1 / 2.2);
 	// out = float3(1.0) - exp(-color.rgb * exposure);
-	// out = ToneMapR(out);
+	
+	out = ToneMapR1Gamma(out);
 	// out = GammaF3(out, 2.2);
 
 	return float4(out.rgb, 1.0);

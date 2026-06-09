@@ -666,25 +666,25 @@ void BRDFSample::CreatePipelineLayout() {
 
 namespace fs = std::filesystem;
 
-using CodeTypeRaw = std::span<std::byte const>;
-using CodeType    = std::optional<std::vector<std::byte>>;
-using SV          = std::string_view;
+
+
+using SV = std::string_view;
 
 #define LF(fn) [&](auto&&... args) { return fn; }
 #define LF_PACK(fn) [&](auto&&... args) { (fn, ...); }
 
-auto error_read_file(std::string_view name) -> CodeType {
+auto error_read_file(std::string_view name) -> BRDFSample::ShaderCodeOption {
 	std::printf("Failed to read shader file: %*s\n", int(name.size()), name.data());
 	std::exit(1);
 	return {};
 };
 
-auto readfile(SV fpath) -> CodeType {
+auto readfile(SV fpath) -> BRDFSample::ShaderCodeOption {
 	return Utils::ReadBinaryFile(fpath).or_else(LF(error_read_file(fpath)));
 };
 
 // glob shader codes
-void glob(SV const dir, SV const generated_extension, std::vector<CodeType>& output_codes) {
+void glob(SV const dir, SV const generated_extension, std::vector<BRDFSample::ShaderCodeOption>& output_codes) {
 	for (auto const& entry : fs::directory_iterator(dir)) {
 		auto const path_str = entry.path().string();
 		auto const path_sv  = SV(path_str);
@@ -711,7 +711,7 @@ using PipelineFromModuleFN = vk::Pipeline (*)(vk::ShaderModule, void* user_data)
 
 [[nodiscard]]
 auto PipelineFromCode(
-	CodeTypeRaw                    code,
+	BRDFSample::ShaderCodeView                 code,
 	vk::Device                     device,
 	vk::AllocationCallbacks const* allocator,
 	PipelineFromModuleFN           create_pipeline_fn,
@@ -778,8 +778,8 @@ void BRDFSample::CreatePipelines() {
 
 	auto gen_shader_modules =
 		[&](
-			std::span<CodeType const> shader_codes,
-			std::span<vk::Pipeline>   out_pipelines,
+			std::span<ShaderCodeOption const> shader_codes,
+			std::span<vk::Pipeline>           out_pipelines,
 			vk::Pipeline (BRDFSample::*create_pipeline_fn)(vk::ShaderModule, const SpecData&)) {
 			//
 
