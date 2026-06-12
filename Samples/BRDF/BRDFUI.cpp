@@ -2,6 +2,7 @@
 module;
 #include "CheckResult.h"
 #include "vulkan/vulkan_core.h"
+#include <cassert>
 
 module BRDFSample;
 
@@ -53,11 +54,45 @@ constexpr auto GetTWImColor(TWImColor color) {
 
 } // namespace TWImColor
 
+constexpr int hexCharToDec(char c) {
+	if (c >= '0' && c <= '9') return c - '0';
+	if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+	if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+	return 0;
+}
+
+// Input "#RRGGBB" or "RRGGBB"
+constexpr ImVec4 hexToRgb(SV hex) {
+	assert(std::size(hex) >= 3 && std::size(hex) <= 7);
+	int start = (hex[0] == '#') ? 1 : 0;
+	int r     = (hexCharToDec(hex[start]) * 16 + hexCharToDec(hex[start + 1]));
+	int g     = (hexCharToDec(hex[start + 2]) * 16 + hexCharToDec(hex[start + 3]));
+	int b     = (hexCharToDec(hex[start + 4]) * 16 + hexCharToDec(hex[start + 5]));
+	return {float(r) / 256.f, float(g) / 256.f, float(b) / 256.f, 1.0};
+}
+
+// Usage:
+// static_assert(hexToRgb("#FF0000") == RGB{255, 0, 0});
+
 auto color_red   = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
 auto color_green = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
 // auto color_green   = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 // auto color_details = color_green;
-auto color_details = TWImColor::Black;
+// auto color_details = TWImColor::Black;
+// auto color_details = TWImColor::Orange700;
+// auto color_details = TWImColor::Green700;
+
+constexpr auto green700  = hexToRgb("15803D"); //
+constexpr auto orange700 = hexToRgb("C2410C"); //
+
+constexpr auto color_details =
+	//
+	//  green700
+	// orange700
+	TWImColor::White
+	//
+	;
+
 // auto color_details = TWImColor::White;
 
 auto select_discrete_color(int low, int high, double t) {
@@ -109,8 +144,17 @@ auto ModelsWindow(u32 old_selected_option) -> u32 {
 	float const pos_x   = ImGui::GetMainViewport()->WorkSize.x - width - padding;
 	float const pos_y   = padding;
 
-	int  selected_option = old_selected_option; // or_else([]{return 0u;});
-	auto option_counter  = int{0};
+	int selected_option = old_selected_option; // or_else([]{return 0u;});
+
+	constexpr auto point_model_count = int{
+		0
+#define BRDF_NAME(x) +1
+#include "BRDFModels-point.def"
+#undef BRDF_NAME
+	};
+
+	auto option_counter = int{0};
+	// auto option_counter = point_model_count;
 
 	auto const list_option = [&](SV str) {
 		const bool is_selected = (selected_option == option_counter);
@@ -176,7 +220,7 @@ auto FPSWindow(float elapsed_last_frame_ms) -> void {
 	}
 
 	// color_details = select_discrete_color(0, 300, last_gpu_fps);
-	color_details = TWImColor::White;
+	// color_details = TWImColor::White;
 
 	if (ImGui::Begin("FPS", nullptr, invisible_flags)) {
 		ImGui::PushFont(nullptr, 96);
